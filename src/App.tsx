@@ -302,7 +302,7 @@ export default function App() {
       const db = new SQL.Database(new Uint8Array(buf));
       const segmentCheck = SEGMENTS.map(s => `'${s}'`).join(',');
 
-      applyMigrations(db
+      applyMigrations(db);
       db.run(`CREATE TABLE IF NOT EXISTS monthly_default (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         month TEXT NOT NULL,
