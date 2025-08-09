@@ -9,7 +9,7 @@ const Grid = WidthProvider(GridLayout);
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
 - Data stays local via File System Access API + sql.js (WASM) SQLite
 - Single-editor model (soft lock stored in DB). No multi-user concurrency.
-- Views: Daily Run Board, Needs vs Coverage, Export Preview
+ - Views: Daily Run Board with Coverage Overview, Baseline Needs, Export Preview
 - Features: Create/Open/Save DB, People editor, Needs baseline + date overrides,
             Assignments with rules, Import Time-Off from Teams XLSX, Export to Shifts XLSX
 
@@ -198,7 +198,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState<string>(() => fmtDateMDY(new Date()));
   const [exportStart, setExportStart] = useState<string>(() => fmtDateMDY(new Date()));
   const [exportEnd, setExportEnd] = useState<string>(() => fmtDateMDY(new Date()));
-  const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY">("RUN");
+  const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "BASELINE" | "EXPORT" | "MONTHLY">("RUN");
   const [activeRunSegment, setActiveRunSegment] = useState<Exclude<Segment, "Early">>("AM");
 
   // Diagnostics
@@ -215,9 +215,6 @@ export default function App() {
     });
   const [monthlyDefaults, setMonthlyDefaults] = useState<any[]>([]);
   const [monthlyEditing, setMonthlyEditing] = useState(false);
-
-  // UI: simple dialogs
-  const [showBaselineEditor, setShowBaselineEditor] = useState(false);
 
   useEffect(() => {
     if (sqlDb) loadMonthlyDefaults(selectedMonth);
@@ -932,7 +929,7 @@ export default function App() {
         <div className="flex flex-wrap items-center gap-2">
           <button className={`px-3 py-2 rounded text-sm ${activeTab==='RUN'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('RUN')}>Daily Run</button>
           <button className={`px-3 py-2 rounded text-sm ${activeTab==='PEOPLE'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('PEOPLE')}>People</button>
-          <button className={`px-3 py-2 rounded text-sm ${activeTab==='NEEDS'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('NEEDS')}>Needs vs Coverage</button>
+          <button className={`px-3 py-2 rounded text-sm ${activeTab==='BASELINE'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('BASELINE')}>Baseline Needs</button>
           <button className={`px-3 py-2 rounded text-sm ${activeTab==='EXPORT'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('EXPORT')}>Export Preview</button>
           <button className={`px-3 py-2 rounded text-sm ${activeTab==='MONTHLY'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('MONTHLY')}>Monthly Defaults</button>
           <button className="px-3 py-2 rounded bg-slate-200 text-sm" onClick={runDiagnostics}>Run Diagnostics</button>
@@ -996,9 +993,6 @@ export default function App() {
               <button key={s} className={`px-3 py-1 rounded text-sm ${activeRunSegment===s?'bg-indigo-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveRunSegment(s)}>{s}</button>
             ))}
           </div>
-          <div className="flex flex-wrap gap-2 lg:ml-auto">
-            <button className="px-3 py-2 bg-slate-200 rounded text-sm" onClick={()=>setShowBaselineEditor(true)}>Edit Baseline Needs</button>
-          </div>
         </div>
 
         <Grid
@@ -1023,6 +1017,8 @@ export default function App() {
             </div>
           ))}
         </Grid>
+
+        <CoveragePanel />
 
         {diag && (
           <div className="mt-6 border rounded bg-white p-3">
@@ -1129,24 +1125,11 @@ export default function App() {
     );
   }
 
-  function NeedsView(){
+  function CoveragePanel(){
     const d = selectedDateObj;
     return (
-      <div className="p-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
-          <label className="whitespace-nowrap">Date</label>
-          <input
-            type="date"
-            className="border rounded px-2 py-1 min-w-0"
-            value={ymd(selectedDateObj)}
-            onChange={(e)=>{
-              const v = e.target.value;
-              if (v) setSelectedDate(fmtDateMDY(parseYMD(v)));
-            }}
-          />
-          <span className="text-slate-500 text-sm">Edit overrides for this date. Baseline editor is in Daily Run toolbar.</span>
-        </div>
-
+      <div className="mt-6">
+        <div className="font-semibold mb-2">Coverage Overview</div>
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
           {groups.map((g:any)=> (
             <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
@@ -1378,42 +1361,35 @@ export default function App() {
     );
   }
 
-  function BaselineEditor(){
+  function BaselineView(){
     return (
-      <div className="fixed inset-0 bg-black/40 z-30 overflow-auto">
-        <div className="min-h-full flex items-start justify-center p-4">
-          <div className="bg-white w-full max-w-6xl max-h-[85vh] overflow-auto rounded-xl p-4 shadow-xl">
-          <div className="flex items-center justify-between mb-4">
-            <div className="font-semibold text-lg">Baseline Needs</div>
-            <button className="text-slate-600 hover:text-slate-800 px-2 py-1" onClick={()=>setShowBaselineEditor(false)}>Close</button>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-            {groups.map((g:any)=> (
-              <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
-                <div className="font-semibold mb-3">{g.name}</div>
-                {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
-                  <div key={r.id} className="mb-4 border rounded p-3">
-                    <div className="font-medium mb-3">{r.name}</div>
-                    <div className="space-y-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
-                      <div>
-                        <div className="text-xs text-slate-500 mb-1">AM Required</div>
-                        <RequiredCell date={null} group={g} role={r} segment={'AM'} />
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 mb-1">Lunch Required</div>
-                        <RequiredCell date={null} group={g} role={r} segment={'Lunch'} />
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 mb-1">PM Required</div>
-                        <RequiredCell date={null} group={g} role={r} segment={'PM'} />
-                      </div>
+      <div className="p-4">
+        <div className="font-semibold text-lg mb-4">Baseline Needs</div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+          {groups.map((g:any)=> (
+            <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
+              <div className="font-semibold mb-3">{g.name}</div>
+              {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
+                <div key={r.id} className="mb-4 border rounded p-3">
+                  <div className="font-medium mb-3">{r.name}</div>
+                  <div className="space-y-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">AM Required</div>
+                      <RequiredCell date={null} group={g} role={r} segment={'AM'} />
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">Lunch Required</div>
+                      <RequiredCell date={null} group={g} role={r} segment={'Lunch'} />
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">PM Required</div>
+                      <RequiredCell date={null} group={g} role={r} segment={'PM'} />
                     </div>
                   </div>
-                ))}
-              </div>
-            ))}
-          </div>
-          </div>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -1441,13 +1417,11 @@ export default function App() {
         <>
           {activeTab === 'RUN' && <DailyRunBoard />}
           {activeTab === 'PEOPLE' && <PeopleEditor />}
-          {activeTab === 'NEEDS' && <NeedsView />}
+          {activeTab === 'BASELINE' && <BaselineView />}
           {activeTab === 'EXPORT' && <ExportView />}
           {activeTab === 'MONTHLY' && <MonthlyView />}
         </>
       )}
-
-      {showBaselineEditor && <BaselineEditor />}
     </div>
   );
 }
