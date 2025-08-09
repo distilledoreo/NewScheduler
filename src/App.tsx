@@ -1,4 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import GridLayout, { WidthProvider } from "react-grid-layout";
+import "react-grid-layout/css/styles.css";
+import "react-resizable/css/styles.css";
+
+const Grid = WidthProvider(GridLayout);
 
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
@@ -938,7 +943,38 @@ export default function App() {
 
   function DailyRunBoard(){
     const seg: Exclude<Segment, "Early"> = activeRunSegment;
-    const map = assignmentsByGroupRole(selectedDate, seg);
+    const [layout, setLayout] = useState<any[]>([]);
+    const [layoutLoaded, setLayoutLoaded] = useState(false);
+
+    useEffect(() => {
+      setLayoutLoaded(false);
+      const key = `layout:${seg}:${lockEmail || 'default'}`;
+      let saved: any[] = [];
+      try {
+        const rows = all(`SELECT value FROM meta WHERE key=?`, [key]);
+        if (rows[0] && rows[0].value) saved = JSON.parse(String(rows[0].value));
+      } catch {}
+      const byId = new Map(saved.map((l:any)=>[l.i, l]));
+      const merged = groups.map((g:any, idx:number) => {
+        const roleCount = roleListForSegment(seg).filter((r)=>r.group_id===g.id).length;
+        const h = Math.max(2, roleCount + 1);
+        return byId.get(String(g.id)) || { i:String(g.id), x:(idx%4)*3, y:Math.floor(idx/4)*h, w:3, h };
+      });
+      setLayout(merged);
+      setLayoutLoaded(true);
+    }, [groups, lockEmail, seg]);
+
+    function handleLayoutChange(l:any[]){
+      setLayout(l);
+      if (!layoutLoaded) return;
+      const key = `layout:${seg}:${lockEmail || 'default'}`;
+      try {
+        const stmt = sqlDb.prepare(`INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)`);
+        stmt.bind([key, JSON.stringify(l)]);
+        stmt.step();
+        stmt.free();
+      } catch {}
+    }
 
     return (
       <div className="p-4">
@@ -965,22 +1001,28 @@ export default function App() {
           </div>
         </div>
 
-        {/* Board: Group -> Roles -> assignment slots */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+        <Grid
+          className="layout"
+          layout={layout}
+          cols={12}
+          rowHeight={80}
+          onLayoutChange={handleLayoutChange}
+          draggableHandle=".drag-handle"
+        >
           {groups.map((g:any)=> (
-            <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
-              <div className="font-semibold mb-2 flex items-center justify-between">
+            <div key={String(g.id)} className="border rounded-lg bg-white shadow-sm flex flex-col h-full">
+              <div className="font-semibold flex items-center justify-between mb-2 drag-handle px-3 pt-3">
                 <span>{g.name}</span>
                 <span className="text-xs text-slate-500">Theme: {g.theme_color||'-'}</span>
               </div>
-              <div className="flex flex-col gap-3">
+              <div className="flex-1 flex flex-col gap-3 px-3 pb-3 overflow-auto">
                 {roleListForSegment(seg).filter((r)=>r.group_id===g.id).map((r:any)=> (
                   <RoleCard key={r.id} group={g} role={r} segment={seg} dateMDY={selectedDate} />
                 ))}
               </div>
             </div>
           ))}
-        </div>
+        </Grid>
 
         {diag && (
           <div className="mt-6 border rounded bg-white p-3">
@@ -1012,7 +1054,7 @@ export default function App() {
 
         {canEdit && (
           <div className="flex items-center gap-2 mb-2">
-            <select className="border rounded px-2 py-1 w-full" defaultValue="" onChange={(e)=>{
+            <select className="border rounded w-full px-2 py-1" defaultValue="" onChange={(e)=>{
               const pid = Number(e.target.value);
               if (!pid) return;
               const sel = opts.find(o=>o.id===pid);
@@ -1027,7 +1069,6 @@ export default function App() {
             </select>
           </div>
         )}
-
         <ul className="space-y-1">
           {assigns.map((a:any)=> (
             <li key={a.id} className="flex items-center justify-between bg-slate-50 rounded px-2 py-1">
