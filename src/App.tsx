@@ -555,8 +555,8 @@ export default function App() {
   async function exportMonthlyDefaults(month: string) {
     if (!sqlDb) return;
     const headers = [
-      'Last Name','First Name','Email','B/S','Commute','Active',
-      'Mon','Tue','Wed','Thu','Fri','AM Role','Lunch Role','PM Role'
+      'Last Name','First Name','AM Role','Lunch Role','PM Role','B/S','Commute','Active',
+      'Mon','Tue','Wed','Thu','Fri'
     ];
     const rows = people.map((p:any) => {
       const roleNames = ['AM','Lunch','PM'].map(seg => {
@@ -567,7 +567,7 @@ export default function App() {
       return [
         p.last_name,
         p.first_name,
-        p.work_email,
+        ...roleNames,
         p.brother_sister || '',
         p.commuter ? 'Yes' : 'No',
         p.active ? 'Yes' : 'No',
@@ -575,8 +575,7 @@ export default function App() {
         p.avail_tue,
         p.avail_wed,
         p.avail_thu,
-        p.avail_fri,
-        ...roleNames
+        p.avail_fri
       ];
     });
 
