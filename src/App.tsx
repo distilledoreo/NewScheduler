@@ -1042,12 +1042,14 @@ export default function App() {
   } 
 
   function MonthlyView(){
+    const [editing, setEditing] = useState(false);
     return (
       <div className="p-4">
         <div className="flex items-center gap-2 mb-4">
           <label className="text-sm">Month</label>
           <input type="month" className="border rounded px-2 py-1" value={selectedMonth} onChange={(e)=>setSelectedMonth(e.target.value)} />
           <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>applyMonthlyDefaults(selectedMonth)}>Apply to Month</button>
+          <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>setEditing(!editing)}>{editing ? 'Done' : 'Edit'}</button>
         </div>
         <div className="overflow-auto">
           <table className="min-w-full text-sm">
@@ -1067,7 +1069,7 @@ export default function App() {
                     const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
                     return (
                       <td key={seg} className="p-2">
-                        <select className="border rounded px-2 py-1 w-full" value={def?.role_id||""} onChange={(e)=>{
+                        <select className="border rounded px-2 py-1 w-full" value={def?.role_id||""} disabled={!editing} onChange={(e)=>{
                           const rid = Number(e.target.value);
                           setMonthlyDefault(p.id, seg, rid||null);
                         }}>
