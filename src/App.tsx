@@ -44,6 +44,20 @@ const GROUP_THEME: Record<string, string> = {
   "Weekend Duty": "5. Pink",
 };
 
+// UI colors for groups (approximate Tailwind palette)
+const GROUP_COLORS: Record<string, string> = {
+  "Bakery": "#e9d5ff", // purple-200
+  "Lunch": "#f9a8d4", // pink-300
+  "Dining Room": "#fde68a", // yellow-200
+  "Veggie Room": "#bbf7d0", // green-200
+  "Machine Room": "#c4b5fd", // indigo-300
+  "Main Course": "#fbcfe8", // pink-200
+  "Prepack": "#a7f3d0", // emerald-200
+  "Office": "#fde68a", // yellow-200
+  "Receiving": "#bfdbfe", // blue-200
+  "Weekend Duty": "#fbcfe8", // pink-200
+};
+
 // Role catalog seed from user mapping
 const ROLE_SEED: Array<{ code: string; name: string; group: string; segments: Segment[] }> = [
   { code: "DR", name: "Buffet", group: "Dining Room", segments: ["AM", "PM"] },
@@ -198,7 +212,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState<string>(() => fmtDateMDY(new Date()));
   const [exportStart, setExportStart] = useState<string>(() => fmtDateMDY(new Date()));
   const [exportEnd, setExportEnd] = useState<string>(() => fmtDateMDY(new Date()));
-  const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY">("RUN");
+  const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY">("RUN");
   const [activeRunSegment, setActiveRunSegment] = useState<Exclude<Segment, "Early">>("AM");
 
   // Diagnostics
@@ -586,6 +600,18 @@ export default function App() {
     loadMonthlyDefaults(selectedMonth);
   }
 
+  function setMonthlyDefaultForMonth(month: string, personId: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
+    if (!sqlDb) return;
+    if (roleId) {
+      run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
+           ON CONFLICT(month, person_id, segment) DO UPDATE SET role_id=excluded.role_id`,
+          [month, personId, segment, roleId]);
+    } else {
+      run(`DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=?`,
+          [month, personId, segment]);
+    }
+  }
+
   function applyMonthlyDefaults(month: string) {
     if (!sqlDb) return;
     const [y,m] = month.split('-').map(n=>parseInt(n,10));
@@ -935,6 +961,7 @@ export default function App() {
           <button className={`px-3 py-2 rounded text-sm ${activeTab==='NEEDS'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('NEEDS')}>Needs vs Coverage</button>
           <button className={`px-3 py-2 rounded text-sm ${activeTab==='EXPORT'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('EXPORT')}>Export Preview</button>
           <button className={`px-3 py-2 rounded text-sm ${activeTab==='MONTHLY'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('MONTHLY')}>Monthly Defaults</button>
+          <button className={`px-3 py-2 rounded text-sm ${activeTab==='HISTORY'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('HISTORY')}>Crew History</button>
           <button className="px-3 py-2 rounded bg-slate-200 text-sm" onClick={runDiagnostics}>Run Diagnostics</button>
         </div>
       </div>
@@ -1213,6 +1240,146 @@ export default function App() {
                   })}
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  function CrewHistoryView(){
+    const [defs, setDefs] = useState<any[]>([]);
+    const [filter, setFilter] = useState("");
+    const [showSeg, setShowSeg] = useState({ AM: true, Lunch: true, PM: true });
+    const [activeOnly, setActiveOnly] = useState(false);
+    const [commuterOnly, setCommuterOnly] = useState(false);
+    const [sortField, setSortField] = useState<'last'|'first'>('last');
+
+    useEffect(() => {
+      if (sqlDb) {
+        setDefs(all(`SELECT * FROM monthly_default`));
+      }
+    }, [sqlDb, monthlyDefaults]);
+
+    const months = useMemo(() => {
+      const ms = new Set(defs.map((d:any) => d.month));
+      const now = new Date();
+      const nm = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const nmStr = `${nm.getFullYear()}-${pad2(nm.getMonth() + 1)}`;
+      ms.add(nmStr);
+      return Array.from(ms).sort();
+    }, [defs]);
+
+    const nextMonth = useMemo(() => {
+      const now = new Date();
+      const nm = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      return `${nm.getFullYear()}-${pad2(nm.getMonth() + 1)}`;
+    }, []);
+
+    const filteredPeople = useMemo(() => {
+      const f = filter.toLowerCase();
+      return people
+        .filter((p:any) => `${p.first_name} ${p.last_name}`.toLowerCase().includes(f))
+        .filter((p:any) => !activeOnly || p.active)
+        .filter((p:any) => !commuterOnly || p.commuter)
+        .sort((a:any,b:any)=>sortField==='last' ? a.last_name.localeCompare(b.last_name) : a.first_name.localeCompare(b.first_name));
+    }, [people, filter, activeOnly, commuterOnly, sortField]);
+
+    const segs = ([] as Exclude<Segment,'Early'>[]);
+    if (showSeg.AM) segs.push('AM');
+    if (showSeg.Lunch) segs.push('Lunch');
+    if (showSeg.PM) segs.push('PM');
+
+    function cellData(month:string, personId:number, seg:Exclude<Segment,'Early'>){
+      const def = defs.find((d:any)=>d.month===month && d.person_id===personId && d.segment===seg);
+      const role = roles.find((r:any)=>r.id===def?.role_id);
+      const color = role ? GROUP_COLORS[role.group_name] : undefined;
+      if (month === nextMonth) {
+        return {
+          content: (
+            <select
+              className="border rounded px-2 py-1 w-full"
+              value={def?.role_id||""}
+              onChange={(e)=>{
+                const rid = Number(e.target.value);
+                setMonthlyDefaultForMonth(month, personId, seg, rid||null);
+                setDefs(all(`SELECT * FROM monthly_default`));
+              }}
+            >
+              <option value=""></option>
+              {roleListForSegment(seg).map((r:any)=>(<option key={r.id} value={r.id}>{r.code}</option>))}
+            </select>
+          ),
+          color
+        };
+      }
+      return { content: role?.code || "", color };
+    }
+
+    return (
+      <div className="p-4">
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <input
+            className="border rounded px-2 py-1"
+            placeholder="Filter people..."
+            value={filter}
+            onChange={(e)=>setFilter(e.target.value)}
+          />
+          <select className="border rounded px-2 py-1 text-sm" value={sortField} onChange={(e)=>setSortField(e.target.value as 'last'|'first')}>
+            <option value="last">Last Name</option>
+            <option value="first">First Name</option>
+          </select>
+          <label className="text-sm flex items-center gap-1">
+            <input type="checkbox" checked={activeOnly} onChange={(e)=>setActiveOnly(e.target.checked)} /> Active
+          </label>
+          <label className="text-sm flex items-center gap-1">
+            <input type="checkbox" checked={commuterOnly} onChange={(e)=>setCommuterOnly(e.target.checked)} /> Commuter
+          </label>
+          <label className="text-sm flex items-center gap-1">
+            <input type="checkbox" checked={showSeg.AM} onChange={(e)=>setShowSeg({...showSeg, AM:e.target.checked})} /> AM
+          </label>
+          <label className="text-sm flex items-center gap-1">
+            <input type="checkbox" checked={showSeg.Lunch} onChange={(e)=>setShowSeg({...showSeg, Lunch:e.target.checked})} /> Lunch
+          </label>
+          <label className="text-sm flex items-center gap-1">
+            <input type="checkbox" checked={showSeg.PM} onChange={(e)=>setShowSeg({...showSeg, PM:e.target.checked})} /> PM
+          </label>
+        </div>
+        <div className="overflow-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-100">
+              <tr>
+                <th className="p-2 text-left">Name</th>
+                <th className="p-2 text-left">Segment</th>
+                {months.map(m => (
+                  <th key={m} className="p-2 text-left">{m}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredPeople.map(p => {
+                const segList = segs;
+                return (
+                  <React.Fragment key={p.id}>
+                    {segList.map((seg, idx) => (
+                      <tr key={`${p.id}-${seg}`} className="odd:bg-white even:bg-slate-50">
+                        {idx === 0 && (
+                          <td className="p-2" rowSpan={segList.length}>{p.last_name}, {p.first_name}</td>
+                        )}
+                        <td className="p-2">{seg}</td>
+                        {months.map(m => {
+                          const { content, color } = cellData(m, p.id, seg);
+                          return (
+                            <td key={m} className="p-2" style={{ backgroundColor: color }}>
+                              {content}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1535,6 +1702,7 @@ export default function App() {
           {activeTab === 'NEEDS' && <NeedsView />}
           {activeTab === 'EXPORT' && <ExportView />}
           {activeTab === 'MONTHLY' && <MonthlyView />}
+          {activeTab === 'HISTORY' && <CrewHistoryView />}
         </>
       )}
 
