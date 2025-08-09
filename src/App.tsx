@@ -1256,7 +1256,7 @@ export default function App() {
     const [editing,setEditing] = useState<any|null>(null);
     return (
       <div className="p-4">
-        <div className="w-full max-w-[900px] mx-auto">
+        <div className="w-full">
           <div className="font-semibold text-lg mb-3">People</div>
 
           <div className="grid grid-cols-12 gap-2 mb-3">
@@ -1293,26 +1293,26 @@ export default function App() {
             )}
           </div>
 
-          <div className="border rounded overflow-auto max-h-[40vh]">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-100">
+          <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
+            <table className="min-w-full text-sm divide-y divide-slate-200">
+              <thead className="bg-slate-100 sticky top-0">
                 <tr>
-                  <th className="p-2 text-left">Name</th>
-                  <th className="p-2 text-left">Email</th>
-                  <th className="p-2 text-left">B/S</th>
-                  <th className="p-2 text-left">Commute</th>
-                  <th className="p-2 text-left">Active</th>
-                  <th className="p-2 text-left">Mon</th>
-                  <th className="p-2 text-left">Tue</th>
-                  <th className="p-2 text-left">Wed</th>
-                  <th className="p-2 text-left">Thu</th>
-                  <th className="p-2 text-left">Fri</th>
-                  <th className="p-2 text-left">Actions</th>
+                  <th className="p-2 text-left font-medium text-slate-600">Name</th>
+                  <th className="p-2 text-left font-medium text-slate-600">Email</th>
+                  <th className="p-2 text-left font-medium text-slate-600">B/S</th>
+                  <th className="p-2 text-left font-medium text-slate-600">Commute</th>
+                  <th className="p-2 text-left font-medium text-slate-600">Active</th>
+                  <th className="p-2 text-left font-medium text-slate-600">Mon</th>
+                  <th className="p-2 text-left font-medium text-slate-600">Tue</th>
+                  <th className="p-2 text-left font-medium text-slate-600">Wed</th>
+                  <th className="p-2 text-left font-medium text-slate-600">Thu</th>
+                  <th className="p-2 text-left font-medium text-slate-600">Fri</th>
+                  <th className="p-2 text-left font-medium text-slate-600">Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-200">
                 {people.map(p => (
-                  <tr key={p.id} className="odd:bg-white even:bg-slate-50">
+                  <tr key={p.id} className="odd:bg-white even:bg-slate-50 hover:bg-slate-100">
                     <td className="p-2">{p.last_name}, {p.first_name}</td>
                     <td className="p-2">{p.work_email}</td>
                     <td className="p-2">{p.brother_sister||'-'}</td>
@@ -1324,8 +1324,8 @@ export default function App() {
                     <td className="p-2">{p.avail_thu}</td>
                     <td className="p-2">{p.avail_fri}</td>
                     <td className="p-2 flex gap-2">
-                      <button className="text-blue-700" onClick={()=>{ setEditing(p); setForm(p); }}>Edit</button>
-                      <button className="text-red-700" onClick={()=>{ if(confirm('Delete?')) deletePerson(p.id); }}>Delete</button>
+                      <button className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded" onClick={()=>{ setEditing(p); setForm(p); }}>Edit</button>
+                      <button className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded" onClick={()=>{ if(confirm('Delete?')) deletePerson(p.id); }}>Delete</button>
                     </td>
                   </tr>
                 ))}
