@@ -1169,6 +1169,9 @@ export default function App() {
     const [activeOnly, setActiveOnly] = useState(false);
     const [commuterOnly, setCommuterOnly] = useState(false);
     const [sortField, setSortField] = useState<'last'|'first'>('last');
+    const [months, setMonths] = useState<string[]>([]);
+    const [newMonth, setNewMonth] = useState<string>("");
+    const [editPast, setEditPast] = useState(false);
 
     useEffect(() => {
       if (sqlDb) {
@@ -1176,13 +1179,16 @@ export default function App() {
       }
     }, [sqlDb, monthlyDefaults]);
 
-    const months = useMemo(() => {
-      const ms = new Set(defs.map((d:any) => d.month));
-      const now = new Date();
-      const nm = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      const nmStr = `${nm.getFullYear()}-${pad2(nm.getMonth() + 1)}`;
-      ms.add(nmStr);
-      return Array.from(ms).sort();
+    useEffect(() => {
+      setMonths(prev => {
+        const ms = new Set(prev);
+        defs.forEach((d:any) => ms.add(d.month));
+        const now = new Date();
+        const nm = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const nmStr = `${nm.getFullYear()}-${pad2(nm.getMonth() + 1)}`;
+        ms.add(nmStr);
+        return Array.from(ms).sort();
+      });
     }, [defs]);
 
     const nextMonth = useMemo(() => {
@@ -1252,7 +1258,7 @@ export default function App() {
       const def = defs.find((d:any)=>d.month===month && d.person_id===personId && d.segment===seg);
       const role = roles.find((r:any)=>r.id===def?.role_id);
       const color = role ? GROUPS[role.group_name]?.color : undefined;
-      if (month === nextMonth) {
+      if (month === nextMonth || editPast) {
         return { content: <RoleSelect month={month} personId={personId} seg={seg} def={def} />, color };
       }
       return { content: role?.code || "", color };
@@ -1286,6 +1292,26 @@ export default function App() {
           <label className="text-sm flex items-center gap-1">
             <input type="checkbox" checked={showSeg.PM} onChange={(e)=>setShowSeg({...showSeg, PM:e.target.checked})} /> PM
           </label>
+          <label className="text-sm flex items-center gap-1">
+            <input type="checkbox" checked={editPast} onChange={(e)=>setEditPast(e.target.checked)} /> Edit past months
+          </label>
+          <div className="flex items-center gap-1">
+            <input
+              type="month"
+              className="border rounded px-2 py-1 text-sm"
+              value={newMonth}
+              onChange={(e)=>setNewMonth(e.target.value)}
+            />
+            <button
+              className="px-2 py-1 bg-slate-200 rounded text-sm"
+              onClick={()=>{
+                if(newMonth){
+                  setMonths(prev=>Array.from(new Set([...prev, newMonth])).sort());
+                  setNewMonth("");
+                }
+              }}
+            >Add Month</button>
+          </div>
         </div>
         <div className="overflow-auto">
           <table className="min-w-full text-sm">
