@@ -4,7 +4,155 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Teams Shifts Scheduler</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* Minimal CSS reset and basic styles */
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; line-height: 1.5; }
+      
+      /* Layout utilities */
+      .flex { display: flex; }
+      .items-center { align-items: center; }
+      .justify-between { justify-content: space-between; }
+      .justify-center { justify-content: center; }
+      .gap-2 { gap: 0.5rem; }
+      .gap-3 { gap: 0.75rem; }
+      .gap-4 { gap: 1rem; }
+      .flex-wrap { flex-wrap: wrap; }
+      .flex-1 { flex: 1; }
+      .min-w-0 { min-width: 0; }
+      .flex-col { flex-direction: column; }
+      
+      /* Grid utilities */
+      .grid { display: grid; }
+      .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+      .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      
+      /* Responsive grid */
+      @media (min-width: 1024px) {
+        .lg\\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .lg\\:flex-row { flex-direction: row; }
+        .lg\\:ml-auto { margin-left: auto; }
+      }
+      @media (min-width: 1280px) {
+        .xl\\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      }
+      @media (min-width: 640px) {
+        .sm\\:grid { display: grid; }
+        .sm\\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .sm\\:gap-3 { gap: 0.75rem; }
+        .sm\\:space-y-0 > :not(:first-child) { margin-top: 0; }
+        .sm\\:flex-row { flex-direction: row; }
+        .sm\\:items-center { align-items: center; }
+      }
+      
+      /* Spacing */
+      .p-2 { padding: 0.5rem; }
+      .p-3 { padding: 0.75rem; }
+      .p-4 { padding: 1rem; }
+      .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+      .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+      .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+      .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+      .mb-1 { margin-bottom: 0.25rem; }
+      .mb-2 { margin-bottom: 0.5rem; }
+      .mb-3 { margin-bottom: 0.75rem; }
+      .mb-4 { margin-bottom: 1rem; }
+      .mx-2 { margin-left: 0.5rem; margin-right: 0.5rem; }
+      .space-y-3 > :not(:first-child) { margin-top: 0.75rem; }
+      
+      /* Sizing */
+      .w-full { width: 100%; }
+      .max-w-6xl { max-width: 72rem; }
+      .max-h-85vh { max-height: 85vh; }
+      
+      /* Position */
+      .fixed { position: fixed; }
+      .inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+      .sticky { position: sticky; }
+      .top-0 { top: 0; }
+      .z-20 { z-index: 20; }
+      .z-30 { z-index: 30; }
+      
+      /* Background colors */
+      .bg-white { background-color: white; }
+      .bg-slate-50 { background-color: #f8fafc; }
+      .bg-slate-100 { background-color: #f1f5f9; }
+      .bg-slate-200 { background-color: #e2e8f0; }
+      .bg-slate-600 { background-color: #475569; }
+      .bg-slate-800 { background-color: #1e293b; }
+      .bg-slate-900 { background-color: #0f172a; }
+      .bg-blue-600 { background-color: #2563eb; }
+      .bg-blue-700 { background-color: #1d4ed8; }
+      .bg-emerald-700 { background-color: #047857; }
+      .bg-emerald-800 { background-color: #065f46; }
+      .bg-indigo-600 { background-color: #4f46e5; }
+      .bg-black\\/40 { background-color: rgba(0, 0, 0, 0.4); }
+      
+      /* Text colors */
+      .text-white { color: white; }
+      .text-slate-500 { color: #64748b; }
+      .text-slate-600 { color: #475569; }
+      .text-slate-800 { color: #1e293b; }
+      
+      /* Font styles */
+      .text-sm { font-size: 0.875rem; }
+      .text-xs { font-size: 0.75rem; }
+      .text-lg { font-size: 1.125rem; }
+      .font-medium { font-weight: 500; }
+      .font-semibold { font-weight: 600; }
+      .whitespace-nowrap { white-space: nowrap; }
+      .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      
+      /* Border and rounding */
+      .border { border: 1px solid #e2e8f0; }
+      .border-b { border-bottom: 1px solid #e2e8f0; }
+      .rounded { border-radius: 0.25rem; }
+      .rounded-lg { border-radius: 0.5rem; }
+      .rounded-xl { border-radius: 0.75rem; }
+      
+      /* Shadow */
+      .shadow-sm { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+      .shadow-xl { box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+      
+      /* Overflow */
+      .overflow-auto { overflow: auto; }
+      
+      /* Form elements */
+      input, button, select, textarea {
+        font-family: inherit;
+        font-size: inherit;
+        line-height: inherit;
+      }
+      
+      button {
+        cursor: pointer;
+        border: none;
+        outline: none;
+      }
+      
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      
+      button:hover:not(:disabled) {
+        opacity: 0.9;
+      }
+      
+      input {
+        border: 1px solid #d1d5db;
+        outline: none;
+      }
+      
+      input:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 1px #3b82f6;
+      }
+      
+      /* List styles */
+      .list-decimal { list-style-type: decimal; }
+      .ml-5 { margin-left: 1.25rem; }
+    </style>
   </head>
   <body class="bg-slate-50">
     <div id="root"></div>
