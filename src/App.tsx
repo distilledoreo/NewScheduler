@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import GridLayout, { WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
+import { applyMigrations } from "./services/migrations";
 import { SEGMENTS, GROUPS, ROLE_SEED, baseSegmentTimes, earlyTimes } from "./config/domain";
 import type { Segment } from "./config/domain";
 
@@ -168,6 +169,7 @@ export default function App() {
   async function createNewDb() {
     if (!SQL) return;
     const db = new SQL.Database();
+    applyMigrations(db);
     const segmentCheck = SEGMENTS.map(s => `'${s}'`).join(',');
     // Schema
     db.run(`PRAGMA journal_mode=WAL;`);
@@ -300,6 +302,7 @@ export default function App() {
       const db = new SQL.Database(new Uint8Array(buf));
       const segmentCheck = SEGMENTS.map(s => `'${s}'`).join(',');
 
+      applyMigrations(db);
       db.run(`CREATE TABLE IF NOT EXISTS monthly_default (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         month TEXT NOT NULL,
