@@ -942,6 +942,7 @@ export default function App() {
     const seg: Exclude<Segment, "Early"> = activeRunSegment;
     const [layout, setLayout] = useState<any[]>([]);
     const [layoutLoaded, setLayoutLoaded] = useState(false);
+    const [showCoverage, setShowCoverage] = useState(false);
 
     useEffect(() => {
       setLayoutLoaded(false);
@@ -993,6 +994,12 @@ export default function App() {
               <button key={s} className={`px-3 py-1 rounded text-sm ${activeRunSegment===s?'bg-indigo-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveRunSegment(s)}>{s}</button>
             ))}
           </div>
+          <button
+            className="px-3 py-1 rounded bg-slate-200 text-sm"
+            onClick={()=>setShowCoverage(true)}
+          >
+            Coverage Overview
+          </button>
         </div>
 
         <Grid
@@ -1018,7 +1025,22 @@ export default function App() {
           ))}
         </Grid>
 
-        <CoveragePanel />
+        {showCoverage && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-5xl max-h-full overflow-auto rounded-lg shadow-lg p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="font-semibold text-lg">Coverage Overview</div>
+                <button
+                  className="px-3 py-1 rounded bg-slate-200 text-sm"
+                  onClick={()=>setShowCoverage(false)}
+                >
+                  Close
+                </button>
+              </div>
+              <CoveragePanel />
+            </div>
+          </div>
+        )}
 
         {diag && (
           <div className="mt-6 border rounded bg-white p-3">
@@ -1128,34 +1150,31 @@ export default function App() {
   function CoveragePanel(){
     const d = selectedDateObj;
     return (
-      <div className="mt-6">
-        <div className="font-semibold mb-2">Coverage Overview</div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-          {groups.map((g:any)=> (
-            <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
-              <div className="font-semibold mb-3">{g.name}</div>
-              {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
-                <div key={r.id} className="mb-4 border rounded p-3">
-                  <div className="font-medium mb-3">{r.name}</div>
-                  <div className="space-y-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">AM Required</div>
-                      <RequiredCell date={d} group={g} role={r} segment={'AM'} />
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">Lunch Required</div>
-                      <RequiredCell date={d} group={g} role={r} segment={'Lunch'} />
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">PM Required</div>
-                      <RequiredCell date={d} group={g} role={r} segment={'PM'} />
-                    </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+        {groups.map((g:any)=> (
+          <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
+            <div className="font-semibold mb-3">{g.name}</div>
+            {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
+              <div key={r.id} className="mb-4 border rounded p-3">
+                <div className="font-medium mb-3">{r.name}</div>
+                <div className="space-y-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
+                  <div>
+                    <div className="text-xs text-slate-500 mb-1">AM Required</div>
+                    <RequiredCell date={d} group={g} role={r} segment={'AM'} />
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500 mb-1">Lunch Required</div>
+                    <RequiredCell date={d} group={g} role={r} segment={'Lunch'} />
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500 mb-1">PM Required</div>
+                    <RequiredCell date={d} group={g} role={r} segment={'PM'} />
                   </div>
                 </div>
-              ))}
-            </div>
-          ))}
-        </div>
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
     );
   }
