@@ -612,6 +612,20 @@ export default function App() {
     }
   }
 
+  function copyMonthlyDefaults(fromMonth: string, toMonth: string) {
+    if (!sqlDb) return;
+    const rows = all(`SELECT person_id, segment, role_id FROM monthly_default WHERE month=?`, [fromMonth]);
+    for (const row of rows) {
+      run(
+        `INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
+         ON CONFLICT(month, person_id, segment) DO UPDATE SET role_id=excluded.role_id`,
+        [toMonth, row.person_id, row.segment, row.role_id]
+      );
+    }
+    loadMonthlyDefaults(toMonth);
+    setStatus(`Copied monthly defaults from ${fromMonth}.`);
+  }
+
   function applyMonthlyDefaults(month: string) {
     if (!sqlDb) return;
     const [y,m] = month.split('-').map(n=>parseInt(n,10));
@@ -1191,6 +1205,15 @@ export default function App() {
           <label className="text-sm">Month</label>
           <input type="month" className="border rounded px-2 py-1" value={selectedMonth} onChange={(e)=>setSelectedMonth(e.target.value)} />
           <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>applyMonthlyDefaults(selectedMonth)}>Apply to Month</button>
+          <button
+            className="px-3 py-1 bg-slate-200 rounded text-sm"
+            onClick={() => {
+              const src = prompt('Copy defaults from which month? (YYYY-MM)');
+              if (src) copyMonthlyDefaults(src, selectedMonth);
+            }}
+          >
+            Copy From Month
+          </button>
           <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</button>
           <input type="text" className="border rounded px-2 py-1" placeholder="Filter" value={filterText} onChange={(e)=>setFilterText(e.target.value)} />
           <select className="border rounded px-2 py-1" value={sortKey} onChange={(e)=>setSortKey(e.target.value as any)}>
