@@ -652,7 +652,7 @@ export default function App() {
       }
 
       // Diagnostics collection
-      let count = 0, skippedNoEmail = 0, skippedNoMatch = 0;
+  let count = 0, skippedNoEmail = 0, skippedNoMatch = 0, recoveredEmail = 0;
       const unmatchedEmails = new Set<string>();
       const now = new Date();
 
@@ -664,7 +664,14 @@ export default function App() {
               if (val.includes('@') && /@.+\./.test(val)) { emailHeader = k; break; }
             }
         }
-        const rawEmail = emailHeader ? String(r[emailHeader] || '').trim() : '';
+        let rawEmail = emailHeader ? String(r[emailHeader] || '').trim() : '';
+        if (!rawEmail) {
+          // Fallback: scan row values for an email pattern
+          for (const v of Object.values(r)) {
+            const s = String(v||'').trim();
+            if (s.includes('@') && /@.+\.[A-Za-z]{2,}/.test(s)) { rawEmail = s; recoveredEmail++; break; }
+          }
+        }
         if (!rawEmail) { skippedNoEmail++; continue; }
         const normEmail = rawEmail.toLowerCase();
         const pid = peopleEmailMap.get(normEmail);
@@ -708,6 +715,7 @@ export default function App() {
         `Skipped ${skippedNoEmail} (missing email)`,
         `Skipped ${skippedNoMatch} (no match)`
       ];
+      if (recoveredEmail) msgParts.push(`Recovered ${recoveredEmail} emails via fallback scan`);
       if (unmatchedEmails.size) msgParts.push(`Unmatched examples: ${unmatchedPreview}${extra}`);
       setStatus(msgParts.join('. ') + '.');
       if (count === 0 && unmatchedEmails.size) {
