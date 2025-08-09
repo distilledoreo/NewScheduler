@@ -583,22 +583,37 @@ export default function App() {
         const hits = REQUIRED_HEADER_KEYWORDS.filter(h=>keys.some(k=>k.includes(h))); return hits.length >= 2; // need at least 2 present
       }
       if (rows.length === 0 || !looksLikeHeaders(rows[0])) {
-        // Fallback: parse as raw rows (array-of-arrays) and build objects ourselves
-        const aoa: any[][] = XLSX.utils.sheet_to_json(ws, { header:1, defval: "" });
-        // Find header row by searching for one containing at least 2 required keywords
-        let headerRowIdx = -1; let header:Array<string> = [];
-        for (let i=0;i<aoa.length;i++) {
-          const row = aoa[i].map(c=>String(c||""));
+        // Fallback: reconstruct full rectangle via worksheet range (avoids trimmed rows)
+        const ref = ws['!ref'];
+        if (ref) {
+          const range = XLSX.utils.decode_range(ref);
+          // Build array of arrays including blanks
+          const aoaFull: string[][] = [];
+          for (let r = range.s.r; r <= range.e.r; r++) {
+            const row: string[] = [];
+            for (let c = range.s.c; c <= range.e.c; c++) {
+              const addr = XLSX.utils.encode_cell({ r, c });
+              const cell = (ws as any)[addr];
+              let v = cell ? (cell.w ?? cell.v ?? '') : '';
+              if (v == null) v = '';
+              row.push(String(v));
+            }
+            aoaFull.push(row);
+          }
+          // Heuristic header row detection: row with >=2 required keyword hits OR contains 'time off'
+          let headerRowIdx = -1; let header: string[] = [];
+          for (let i=0;i<Math.min(aoaFull.length, 25); i++) {
+            const row = aoaFull[i];
             const lc = row.map(c=>c.toLowerCase());
             const hits = REQUIRED_HEADER_KEYWORDS.filter(h=>lc.some(x=>x.includes(h)));
-            if (hits.length >= 2) { headerRowIdx = i; header = row; break; }
+            if (hits.length >= 2 || lc.some(x=>x.includes('time off'))) { headerRowIdx = i; header = row; break; }
+          }
+          if (headerRowIdx === -1) { headerRowIdx = 0; header = aoaFull[0].map((_,i)=>`COL${i}`); }
+          const dataRows = aoaFull.slice(headerRowIdx+1);
+          rows = dataRows.map(r => {
+            const obj:any = {}; header.forEach((h,idx)=>{ const key = h && h.trim() ? h : `COL${idx}`; obj[key] = r[idx]; }); return obj; });
+          headerRepairPerformed = true;
         }
-        if (headerRowIdx === -1 && aoa.length) { headerRowIdx = 0; header = aoa[0].map((_,i)=>`COL${i}`); }
-        const dataRows = aoa.slice(headerRowIdx+1);
-        rows = dataRows.map(r => {
-          const obj:any = {}; header.forEach((h,idx)=>{ obj[h||`COL${idx}`] = r[idx]; }); return obj;
-        });
-        headerRepairPerformed = true;
       }
       // Expected logical columns: Member, Work Email, Start Date, Start Time, End Date, End Time, Time Off Reason
       // Build case-insensitive email map from current people
@@ -765,6 +780,21 @@ export default function App() {
         // Guidance hint
         const headerInfo = ` Headers detected: [${headerKeys.join(', ')}]${!emailHeader?' (email column not detected)':''}${headerRepairPerformed?' (fallback header parse used)':''}`;
         setTimeout(()=>setStatus(s => s + ' Tip: Ensure People records use the same emails (case-insensitive) as the spreadsheet.' + headerInfo), 50);
+        // Offer to auto-create placeholder people when emails unmatched and user can edit
+        if (unmatchedEmails.size && canEdit && confirm('Create placeholder People entries for unmatched emails so future imports succeed?')) {
+          unmatchedEmails.forEach(em => {
+            if (!peopleEmailMap.has(em)) {
+              const local = em.split('@')[0];
+              const parts = local.split(/[._-]+/);
+              const first = parts[0] ? capitalize(parts[0]) : '';
+              const last = parts.slice(1).map(capitalize).join(' ') || first || 'Temp';
+              try {
+                addPerson({ last_name: last || 'Temp', first_name: first || 'User', work_email: em, brother_sister: 'Brother', commuter:false, active:true });
+              } catch {}
+            }
+          });
+          setStatus(prev => prev + ' Placeholder people added. Re-run import.');
+        }
       }
     } catch (e:any) {
       console.error(e); alert("Time-off import failed: " + (e?.message||e));
@@ -1661,6 +1691,8 @@ export default function App() {
       </div>
     );
   }
+
+  function capitalize(s:string){ return s ? s.charAt(0).toUpperCase()+s.slice(1).toLowerCase() : s; }
 
   return (
     <div className="min-h-screen bg-slate-50">
