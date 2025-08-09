@@ -187,7 +187,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState<string>(() => fmtDateMDY(new Date()));
   const [exportStart, setExportStart] = useState<string>(() => fmtDateMDY(new Date()));
   const [exportEnd, setExportEnd] = useState<string>(() => fmtDateMDY(new Date()));
-  const [activeTab, setActiveTab] = useState<"RUN" | "NEEDS" | "EXPORT" | "MONTHLY">("RUN");
+  const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY">("RUN");
   const [activeRunSegment, setActiveRunSegment] = useState<Exclude<Segment, "Early">>("AM");
 
   // Diagnostics
@@ -205,7 +205,6 @@ export default function App() {
   const [monthlyDefaults, setMonthlyDefaults] = useState<any[]>([]);
 
   // UI: simple dialogs
-  const [showPeopleEditor, setShowPeopleEditor] = useState(false);
   const [showBaselineEditor, setShowBaselineEditor] = useState(false);
 
   useEffect(() => {
@@ -920,6 +919,7 @@ export default function App() {
         <div className="mx-2 text-sm text-slate-600 flex-1 min-w-0 truncate">{status}</div>
         <div className="flex flex-wrap items-center gap-2">
           <button className={`px-3 py-2 rounded text-sm ${activeTab==='RUN'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('RUN')}>Daily Run</button>
+          <button className={`px-3 py-2 rounded text-sm ${activeTab==='PEOPLE'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('PEOPLE')}>People</button>
           <button className={`px-3 py-2 rounded text-sm ${activeTab==='NEEDS'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('NEEDS')}>Needs vs Coverage</button>
           <button className={`px-3 py-2 rounded text-sm ${activeTab==='EXPORT'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('EXPORT')}>Export Preview</button>
           <button className={`px-3 py-2 rounded text-sm ${activeTab==='MONTHLY'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('MONTHLY')}>Monthly Defaults</button>
@@ -946,7 +946,6 @@ export default function App() {
             ))}
           </div>
           <div className="flex flex-wrap gap-2 lg:ml-auto">
-            <button className="px-3 py-2 bg-slate-200 rounded text-sm" onClick={()=>setShowPeopleEditor(true)}>Manage People</button>
             <button className="px-3 py-2 bg-slate-200 rounded text-sm" onClick={()=>setShowBaselineEditor(true)}>Edit Baseline Needs</button>
           </div>
         </div>
@@ -1232,13 +1231,9 @@ export default function App() {
     const [form,setForm] = useState<any>({ active:true, commuter:false, brother_sister:'Brother', avail_mon:'U', avail_tue:'U', avail_wed:'U', avail_thu:'U', avail_fri:'U' });
     const [editing,setEditing] = useState<any|null>(null);
     return (
-      <div className="fixed inset-0 bg-black/40 z-30 overflow-auto">
-        <div className="min-h-full flex items-start justify-center p-4">
-          <div className="bg-white w-full max-w-[900px] max-h-[80vh] overflow-auto rounded-xl p-4 shadow-xl">
-          <div className="flex items-center justify-between mb-3">
-            <div className="font-semibold text-lg">People</div>
-            <button className="text-slate-600" onClick={()=>setShowPeopleEditor(false)}>Close</button>
-          </div>
+      <div className="p-4">
+        <div className="w-full max-w-[900px] mx-auto">
+          <div className="font-semibold text-lg mb-3">People</div>
 
           <div className="grid grid-cols-12 gap-2 mb-3">
             <input className="border rounded px-2 py-1 col-span-3" placeholder="Last Name" value={form.last_name||''} onChange={e=>setForm({...form,last_name:e.target.value})} />
@@ -1315,7 +1310,6 @@ export default function App() {
           </div>
         </div>
       </div>
-    </div>
     );
   }
 
@@ -1370,7 +1364,7 @@ export default function App() {
           <ol className="list-decimal ml-5 space-y-1 text-sm">
             <li>Click <b>New DB</b> to create a local SQLite database (unsaved) or <b>Open DB</b> to load an existing one.</li>
             <li>Use <b>Save As</b> to write the <code>.db</code> file to a shared folder on your LAN. Only one editor at a time.</li>
-            <li>Add <b>People</b> (Daily Run → Manage People) and set <b>Baseline Needs</b>.</li>
+            <li>Add <b>People</b> in the <b>People</b> tab and set <b>Baseline Needs</b>.</li>
             <li>Assign roles in the <b>Daily Run</b> board. The app will warn on availability and training; time-off blocks assignment.</li>
             <li>Import <b>Time-Off</b> from Teams XLSX in the <b>Export</b> view (optional). Export date range with one row per segment, split for overlaps.</li>
           </ol>
@@ -1381,13 +1375,13 @@ export default function App() {
       {sqlDb && (
         <>
           {activeTab === 'RUN' && <DailyRunBoard />}
+          {activeTab === 'PEOPLE' && <PeopleEditor />}
           {activeTab === 'NEEDS' && <NeedsView />}
           {activeTab === 'EXPORT' && <ExportView />}
           {activeTab === 'MONTHLY' && <MonthlyView />}
         </>
       )}
 
-      {showPeopleEditor && <PeopleEditor />}
       {showBaselineEditor && <BaselineEditor />}
     </div>
   );
