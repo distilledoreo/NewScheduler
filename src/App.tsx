@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import GridLayout, { WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
+import { SEGMENTS, GROUPS, ROLE_SEED, baseSegmentTimes, earlyTimes } from "./config/domain";
+import type { Segment } from "./config/domain";
 
 const Grid = WidthProvider(GridLayout);
 
@@ -24,97 +26,8 @@ Tailwind classes used for styling. This file is a single React component export.
 */
 
 // Types
-
-type Segment = "Early" | "AM" | "Lunch" | "PM";
-const SEGMENTS: Segment[] = ["Early", "AM", "Lunch", "PM"];
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
-type Weekday = typeof WEEKDAYS[number];
-
-// Group -> Theme Color mapping from user (exact labels expected by their Excel template)
-const GROUP_THEME: Record<string, string> = {
-  "Bakery": "4. Purple",
-  "Lunch": "11. DarkPink",
-  "Dining Room": "12. DarkYellow",
-  "Veggie Room": "3. Green",
-  "Machine Room": "10. DarkPurple",
-  "Main Course": "5. Pink",
-  "Prepack": "9. DarkGreen",
-  "Office": "12. DarkYellow",
-  "Receiving": "8. DarkBlue",
-  "Weekend Duty": "5. Pink",
-};
-
-// UI colors for groups (approximate Tailwind palette)
-const GROUP_COLORS: Record<string, string> = {
-  "Bakery": "#e9d5ff", // purple-200
-  "Lunch": "#f9a8d4", // pink-300
-  "Dining Room": "#fde68a", // yellow-200
-  "Veggie Room": "#bbf7d0", // green-200
-  "Machine Room": "#c4b5fd", // indigo-300
-  "Main Course": "#fbcfe8", // pink-200
-  "Prepack": "#a7f3d0", // emerald-200
-  "Office": "#fde68a", // yellow-200
-  "Receiving": "#bfdbfe", // blue-200
-  "Weekend Duty": "#fbcfe8", // pink-200
-};
-
-// Role catalog seed from user mapping
-const ROLE_SEED: Array<{ code: string; name: string; group: string; segments: Segment[] }> = [
-  { code: "DR", name: "Buffet", group: "Dining Room", segments: ["AM", "PM"] },
-  { code: "DR", name: "Buffet Training", group: "Dining Room", segments: ["AM", "PM"] },
-  { code: "DR", name: "Buffet Sup", group: "Dining Room", segments: ["AM", "PM"] },
-  { code: "DR", name: "Buffet Assistant", group: "Dining Room", segments: ["AM", "PM"] },
-  { code: "DR", name: "Pattern", group: "Dining Room", segments: ["AM", "PM"] },
-  { code: "DR", name: "Pattern Training", group: "Dining Room", segments: ["AM", "PM"] },
-  { code: "DR", name: "Pattern Supervisor", group: "Dining Room", segments: ["AM", "PM"] },
-  { code: "DR", name: "Pattern Assistant", group: "Dining Room", segments: ["AM", "PM"] },
-  { code: "DR", name: "Breakfast", group: "Dining Room", segments: ["Early"] },
-
-  { code: "MR", name: "MRC", group: "Machine Room", segments: ["AM", "PM"] },
-  { code: "MR", name: "Feeder", group: "Machine Room", segments: ["AM", "PM"] },
-  { code: "MR", name: "Silverware", group: "Machine Room", segments: ["AM", "PM"] },
-  { code: "MR", name: "Cold End", group: "Machine Room", segments: ["AM", "PM"] },
-  { code: "MR", name: "Hot End 1", group: "Machine Room", segments: ["AM", "PM"] },
-  { code: "MR", name: "Hot End 2", group: "Machine Room", segments: ["AM", "PM"] },
-  { code: "MR", name: "MR Assist", group: "Machine Room", segments: ["AM", "PM"] },
-
-  { code: "MC", name: "Main Course", group: "Main Course", segments: ["AM", "PM"] },
-  { code: "MC", name: "Main Course Coordinator", group: "Main Course", segments: ["AM", "PM"] },
-  { code: "MC", name: "Main Course Assistant", group: "Main Course", segments: ["AM", "PM"] },
-
-  { code: "VEG", name: "Veggie Room", group: "Veggie Room", segments: ["AM", "PM"] },
-  { code: "VEG", name: "Veggie Room Coordinator", group: "Veggie Room", segments: ["AM", "PM"] },
-  { code: "VEG", name: "Veggie Room Assistant", group: "Veggie Room", segments: ["AM", "PM"] },
-
-  { code: "BKRY", name: "Bakery", group: "Bakery", segments: ["AM", "PM"] },
-  { code: "BKRY", name: "Bakery Coordinator", group: "Bakery", segments: ["AM", "PM"] },
-  { code: "BKRY", name: "Bakery Assistant", group: "Bakery", segments: ["AM", "PM"] },
-
-  { code: "RCVG", name: "Receiving", group: "Receiving", segments: ["AM", "PM"] },
-
-  { code: "PP", name: "Prepack", group: "Prepack", segments: ["AM", "PM"] },
-  { code: "PP", name: "Prepack Coordinator", group: "Prepack", segments: ["AM", "PM"] },
-  { code: "PP", name: "Prepack Backup", group: "Prepack", segments: ["AM", "PM"] },
-
-  { code: "OFF", name: "Office", group: "Office", segments: ["AM", "PM"] },
-
-  { code: "L SUP", name: "Lunch Supervisor", group: "Lunch", segments: ["Lunch"] },
-  { code: "B SUP", name: "Buffet Supervisor", group: "Lunch", segments: ["Lunch"] },
-  { code: "ATT SUP", name: "Attendant Supervisor", group: "Lunch", segments: ["Lunch"] },
-  { code: "R SUP", name: "Guest Supervisor", group: "Lunch", segments: ["Lunch"] },
-  { code: "CK-IN", name: "Guest Check-In", group: "Lunch", segments: ["Lunch"] },
-  { code: "ATT", name: "Attendant", group: "Lunch", segments: ["Lunch"] },
-  { code: "WAITER", name: "Waiter", group: "Lunch", segments: ["Lunch"] },
-  { code: "LN ATT", name: "Line Attendant", group: "Lunch", segments: ["Lunch"] },
-  { code: "TL", name: "Tray Line", group: "Lunch", segments: ["Lunch"] },
-  { code: "ATR", name: "ATR", group: "Lunch", segments: ["Lunch"] },
-  { code: "TKO", name: "Take-Out Line", group: "Lunch", segments: ["Lunch"] },
-  { code: "ATKO", name: "Assist Take-Out Line", group: "Lunch", segments: ["Lunch"] },
-
-  // Lunch duties in other groups still count as Lunch segment
-  { code: "MC", name: "Consolidation Table", group: "Main Course", segments: ["Lunch"] },
-  { code: "VEG", name: "Consolidation Table", group: "Veggie Room", segments: ["Lunch"] },
-];
+type Weekday = (typeof WEEKDAYS)[number];
 
 // Helpers
 function fmtDateMDY(d: Date): string {
@@ -163,31 +76,6 @@ function weekdayName(d: Date): Weekday | "Weekend" {
     case 5: return "Friday";
     default: return "Weekend";
   }
-}
-
-// Segment timing rules per user spec
-function baseSegmentTimes(date: Date, hasLunch: boolean, hasEarly: boolean): Record<Exclude<Segment, "Early">, { start: Date; end: Date }> {
-  // All times in America/New_York implicit local
-  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const mk = (h: number, m: number) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m, 0, 0);
-
-  if (hasLunch) {
-    // Lunch day pattern
-    const am = { start: mk(8, 0), end: mk(11, 0) };
-    const lunch = { start: mk(11, 0), end: mk(13, 0) };
-    const pm = { start: mk(14, 0), end: mk(hasEarly ? 16 : 17, 0) };
-    return { AM: am, Lunch: lunch, PM: pm };
-  } else {
-    const am = { start: mk(8, 0), end: mk(12, 0) };
-    const pm = { start: mk(13, 0), end: mk(hasEarly ? 16 : 17, 0) };
-    return { AM: am, Lunch: { start: mk(11, 0), end: mk(13, 0) }, PM: pm }; // Lunch unused if no Lunch assignment; kept for reference
-  }
-}
-
-function earlyTimes(date: Date) {
-  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const mk = (h: number, m: number) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m, 0, 0);
-  return { start: mk(6, 20), end: mk(7, 20) };
 }
 
 // SQL.js
@@ -280,6 +168,7 @@ export default function App() {
   async function createNewDb() {
     if (!SQL) return;
     const db = new SQL.Database();
+    const segmentCheck = SEGMENTS.map(s => `'${s}'`).join(',');
     // Schema
     db.run(`PRAGMA journal_mode=WAL;`);
     db.run(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);`);
@@ -328,7 +217,7 @@ export default function App() {
       date TEXT NOT NULL, -- YYYY-MM-DD
       person_id INTEGER NOT NULL,
       role_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
       FOREIGN KEY (person_id) REFERENCES person(id),
       FOREIGN KEY (role_id) REFERENCES role(id)
     );`);
@@ -337,7 +226,7 @@ export default function App() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       month TEXT NOT NULL, -- YYYY-MM
       person_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
       role_id INTEGER NOT NULL,
       UNIQUE(month, person_id, segment),
       FOREIGN KEY (person_id) REFERENCES person(id),
@@ -348,7 +237,7 @@ export default function App() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       group_id INTEGER NOT NULL,
       role_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
       required INTEGER NOT NULL DEFAULT 0,
       UNIQUE(group_id, role_id, segment)
     );`);
@@ -358,7 +247,7 @@ export default function App() {
       date TEXT NOT NULL,
       group_id INTEGER NOT NULL,
       role_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
       required INTEGER NOT NULL,
       UNIQUE(date, group_id, role_id, segment)
     );`);
@@ -374,10 +263,9 @@ export default function App() {
     );`);
 
     // Seed groups
-    Object.keys(GROUP_THEME).forEach((name) => {
-      const theme = GROUP_THEME[name];
+    Object.entries(GROUPS).forEach(([name, cfg]) => {
       const stmt = db.prepare(`INSERT INTO grp (name, theme_color) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET theme_color=excluded.theme_color;`);
-      stmt.bind([name, theme]);
+      stmt.bind([name, cfg.theme]);
       stmt.step();
       stmt.free();
     });
@@ -410,12 +298,13 @@ export default function App() {
       const file = await handle.getFile();
       const buf = await file.arrayBuffer();
       const db = new SQL.Database(new Uint8Array(buf));
+      const segmentCheck = SEGMENTS.map(s => `'${s}'`).join(',');
 
       db.run(`CREATE TABLE IF NOT EXISTS monthly_default (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         month TEXT NOT NULL,
         person_id INTEGER NOT NULL,
-        segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+        segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
         role_id INTEGER NOT NULL,
         UNIQUE(month, person_id, segment),
         FOREIGN KEY (person_id) REFERENCES person(id),
@@ -827,7 +716,7 @@ export default function App() {
     const workEmail = a.work_email;
     // Group logic: Breakfast forces Dining Room, otherwise from role
     const group = (a.segment === "Early") ? "Dining Room" : a.group_name;
-    const themeColor = GROUP_THEME[group] || "";
+    const themeColor = GROUPS[group]?.theme || "";
     const customLabel = a.role_name; // per user: Plain Name
     const unpaidBreak = 0; // per user
     const notes = ""; // per user
@@ -1316,7 +1205,7 @@ export default function App() {
     function cellData(month:string, personId:number, seg:Exclude<Segment,'Early'>){
       const def = defs.find((d:any)=>d.month===month && d.person_id===personId && d.segment===seg);
       const role = roles.find((r:any)=>r.id===def?.role_id);
-      const color = role ? GROUP_COLORS[role.group_name] : undefined;
+      const color = role ? GROUPS[role.group_name]?.color : undefined;
       if (month === nextMonth) {
         return {
           content: (
@@ -1510,7 +1399,7 @@ export default function App() {
                   start: fmtTime24(s.start),
                   end: fmtTime24(s.end),
                   label: a.role_name,
-                  color: GROUP_THEME[group] || "",
+                  color: GROUPS[group]?.theme || "",
                 });
               }
             }
