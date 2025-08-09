@@ -44,6 +44,20 @@ const GROUP_THEME: Record<string, string> = {
   "Weekend Duty": "5. Pink",
 };
 
+// UI colors for groups (approximate Tailwind palette)
+const GROUP_COLORS: Record<string, string> = {
+  "Bakery": "#e9d5ff", // purple-200
+  "Lunch": "#f9a8d4", // pink-300
+  "Dining Room": "#fde68a", // yellow-200
+  "Veggie Room": "#bbf7d0", // green-200
+  "Machine Room": "#c4b5fd", // indigo-300
+  "Main Course": "#fbcfe8", // pink-200
+  "Prepack": "#a7f3d0", // emerald-200
+  "Office": "#fde68a", // yellow-200
+  "Receiving": "#bfdbfe", // blue-200
+  "Weekend Duty": "#fbcfe8", // pink-200
+};
+
 // Role catalog seed from user mapping
 const ROLE_SEED: Array<{ code: string; name: string; group: string; segments: Segment[] }> = [
   { code: "DR", name: "Buffet", group: "Dining Room", segments: ["AM", "PM"] },
@@ -1185,26 +1199,30 @@ export default function App() {
     if (showSeg.Lunch) segs.push('Lunch');
     if (showSeg.PM) segs.push('PM');
 
-    function cellContent(month:string, personId:number, seg:Exclude<Segment,'Early'>){
+    function cellData(month:string, personId:number, seg:Exclude<Segment,'Early'>){
       const def = defs.find((d:any)=>d.month===month && d.person_id===personId && d.segment===seg);
       const role = roles.find((r:any)=>r.id===def?.role_id);
+      const color = role ? GROUP_COLORS[role.group_name] : undefined;
       if (month === nextMonth) {
-        return (
-          <select
-            className="border rounded px-2 py-1 w-full"
-            value={def?.role_id||""}
-            onChange={(e)=>{
-              const rid = Number(e.target.value);
-              setMonthlyDefaultForMonth(month, personId, seg, rid||null);
-              setDefs(all(`SELECT * FROM monthly_default`));
-            }}
-          >
-            <option value=""></option>
-            {roleListForSegment(seg).map((r:any)=>(<option key={r.id} value={r.id}>{r.code}</option>))}
-          </select>
-        );
+        return {
+          content: (
+            <select
+              className="border rounded px-2 py-1 w-full"
+              value={def?.role_id||""}
+              onChange={(e)=>{
+                const rid = Number(e.target.value);
+                setMonthlyDefaultForMonth(month, personId, seg, rid||null);
+                setDefs(all(`SELECT * FROM monthly_default`));
+              }}
+            >
+              <option value=""></option>
+              {roleListForSegment(seg).map((r:any)=>(<option key={r.id} value={r.id}>{r.code}</option>))}
+            </select>
+          ),
+          color
+        };
       }
-      return role?.code || "";
+      return { content: role?.code || "", color };
     }
 
     return (
@@ -1248,17 +1266,29 @@ export default function App() {
               </tr>
             </thead>
             <tbody>
-              {filteredPeople.flatMap(p => (
-                segs.map(seg => (
-                  <tr key={`${p.id}-${seg}`} className="odd:bg-white even:bg-slate-50">
-                    <td className="p-2">{p.last_name}, {p.first_name}</td>
-                    <td className="p-2">{seg}</td>
-                    {months.map(m => (
-                      <td key={m} className="p-2">{cellContent(m, p.id, seg)}</td>
+              {filteredPeople.map(p => {
+                const segList = segs;
+                return (
+                  <React.Fragment key={p.id}>
+                    {segList.map((seg, idx) => (
+                      <tr key={`${p.id}-${seg}`} className="odd:bg-white even:bg-slate-50">
+                        {idx === 0 && (
+                          <td className="p-2" rowSpan={segList.length}>{p.last_name}, {p.first_name}</td>
+                        )}
+                        <td className="p-2">{seg}</td>
+                        {months.map(m => {
+                          const { content, color } = cellData(m, p.id, seg);
+                          return (
+                            <td key={m} className="p-2" style={{ backgroundColor: color }}>
+                              {content}
+                            </td>
+                          );
+                        })}
+                      </tr>
                     ))}
-                  </tr>
-                ))
-              ))}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
