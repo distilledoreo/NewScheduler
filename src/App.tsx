@@ -205,10 +205,18 @@ export default function App() {
   // Load sql.js
   useEffect(() => {
     (async () => {
-      // @ts-ignore
-      const initSqlJs = (await import("sql.js")).default;
-      SQL = await initSqlJs({ locateFile: (f: string) => `https://cdn.jsdelivr.net/npm/sql.js@1.9.0/dist/${f}` });
-      setReady(true);
+      try {
+        // @ts-ignore
+        const initSqlJs = (await import("sql.js")).default;
+        // Configure to load WASM files from public directory
+        SQL = await initSqlJs({ 
+          locateFile: (file: string) => `/sql-wasm/${file}`
+        });
+        setReady(true);
+      } catch (error) {
+        console.error("Failed to initialize sql.js:", error);
+        setStatus("Failed to initialize database engine. Please refresh the page.");
+      }
     })();
   }, []);
 
