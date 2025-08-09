@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Legacy JSON → SQLite (.db) Converter</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:24px;color:#0f172a}
+    .row{margin:12px 0}
+    button{padding:10px 14px;border:0;border-radius:8px;background:#0ea5e9;color:#fff;cursor:pointer}
+    input[type=file]{padding:8px;border:1px solid #cbd5e1;border-radius:8px}
+    pre{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;overflow:auto;white-space:pre-wrap}
+    .muted{color:#64748b;font-size:12px}
+    .ok{color:#065f46}
+    .warn{color:#92400e}
+    .err{color:#991b1b}
+    label{user-select:none}
+  </style>
+</head>
+<body>
+  <h1>Legacy JSON → SQLite (.db)</h1>
+
+  <div class="row">
+    <input id="jsonFile" type="file" accept=".json"/>
+  </div>
+
+  <div class="row" style="display:flex;gap:16px;align-items:center">
+    <button id="convertBtn" disabled>Convert to .db</button>
+    <button id="testBtn" style="background:#10b981" disabled>Run self-test</button>
+    <label><input id="includeWeekends" type="checkbox"> Import weekend assignments</label>
+  </div>
+
+  <div id="status" class="row muted">Loading runtime…</div>
+  <div id="out" class="row"></div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const out = (msg, cls='') => { document.getElementById('out').innerHTML = '<pre class="'+cls+'">'+msg+'</pre>'; };
+
+    // ---------- Load sql.js robustly (no modules) ----------
+    (async function loadSqlJsUMD(){
+      const cdns = [
+        "https://cdn.jsdelivr.net/npm/sql.js@1.9.0/dist/sql-wasm.js",
+        "https://unpkg.com/sql.js@1.9.0/dist/sql-wasm.js"
+      ];
+      for (const url of cdns) {
+        try {
+          await loadScript(url);
+          if (window.initSqlJs) {
+            statusEl.innerHTML = `<span class="ok">Loaded sql.js from ${url}</span>`;
+            window.SQLJS = await window.initSqlJs({
+              locateFile: f => "https://cdn.jsdelivr.net/npm/sql.js@1.9.0/dist/" + f
+            });
+            document.getElementById('convertBtn').disabled = false;
+            document.getElementById('testBtn').disabled = false;
+            return;
+          }
+        } catch (e) {
+          statusEl.innerHTML = `<span class="warn">Failed ${url}: ${e && e.message ? e.message : e}</span>`;
+        }
+      }
+      statusEl.innerHTML = '<span class="err">Could not load sql.js. Network may block CDNs.</span>';
+    })();
+
+    function loadScript(src){
+      return new Promise((resolve, reject)=>{
+        const s = document.createElement('script');
+        s.src = src; s.async = true; s.onload = () => resolve(); s.onerror = () => reject(new Error('load error'));
+        document.head.appendChild(s);
+      });
+    }
+
+    // ---------- Schema & seed (must match your app) ----------
+    const GROUP_THEME = {
+      "Bakery": "4. Purple","Lunch": "11. DarkPink","Dining Room": "12. DarkYellow","Veggie Room": "3. Green",
+      "Machine Room": "10. DarkPurple","Main Course": "5. Pink","Prepack": "9. DarkGreen","Office": "12. DarkYellow",
+      "Receiving": "8. DarkBlue","Weekend Duty": "5. Pink"
+    };
+
+    const ROLE_SEED = [
+      { code: "DR", name: "Buffet", group: "Dining Room", segments: ["AM","PM"] },
+      { code: "DR", name: "Buffet Training", group: "Dining Room", segments: ["AM","PM"] },
+      { code: "DR", name: "Buffet Sup", group: "Dining Room", segments: ["AM","PM"] },
+      { code: "DR", name: "Buffet Assistant", group: "Dining Room", segments: ["AM","PM"] },
+      { code: "DR", name: "Pattern", group: "Dining Room", segments: ["AM","PM"] },
+      { code: "DR", name: "Pattern Training", group: "Dining Room", segments: ["AM","PM"] },
+      { code: "DR", name: "Pattern Supervisor", group: "Dining Room", segments: ["AM","PM"] },
+      { code: "DR", name: "Pattern Assistant", group: "Dining Room", segments: ["AM","PM"] },
+      { code: "DR", name: "Breakfast", group: "Dining Room", segments: ["Early"] },
+
+      { code: "MR", name: "MRC", group: "Machine Room", segments: ["AM","PM"] },
+      { code: "MR", name: "Feeder", group: "Machine Room", segments: ["AM","PM"] },
+      { code: "MR", name: "Silverware", group: "Machine Room", segments: ["AM","PM"] },
+      { code: "MR", name: "Cold End", group: "Machine Room", segments: ["AM","PM"] },
+      { code: "MR", name: "Hot End 1", group: "Machine Room", segments: ["AM","PM"] },
+      { code: "MR", name: "Hot End 2", group: "Machine Room", segments: ["AM","PM"] },
+      { code: "MR", name: "MR Assist", group: "Machine Room", segments: ["AM","PM"] },
+
+      { code: "MC", name: "Main Course", group: "Main Course", segments: ["AM","PM"] },
+      { code: "MC", name: "Main Course Coordinator", group: "Main Course", segments: ["AM","PM"] },
+      { code: "MC", name: "Main Course Assistant", group: "Main Course", segments: ["AM","PM"] },
+
+      { code: "VEG", name: "Veggie Room", group: "Veggie Room", segments: ["AM","PM"] },
+      { code: "VEG", name: "Veggie Room Coordinator", group: "Veggie Room", segments: ["AM","PM"] },
+      { code: "VEG", name: "Veggie Room Assistant", group: "Veggie Room", segments: ["AM","PM"] },
+
+      { code: "BKRY", name: "Bakery", group: "Bakery", segments: ["AM","PM"] },
+      { code: "BKRY", name: "Bakery Coordinator", group: "Bakery", segments: ["AM","PM"] },
+      { code: "BKRY", name: "Bakery Assistant", group: "Bakery", segments: ["AM","PM"] },
+
+      { code: "RCVG", name: "Receiving", group: "Receiving", segments: ["AM","PM"] },
+
+      { code: "PP", name: "Prepack", group: "Prepack", segments: ["AM","PM"] },
+      { code: "PP", name: "Prepack Coordinator", group: "Prepack", segments: ["AM","PM"] },
+      { code: "PP", name: "Prepack Backup", group: "Prepack", segments: ["AM","PM"] },
+
+      { code: "OFF", name: "Office", group: "Office", segments: ["AM","PM"] },
+
+      { code: "L SUP", name: "Lunch Supervisor", group: "Lunch", segments: ["Lunch"] },
+      { code: "B SUP", name: "Buffet Supervisor", group: "Lunch", segments: ["Lunch"] },
+      { code: "ATT SUP", name: "Attendant Supervisor", group: "Lunch", segments: ["Lunch"] },
+      { code: "R SUP", name: "Guest Supervisor", group: "Lunch", segments: ["Lunch"] },
+      { code: "CK-IN", name: "Guest Check-In", group: "Lunch", segments: ["Lunch"] },
+      { code: "ATT", name: "Attendant", group: "Lunch", segments: ["Lunch"] },
+      { code: "WAITER", name: "Waiter", group: "Lunch", segments: ["Lunch"] },
+      { code: "LN ATT", name: "Line Attendant", group: "Lunch", segments: ["Lunch"] },
+      { code: "TL", name: "Tray Line", group: "Lunch", segments: ["Lunch"] },
+      { code: "ATR", name: "ATR", group: "Lunch", segments: ["Lunch"] },
+      { code: "TKO", name: "Take-Out Line", group: "Lunch", segments: ["Lunch"] },
+      { code: "ATKO", name: "Assist Take-Out Line", group: "Lunch", segments: ["Lunch"] },
+      { code: "MC", name: "Consolidation Table", group: "Main Course", segments: ["Lunch"] },
+      { code: "VEG", name: "Consolidation Table", group: "Veggie Room", segments: ["Lunch"] },
+    ];
+
+    function seedSchema(db){
+      db.run(`PRAGMA journal_mode=WAL;`);
+      db.run(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);`);
+      db.run(`CREATE TABLE IF NOT EXISTS person (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        last_name TEXT NOT NULL,
+        first_name TEXT NOT NULL,
+        work_email TEXT NOT NULL UNIQUE,
+        brother_sister TEXT CHECK(brother_sister IN ('Brother','Sister')),
+        commuter INTEGER NOT NULL DEFAULT 0,
+        active INTEGER NOT NULL DEFAULT 1,
+        avail_mon TEXT CHECK(avail_mon IN ('U','AM','PM','B')) DEFAULT 'U',
+        avail_tue TEXT CHECK(avail_tue IN ('U','AM','PM','B')) DEFAULT 'U',
+        avail_wed TEXT CHECK(avail_wed IN ('U','AM','PM','B')) DEFAULT 'U',
+        avail_thu TEXT CHECK(avail_thu IN ('U','AM','PM','B')) DEFAULT 'U',
+        avail_fri TEXT CHECK(avail_fri IN ('U','AM','PM','B')) DEFAULT 'U'
+      );`);
+      db.run(`CREATE TABLE IF NOT EXISTS grp (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL UNIQUE,theme_color TEXT);`);
+      db.run(`CREATE TABLE IF NOT EXISTS role (id INTEGER PRIMARY KEY AUTOINCREMENT,code TEXT NOT NULL,name TEXT NOT NULL,group_id INTEGER NOT NULL,segments TEXT NOT NULL,UNIQUE(code,name,group_id));`);
+      db.run(`CREATE TABLE IF NOT EXISTS training (person_id INTEGER NOT NULL,role_id INTEGER NOT NULL,status TEXT CHECK(status IN ('Not trained','In training','Qualified')) NOT NULL DEFAULT 'Not trained',PRIMARY KEY(person_id,role_id));`);
+      db.run(`CREATE TABLE IF NOT EXISTS assignment (id INTEGER PRIMARY KEY AUTOINCREMENT,date TEXT NOT NULL,person_id INTEGER NOT NULL,role_id INTEGER NOT NULL,segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL);`);
+      db.run(`CREATE TABLE IF NOT EXISTS needs_baseline (id INTEGER PRIMARY KEY AUTOINCREMENT,group_id INTEGER NOT NULL,role_id INTEGER NOT NULL,segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,required INTEGER NOT NULL DEFAULT 0,UNIQUE(group_id,role_id,segment));`);
+      db.run(`CREATE TABLE IF NOT EXISTS needs_override (id INTEGER PRIMARY KEY AUTOINCREMENT,date TEXT NOT NULL,group_id INTEGER NOT NULL,role_id INTEGER NOT NULL,segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,required INTEGER NOT NULL,UNIQUE(date,group_id,role_id,segment));`);
+      db.run(`CREATE TABLE IF NOT EXISTS timeoff (id INTEGER PRIMARY KEY AUTOINCREMENT,person_id INTEGER NOT NULL,start_ts TEXT NOT NULL,end_ts TEXT NOT NULL,reason TEXT,source TEXT DEFAULT 'TeamsImport');`);
+      db.run(`INSERT OR REPLACE INTO meta (key,value) VALUES ('lock','{}')`);
+    }
+
+    function seedGroupsAndRoles(db){
+      const insG = db.prepare(`INSERT INTO grp (name, theme_color) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET theme_color=excluded.theme_color;`);
+      Object.entries(GROUP_THEME).forEach(([name, theme])=>{
+        insG.bind([name, theme]); insG.step(); insG.reset();
+      });
+      insG.free();
+
+      const gidStmt = db.prepare(`SELECT id FROM grp WHERE name=?`);
+      const insR = db.prepare(`INSERT OR IGNORE INTO role (code, name, group_id, segments) VALUES (?,?,?,?)`);
+      for (const r of ROLE_SEED){
+        gidStmt.bind([r.group]); gidStmt.step();
+        const gid = gidStmt.get()[0];
+        gidStmt.reset();
+        if(!gid) continue;
+        insR.bind([r.code, r.name, gid, JSON.stringify(r.segments)]); insR.step(); insR.reset();
+      }
+      gidStmt.free(); insR.free();
+    }
+
+    function parseName(name){
+      if(!name || typeof name !== 'string') return { last: '', first: '' };
+      const parts = name.split(',');
+      if (parts.length >= 2) return { last: parts[0].trim(), first: parts.slice(1).join(',').trim() };
+      const bits = name.trim().split(/\s+/);
+      if (bits.length >= 2) return { first: bits[0], last: bits.slice(1).join(' ') };
+      return { last: name.trim(), first: '' };
+    }
+
+    const normalize = (s)=> String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'').trim();
+    const roleSynonyms = {
+      // add more as you discover them:
+      [normalize('Pre-Pack')]: normalize('Prepack'),
+      [normalize('Pre Pack')]: normalize('Prepack'),
+      [normalize('Prepack')]: normalize('Prepack'),
+      [normalize('Veg Room')]: normalize('Veggie Room'),
+      [normalize('Veggie')]: normalize('Veggie Room')
+    };
+
+    function mapAvail(b){ return
