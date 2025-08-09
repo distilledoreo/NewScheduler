@@ -573,8 +573,34 @@ export default function App() {
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data);
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
-      // Expected columns: Member, Work Email, Start Date, Start Time, End Date, End Time, Time Off Reason
+      // Strategy: try structured sheet_to_json; if headers look wrong, fall back to array-of-arrays parsing.
+      let rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
+      let headerRepairPerformed = false;
+      const REQUIRED_HEADER_KEYWORDS = ["work email","start date","end date"]; // minimal set
+      function looksLikeHeaders(obj: any): boolean {
+        const keys = Object.keys(obj||{}).map(k=>k.toLowerCase());
+        if (keys.length === 0) return false;
+        const hits = REQUIRED_HEADER_KEYWORDS.filter(h=>keys.some(k=>k.includes(h))); return hits.length >= 2; // need at least 2 present
+      }
+      if (rows.length === 0 || !looksLikeHeaders(rows[0])) {
+        // Fallback: parse as raw rows (array-of-arrays) and build objects ourselves
+        const aoa: any[][] = XLSX.utils.sheet_to_json(ws, { header:1, defval: "" });
+        // Find header row by searching for one containing at least 2 required keywords
+        let headerRowIdx = -1; let header:Array<string> = [];
+        for (let i=0;i<aoa.length;i++) {
+          const row = aoa[i].map(c=>String(c||""));
+            const lc = row.map(c=>c.toLowerCase());
+            const hits = REQUIRED_HEADER_KEYWORDS.filter(h=>lc.some(x=>x.includes(h)));
+            if (hits.length >= 2) { headerRowIdx = i; header = row; break; }
+        }
+        if (headerRowIdx === -1 && aoa.length) { headerRowIdx = 0; header = aoa[0].map((_,i)=>`COL${i}`); }
+        const dataRows = aoa.slice(headerRowIdx+1);
+        rows = dataRows.map(r => {
+          const obj:any = {}; header.forEach((h,idx)=>{ obj[h||`COL${idx}`] = r[idx]; }); return obj;
+        });
+        headerRepairPerformed = true;
+      }
+      // Expected logical columns: Member, Work Email, Start Date, Start Time, End Date, End Time, Time Off Reason
       // Build case-insensitive email map from current people
       const peopleEmailMap = new Map<string, number>(); // normalized email -> person_id
       for (const p of people) {
@@ -582,8 +608,8 @@ export default function App() {
       }
 
       // Helper: find email column (support a few variants)
-      const sample = rows[0] || {};
-      const headerKeys = Object.keys(sample);
+  const sample = rows[0] || {};
+  const headerKeys = Array.from(new Set(rows.flatMap(r=>Object.keys(r))));
       const normalizeKey = (k:string) => k.toLowerCase().replace(/[^a-z0-9]/g,'');
       const emailKeyNormTargets = new Set([
         'workemail','email','workemailaddress','primaryemail','useremail','emailaddress','userupn','upn'
@@ -602,6 +628,20 @@ export default function App() {
         return null;
       }
       let emailHeader = detectEmailHeader();
+      if (!emailHeader) {
+        // If header repair performed, attempt positional guess: choose column where >50% of first 20 rows look like emails
+        const candidates: Record<string, number> = {};
+        for (const r of rows.slice(0,20)) {
+          for (const [k,v] of Object.entries(r)) {
+            const s = String(v||"").trim();
+            if (s.includes('@') && /@.+\.[A-Za-z]{2,}/.test(s)) {
+              candidates[k] = (candidates[k]||0)+1;
+            }
+          }
+        }
+        const winner = Object.entries(candidates).sort((a,b)=>b[1]-a[1])[0];
+        if (winner && winner[1] >= 3) emailHeader = winner[0];
+      }
 
       // Helper to parse possible Excel serial dates or plain strings M/D/YYYY
       function parseExcelDate(val:any): Date | null {
@@ -723,8 +763,8 @@ export default function App() {
       }
       if (count === 0) {
         // Guidance hint
-  const headerInfo = ` Headers detected: [${headerKeys.join(', ')}]${!emailHeader?' (email column not detected)':''}`;
-  setTimeout(()=>setStatus(s => s + ' Tip: Ensure People records use the same emails (case-insensitive) as the spreadsheet.' + headerInfo), 50);
+        const headerInfo = ` Headers detected: [${headerKeys.join(', ')}]${!emailHeader?' (email column not detected)':''}${headerRepairPerformed?' (fallback header parse used)':''}`;
+        setTimeout(()=>setStatus(s => s + ' Tip: Ensure People records use the same emails (case-insensitive) as the spreadsheet.' + headerInfo), 50);
       }
     } catch (e:any) {
       console.error(e); alert("Time-off import failed: " + (e?.message||e));
