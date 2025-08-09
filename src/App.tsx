@@ -221,20 +221,20 @@ export default function App() {
   }, []);
 
   // DB helpers
-  function exec(sql: string, params: any[] = []) {
-    if (!sqlDb) throw new Error("DB not open");
-    return sqlDb.exec(sql, params);
+  function exec(sql: string, params: any[] = [], db = sqlDb) {
+    if (!db) throw new Error("DB not open");
+    return db.exec(sql, params);
   }
-  function run(sql: string, params: any[] = []) {
-    if (!sqlDb) throw new Error("DB not open");
-    const stmt = sqlDb.prepare(sql);
+  function run(sql: string, params: any[] = [], db = sqlDb) {
+    if (!db) throw new Error("DB not open");
+    const stmt = db.prepare(sql);
     stmt.bind(params);
     stmt.step();
     stmt.free();
   }
-  function all(sql: string, params: any[] = []) {
-    if (!sqlDb) throw new Error("DB not open");
-    const stmt = sqlDb.prepare(sql);
+  function all(sql: string, params: any[] = [], db = sqlDb) {
+    if (!db) throw new Error("DB not open");
+    const stmt = db.prepare(sql);
     const rows: any[] = [];
     stmt.bind(params);
     while (stmt.step()) rows.push(stmt.getAsObject());
@@ -430,11 +430,11 @@ export default function App() {
 
   function refreshCaches(db = sqlDb) {
     if (!db) return;
-    const g = all(`SELECT id,name,theme_color FROM grp ORDER BY name`);
+    const g = all(`SELECT id,name,theme_color FROM grp ORDER BY name`, [], db);
     setGroups(g);
-    const r = all(`SELECT r.id, r.code, r.name, r.group_id, r.segments, g.name as group_name FROM role r JOIN grp g ON g.id=r.group_id ORDER BY g.name, r.name`);
+    const r = all(`SELECT r.id, r.code, r.name, r.group_id, r.segments, g.name as group_name FROM role r JOIN grp g ON g.id=r.group_id ORDER BY g.name, r.name`, [], db);
     setRoles(r.map(x => ({ ...x, segments: JSON.parse(x.segments) })));
-    const p = all(`SELECT * FROM person WHERE active=1 ORDER BY last_name, first_name`);
+    const p = all(`SELECT * FROM person WHERE active=1 ORDER BY last_name, first_name`, [], db);
     setPeople(p);
   }
 
