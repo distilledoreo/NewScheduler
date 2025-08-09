@@ -857,8 +857,10 @@ export default function App() {
   function DailyRunBoard(){
     const seg: Exclude<Segment, "Early"> = activeRunSegment;
     const [layout, setLayout] = useState<any[]>([]);
+    const [layoutLoaded, setLayoutLoaded] = useState(false);
 
     useEffect(() => {
+      setLayoutLoaded(false);
       const key = `layout:${lockEmail || 'default'}`;
       let saved: any[] = [];
       try {
@@ -872,10 +874,12 @@ export default function App() {
         return byId.get(String(g.id)) || { i:String(g.id), x:(idx%4)*3, y:Math.floor(idx/4)*h, w:3, h };
       });
       setLayout(merged);
+      setLayoutLoaded(true);
     }, [groups, lockEmail, seg]);
 
     function handleLayoutChange(l:any[]){
       setLayout(l);
+      if (!layoutLoaded) return;
       const key = `layout:${lockEmail || 'default'}`;
       try {
         const stmt = sqlDb.prepare(`INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)`);
