@@ -962,7 +962,7 @@ export default function App() {
           {groups.map((g:any)=> (
             <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
               <div className="font-semibold mb-3">{g.name}</div>
-              {roleListForSegment("AM").filter((r)=>r.group_id===g.id).map((r:any)=> (
+              {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
                 <div key={r.id} className="mb-4 border rounded p-3">
                   <div className="font-medium mb-3">{r.name}</div>
                   <div className="space-y-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
@@ -1207,7 +1207,7 @@ export default function App() {
             {groups.map((g:any)=> (
               <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
                 <div className="font-semibold mb-3">{g.name}</div>
-                {roleListForSegment("AM").filter((r)=>r.group_id===g.id).map((r:any)=> (
+                {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
                   <div key={r.id} className="mb-4 border rounded p-3">
                     <div className="font-medium mb-3">{r.name}</div>
                     <div className="space-y-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
