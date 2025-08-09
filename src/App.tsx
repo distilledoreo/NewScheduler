@@ -1026,8 +1026,8 @@ export default function App() {
         </Grid>
 
         {showCoverage && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white w-full max-w-5xl max-h-full overflow-auto rounded-lg shadow-lg p-4">
+          <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto p-4">
+            <div className="bg-white w-full max-w-5xl mx-auto rounded-lg shadow-lg p-4">
               <div className="flex items-center justify-between mb-4">
                 <div className="font-semibold text-lg">Coverage Overview</div>
                 <button
