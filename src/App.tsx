@@ -189,6 +189,7 @@ export default function App() {
   const [exportEnd, setExportEnd] = useState<string>(() => fmtDateMDY(new Date()));
   const [activeTab, setActiveTab] = useState<"RUN" | "NEEDS" | "EXPORT">("RUN");
   const [activeRunSegment, setActiveRunSegment] = useState<Exclude<Segment, "Early">>("AM");
+  const [compactRunView, setCompactRunView] = useState(false);
 
   // Diagnostics
   const [diag, setDiag] = useState<{passed:number;failed:number;details:string[]}|null>(null);
@@ -865,6 +866,10 @@ export default function App() {
               <button key={s} className={`px-3 py-1 rounded text-sm ${activeRunSegment===s?'bg-indigo-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveRunSegment(s)}>{s}</button>
             ))}
           </div>
+          <label className="text-sm flex items-center gap-1">
+            <input type="checkbox" checked={compactRunView} onChange={(e)=>setCompactRunView(e.target.checked)} />
+            Compact
+          </label>
           <div className="flex flex-wrap gap-2 lg:ml-auto">
             <button className="px-3 py-2 bg-slate-200 rounded text-sm" onClick={()=>setShowPeopleEditor(true)}>Manage People</button>
             <button className="px-3 py-2 bg-slate-200 rounded text-sm" onClick={()=>setShowBaselineEditor(true)}>Edit Baseline Needs</button>
@@ -872,16 +877,16 @@ export default function App() {
         </div>
 
         {/* Board: Group -> Roles -> assignment slots */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className={`grid grid-cols-1 ${compactRunView ? 'md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2' : 'lg:grid-cols-2 xl:grid-cols-3 gap-4'}`}>
           {groups.map((g:any)=> (
-            <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
-              <div className="font-semibold mb-2 flex items-center justify-between">
+            <div key={g.id} className={`border rounded-lg bg-white shadow-sm ${compactRunView ? 'p-2' : 'p-3'}`}>
+              <div className={`font-semibold flex items-center justify-between ${compactRunView ? 'mb-1 text-sm' : 'mb-2'}`}>
                 <span>{g.name}</span>
                 <span className="text-xs text-slate-500">Theme: {g.theme_color||'-'}</span>
               </div>
-              <div className="flex flex-col gap-3">
+              <div className={`flex flex-col ${compactRunView ? 'gap-1' : 'gap-3'}`}>
                 {roleListForSegment(seg).filter((r)=>r.group_id===g.id).map((r:any)=> (
-                  <RoleCard key={r.id} group={g} role={r} segment={seg} dateMDY={selectedDate} />
+                  <RoleCard key={r.id} group={g} role={r} segment={seg} dateMDY={selectedDate} compact={compactRunView} />
                 ))}
               </div>
             </div>
@@ -901,7 +906,7 @@ export default function App() {
     );
   }
 
-  function RoleCard({group, role, segment, dateMDY}:{group:any; role:any; segment:Exclude<Segment,'Early'>; dateMDY:string}){
+  function RoleCard({group, role, segment, dateMDY, compact}:{group:any; role:any; segment:Exclude<Segment,'Early'>; dateMDY:string; compact:boolean}){
     const assigns = all(`SELECT a.id, p.first_name, p.last_name, p.id as person_id FROM assignment a JOIN person p ON p.id=a.person_id WHERE a.date=? AND a.role_id=? AND a.segment=? ORDER BY p.last_name,p.first_name`, [ymd(parseMDY(dateMDY)), role.id, segment]);
     const opts = peopleOptionsForSegment(parseMDY(dateMDY), segment, role);
 
@@ -910,15 +915,15 @@ export default function App() {
     const statusColor = assignedCount < req ? 'bg-red-100 text-red-800' : assignedCount === req ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
 
     return (
-      <div className="border rounded p-2">
-        <div className="flex items-center justify-between mb-2">
-          <div className="font-medium">{role.name}</div>
+      <div className={`border rounded ${compact ? 'p-1' : 'p-2'}`}>
+        <div className={`flex items-center justify-between ${compact ? 'mb-1' : 'mb-2'}`}>
+          <div className={`font-medium ${compact ? 'text-sm' : ''}`}>{role.name}</div>
           <div className={`text-xs px-2 py-0.5 rounded ${statusColor}`}>{assignedCount}/{req}</div>
         </div>
 
         {canEdit && (
-          <div className="flex items-center gap-2 mb-2">
-            <select className="border rounded px-2 py-1 w-full" defaultValue="" onChange={(e)=>{
+          <div className={`flex items-center gap-2 ${compact ? 'mb-1' : 'mb-2'}`}>
+            <select className={`border rounded w-full ${compact ? 'px-1 py-0.5 text-xs' : 'px-2 py-1'}`} defaultValue="" onChange={(e)=>{
               const pid = Number(e.target.value);
               if (!pid) return;
               const sel = opts.find(o=>o.id===pid);
@@ -933,13 +938,12 @@ export default function App() {
             </select>
           </div>
         )}
-
         <ul className="space-y-1">
           {assigns.map((a:any)=> (
-            <li key={a.id} className="flex items-center justify-between bg-slate-50 rounded px-2 py-1">
+            <li key={a.id} className={`flex items-center justify-between bg-slate-50 rounded ${compact ? 'px-1 py-0.5 text-xs' : 'px-2 py-1'}`}>
               <span>{a.last_name}, {a.first_name}</span>
               {canEdit && (
-                <button className="text-red-600 text-sm" onClick={()=>deleteAssignment(a.id)}>Remove</button>
+                <button className={`text-red-600 ${compact ? 'text-xs' : 'text-sm'}`} onClick={()=>deleteAssignment(a.id)}>Remove</button>
               )}
             </li>
           ))}
