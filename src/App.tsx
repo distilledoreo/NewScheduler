@@ -1232,7 +1232,7 @@ export default function App() {
     const [editing,setEditing] = useState<any|null>(null);
     return (
       <div className="p-4">
-        <div className="w-full max-w-[900px] mx-auto">
+        <div className="w-full">
           <div className="font-semibold text-lg mb-3">People</div>
 
           <div className="grid grid-cols-12 gap-2 mb-3">
@@ -1269,7 +1269,7 @@ export default function App() {
             )}
           </div>
 
-          <div className="border rounded-lg overflow-auto max-h-[40vh] shadow">
+          <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
             <table className="min-w-full text-sm divide-y divide-slate-200">
               <thead className="bg-slate-100 sticky top-0">
                 <tr>
@@ -1301,7 +1301,7 @@ export default function App() {
                     <td className="p-2">{p.avail_fri}</td>
                     <td className="p-2 flex gap-2">
                       <button className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded" onClick={()=>{ setEditing(p); setForm(p); }}>Edit</button>
-                      <button className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded" onClick={()=>{ if(confirm('Delete?')) deletePerson(p.id); }}>Delete</button>
+                      <button className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded" onClick={()=>{ if(confirm('Delete?')) deletePerson(p.id); }}>Delete</button>
                     </td>
                   </tr>
                 ))}
