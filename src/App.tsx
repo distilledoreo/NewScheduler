@@ -120,6 +120,12 @@ function parseMDY(str: string): Date {
   return dt;
 }
 
+function parseYMD(str: string): Date {
+  // expects YYYY-MM-DD
+  const [y, m, d] = str.split("-").map((s) => parseInt(s, 10));
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
+}
+
 function addMinutes(date: Date, minutes: number) {
   return new Date(date.getTime() + minutes * 60000);
 }
@@ -942,7 +948,10 @@ export default function App() {
               type="date"
               className="border rounded px-2 py-1 min-w-0"
               value={ymd(selectedDateObj)}
-              onChange={(e)=>setSelectedDate(e.target.value ? fmtDateMDY(new Date(e.target.value)) : selectedDate)}
+              onChange={(e)=>{
+                const v = e.target.value;
+                if (v) setSelectedDate(fmtDateMDY(parseYMD(v)));
+              }}
             />
           </div>
           <div className="flex gap-2">
@@ -1088,7 +1097,10 @@ export default function App() {
             type="date"
             className="border rounded px-2 py-1 min-w-0"
             value={ymd(selectedDateObj)}
-            onChange={(e)=>setSelectedDate(e.target.value ? fmtDateMDY(new Date(e.target.value)) : selectedDate)}
+            onChange={(e)=>{
+              const v = e.target.value;
+              if (v) setSelectedDate(fmtDateMDY(parseYMD(v)));
+            }}
           />
           <span className="text-slate-500 text-sm">Edit overrides for this date. Baseline editor is in Daily Run toolbar.</span>
         </div>
