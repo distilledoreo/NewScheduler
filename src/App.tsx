@@ -582,12 +582,47 @@ export default function App() {
       }
 
       // Helper: find email column (support a few variants)
-      const headerCandidates = [
-        'Work Email','Email','Work Email Address','Primary Email','User Email'
-      ];
       const sample = rows[0] || {};
-      let emailHeader = headerCandidates.find(h => Object.prototype.hasOwnProperty.call(sample, h));
-      if (!emailHeader) emailHeader = 'Work Email'; // fallback
+      const headerKeys = Object.keys(sample);
+      const normalizeKey = (k:string) => k.toLowerCase().replace(/[^a-z0-9]/g,'');
+      const emailKeyNormTargets = new Set([
+        'workemail','email','workemailaddress','primaryemail','useremail','emailaddress','userupn','upn'
+      ]);
+      function detectEmailHeader(): string | null {
+        for (const k of headerKeys) {
+          if (emailKeyNormTargets.has(normalizeKey(k))) return k;
+        }
+        // second pass: find a column whose first non-empty value in first 10 rows looks like an email
+        for (const k of headerKeys) {
+          for (let i=0;i<Math.min(rows.length,10);i++) {
+            const v = String(rows[i][k]||'');
+            if (v.includes('@') && /@.+\./.test(v)) return k;
+          }
+        }
+        return null;
+      }
+      let emailHeader = detectEmailHeader();
+
+      // Helper to parse possible Excel serial dates or plain strings M/D/YYYY
+      function parseExcelDate(val:any): Date | null {
+        if (val == null || val === '') return null;
+        if (typeof val === 'number') { // Excel serial (assuming 1900 system)
+          const epoch = new Date(Date.UTC(1899,11,30)); // Excel serial 1 -> 1900-01-01
+          const ms = epoch.getTime() + val * 86400000;
+          return new Date(ms);
+        }
+        const s = String(val).trim();
+        if (!s) return null;
+        // Try MDY
+        if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+          try { return parseMDY(s); } catch {}
+        }
+        // Try ISO
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+          try { return parseYMD(s); } catch {}
+        }
+        return null;
+      }
 
       function parseTime(str:string, defaultHH:number, defaultMM:number){
         const raw = str.trim();
@@ -622,21 +657,25 @@ export default function App() {
       const now = new Date();
 
       for (const r of rows) {
-        const rawEmail = String(r[emailHeader] || '').trim();
+        if (!emailHeader) {
+          // attempt dynamic detection per-row
+            for (const k of Object.keys(r)) {
+              const val = String(r[k]||'');
+              if (val.includes('@') && /@.+\./.test(val)) { emailHeader = k; break; }
+            }
+        }
+        const rawEmail = emailHeader ? String(r[emailHeader] || '').trim() : '';
         if (!rawEmail) { skippedNoEmail++; continue; }
         const normEmail = rawEmail.toLowerCase();
         const pid = peopleEmailMap.get(normEmail);
         if (!pid) { skippedNoMatch++; unmatchedEmails.add(normEmail); continue; }
 
         // Date sources: Start Date / End Date (M/D/YYYY). Accept if Excel exported Date objects -> convert via XLSX to string already.
-        const sd = String(r['Start Date']||'').trim();
-        const ed = String(r['End Date']||sd).trim();
-        if (!sd) { // cannot parse without start date
-          skippedNoMatch++; continue;
-        }
-        let startDate: Date, endDate: Date;
-        try { startDate = parseMDY(sd); } catch { skippedNoMatch++; continue; }
-        try { endDate = parseMDY(ed); } catch { endDate = new Date(startDate.getTime()); }
+        const rawStart = r['Start Date'];
+        const rawEnd = (r['End Date'] ?? rawStart);
+        let startDate = parseExcelDate(rawStart) || (typeof rawStart === 'string' ? parseMDY(String(rawStart)) : null);
+        if (!startDate) { skippedNoMatch++; continue; }
+        let endDate = parseExcelDate(rawEnd) || (typeof rawEnd === 'string' ? parseMDY(String(rawEnd)) : new Date(startDate.getTime()));
 
         const stRaw = String(r['Start Time']||'00:00');
         const etRaw = String(r['End Time']||'23:59');
@@ -676,7 +715,8 @@ export default function App() {
       }
       if (count === 0) {
         // Guidance hint
-        setTimeout(()=>setStatus(s => s + ' Tip: Ensure People records use the same emails (case-insensitive) as the spreadsheet.'), 50);
+  const headerInfo = ` Headers detected: [${headerKeys.join(', ')}]${!emailHeader?' (email column not detected)':''}`;
+  setTimeout(()=>setStatus(s => s + ' Tip: Ensure People records use the same emails (case-insensitive) as the spreadsheet.' + headerInfo), 50);
       }
     } catch (e:any) {
       console.error(e); alert("Time-off import failed: " + (e?.message||e));
