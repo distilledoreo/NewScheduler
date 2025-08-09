@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import GridLayout, { WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
+import { applyMigrations } from "./services/migrations";
 
 const Grid = WidthProvider(GridLayout);
 
@@ -280,98 +281,7 @@ export default function App() {
   async function createNewDb() {
     if (!SQL) return;
     const db = new SQL.Database();
-    // Schema
-    db.run(`PRAGMA journal_mode=WAL;`);
-    db.run(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);`);
-    db.run(`CREATE TABLE IF NOT EXISTS person (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      last_name TEXT NOT NULL,
-      first_name TEXT NOT NULL,
-      work_email TEXT NOT NULL UNIQUE,
-      brother_sister TEXT CHECK(brother_sister IN ('Brother','Sister')),
-      commuter INTEGER NOT NULL DEFAULT 0,
-      active INTEGER NOT NULL DEFAULT 1,
-      avail_mon TEXT CHECK(avail_mon IN ('U','AM','PM','B')) DEFAULT 'U',
-      avail_tue TEXT CHECK(avail_tue IN ('U','AM','PM','B')) DEFAULT 'U',
-      avail_wed TEXT CHECK(avail_wed IN ('U','AM','PM','B')) DEFAULT 'U',
-      avail_thu TEXT CHECK(avail_thu IN ('U','AM','PM','B')) DEFAULT 'U',
-      avail_fri TEXT CHECK(avail_fri IN ('U','AM','PM','B')) DEFAULT 'U'
-    );`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS grp (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE,
-      theme_color TEXT
-    );`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS role (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT NOT NULL,
-      name TEXT NOT NULL,
-      group_id INTEGER NOT NULL,
-      segments TEXT NOT NULL,
-      UNIQUE(code, name, group_id),
-      FOREIGN KEY (group_id) REFERENCES grp(id)
-    );`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS training (
-      person_id INTEGER NOT NULL,
-      role_id INTEGER NOT NULL,
-      status TEXT CHECK(status IN ('Not trained','In training','Qualified')) NOT NULL DEFAULT 'Not trained',
-      PRIMARY KEY (person_id, role_id),
-      FOREIGN KEY (person_id) REFERENCES person(id),
-      FOREIGN KEY (role_id) REFERENCES role(id)
-    );`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS assignment (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date TEXT NOT NULL, -- YYYY-MM-DD
-      person_id INTEGER NOT NULL,
-      role_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
-      FOREIGN KEY (person_id) REFERENCES person(id),
-      FOREIGN KEY (role_id) REFERENCES role(id)
-    );`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS monthly_default (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      month TEXT NOT NULL, -- YYYY-MM
-      person_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
-      role_id INTEGER NOT NULL,
-      UNIQUE(month, person_id, segment),
-      FOREIGN KEY (person_id) REFERENCES person(id),
-      FOREIGN KEY (role_id) REFERENCES role(id)
-    );`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS needs_baseline (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      group_id INTEGER NOT NULL,
-      role_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
-      required INTEGER NOT NULL DEFAULT 0,
-      UNIQUE(group_id, role_id, segment)
-    );`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS needs_override (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date TEXT NOT NULL,
-      group_id INTEGER NOT NULL,
-      role_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
-      required INTEGER NOT NULL,
-      UNIQUE(date, group_id, role_id, segment)
-    );`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS timeoff (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      person_id INTEGER NOT NULL,
-      start_ts TEXT NOT NULL, -- ISO string
-      end_ts TEXT NOT NULL,
-      reason TEXT,
-      source TEXT DEFAULT 'TeamsImport',
-      FOREIGN KEY (person_id) REFERENCES person(id)
-    );`);
+    applyMigrations(db);
 
     // Seed groups
     Object.keys(GROUP_THEME).forEach((name) => {
@@ -411,16 +321,7 @@ export default function App() {
       const buf = await file.arrayBuffer();
       const db = new SQL.Database(new Uint8Array(buf));
 
-      db.run(`CREATE TABLE IF NOT EXISTS monthly_default (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        month TEXT NOT NULL,
-        person_id INTEGER NOT NULL,
-        segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
-        role_id INTEGER NOT NULL,
-        UNIQUE(month, person_id, segment),
-        FOREIGN KEY (person_id) REFERENCES person(id),
-        FOREIGN KEY (role_id) REFERENCES role(id)
-      );`);
+      applyMigrations(db);
 
       // Check soft lock
       let lockJson = {} as any;
