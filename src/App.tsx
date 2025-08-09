@@ -102,7 +102,8 @@ export default function App() {
   const [exportStart, setExportStart] = useState<string>(() => fmtDateMDY(new Date()));
   const [exportEnd, setExportEnd] = useState<string>(() => fmtDateMDY(new Date()));
   const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY">("RUN");
-  const [activeRunSegment, setActiveRunSegment] = useState<Exclude<Segment, "Early">>("AM");
+  // Allow selecting Early in Daily Run board
+  const [activeRunSegment, setActiveRunSegment] = useState<Segment>("AM");
 
   // Diagnostics
   const [diag, setDiag] = useState<{passed:number;failed:number;details:string[]}|null>(null);
@@ -479,7 +480,7 @@ export default function App() {
     setMonthlyDefaults(rows);
   }
 
-  function setMonthlyDefault(personId: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
+  function setMonthlyDefault(personId: number, segment: Segment, roleId: number | null) {
     if (!sqlDb) return;
     if (roleId) {
       run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
@@ -492,7 +493,7 @@ export default function App() {
     loadMonthlyDefaults(selectedMonth);
   }
 
-  function setMonthlyDefaultForMonth(month: string, personId: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
+  function setMonthlyDefaultForMonth(month: string, personId: number, segment: Segment, roleId: number | null) {
     if (!sqlDb) return;
     if (roleId) {
       run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
@@ -532,11 +533,12 @@ export default function App() {
         const availField = wd === 'Monday'? 'avail_mon' : wd === 'Tuesday'? 'avail_tue' : wd === 'Wednesday'? 'avail_wed' : wd === 'Thursday'? 'avail_thu' : 'avail_fri';
         const avail = person[availField];
         let ok = false;
-        if (def.segment === 'AM') ok = avail === 'AM' || avail === 'B';
+  if (def.segment === 'Early') ok = avail === 'AM' || avail === 'B';
+  else if (def.segment === 'AM') ok = avail === 'AM' || avail === 'B';
         else if (def.segment === 'PM') ok = avail === 'PM' || avail === 'B';
         else if (def.segment === 'Lunch') ok = avail === 'AM' || avail === 'PM' || avail === 'B';
         if (!ok) continue;
-        if (isSegmentBlockedByTimeOff(person.id, d, def.segment)) continue;
+  if (def.segment !== 'Early' && isSegmentBlockedByTimeOff(person.id, d, def.segment as Exclude<Segment,'Early'>)) continue;
         run(`INSERT OR REPLACE INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`,
             [ymd(d), def.person_id, def.role_id, def.segment]);
       }
@@ -547,7 +549,6 @@ export default function App() {
 
   // Needs
   function getRequiredFor(date: Date, groupId: number, roleId: number, segment: Segment): number {
-    if (segment === "Early") return 0; // Breakfast baseline usually 0 unless set
     const dY = ymd(date);
     const ov = all(`SELECT required FROM needs_override WHERE date=? AND group_id=? AND role_id=? AND segment=?`, [dY, groupId, roleId, segment]);
     if (ov.length) return ov[0].required;
@@ -577,29 +578,109 @@ export default function App() {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
       // Expected columns: Member, Work Email, Start Date, Start Time, End Date, End Time, Time Off Reason
-      let count = 0, skipped = 0;
-      for (const r of rows) {
-        const email = String(r["Work Email"] || "").trim();
-        if (!email) { skipped++; continue; }
-        const p = all(`SELECT id FROM person WHERE work_email=?`, [email])[0];
-        if (!p) { skipped++; continue; }
-        const pid = p.id;
-        const sd = String(r["Start Date"]||"").trim();
-        const st = String(r["Start Time"]||"00:00").trim();
-        const ed = String(r["End Date"]||sd).trim();
-        const et = String(r["End Time"]||"23:59").trim();
-        const reason = String(r["Time Off Reason"]||"");
-        // Date = M/D/YYYY, Time = 24-hour HH:MM
-        const start = parseMDY(sd);
-        const [sh, sm] = st.split(":").map((x:string)=>parseInt(x,10));
-        start.setHours(sh||0, sm||0, 0, 0);
-        const end = parseMDY(ed);
-        const [eh, em] = et.split(":").map((x:string)=>parseInt(x,10));
-        end.setHours(eh||0, em||0, 0, 0);
-        run(`INSERT INTO timeoff (person_id, start_ts, end_ts, reason) VALUES (?,?,?,?)`, [pid, start.toISOString(), end.toISOString(), reason]);
-        count++;
+      // Build case-insensitive email map from current people
+      const peopleEmailMap = new Map<string, number>(); // normalized email -> person_id
+      for (const p of people) {
+        if (p.work_email) peopleEmailMap.set(String(p.work_email).trim().toLowerCase(), p.id);
       }
-      setStatus(`Imported ${count} time-off rows. Skipped ${skipped} (no email match).`);
+
+      // Helper: find email column (support a few variants)
+      const headerCandidates = [
+        'Work Email','Email','Work Email Address','Primary Email','User Email'
+      ];
+      const sample = rows[0] || {};
+      let emailHeader = headerCandidates.find(h => Object.prototype.hasOwnProperty.call(sample, h));
+      if (!emailHeader) emailHeader = 'Work Email'; // fallback
+
+      function parseTime(str:string, defaultHH:number, defaultMM:number){
+        const raw = str.trim();
+        if (!raw) return { h: defaultHH, m: defaultMM };
+        // Accept formats: HH:MM, H:MM, HH:MM AM, HH:MM PM, H AM, HPM
+        const ampmMatch = raw.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
+        if (ampmMatch){
+          let h = parseInt(ampmMatch[1],10);
+          const m = ampmMatch[2]?parseInt(ampmMatch[2],10):0;
+          const ap = ampmMatch[3].toUpperCase();
+          if (ap==='PM' && h<12) h+=12; if (ap==='AM' && h===12) h=0;
+          return { h, m };
+        }
+        const simple = raw.match(/^(\d{1,2}):(\d{2})$/);
+        if (simple){
+          return { h: parseInt(simple[1],10), m: parseInt(simple[2],10) };
+        }
+        // e.g. 900 or 930
+        const compact = raw.match(/^(\d{3,4})$/);
+        if (compact){
+          const num = compact[1];
+          const h = parseInt(num.slice(0, num.length-2),10);
+          const m = parseInt(num.slice(-2),10);
+          return { h, m };
+        }
+        return { h: defaultHH, m: defaultMM };
+      }
+
+      // Diagnostics collection
+      let count = 0, skippedNoEmail = 0, skippedNoMatch = 0;
+      const unmatchedEmails = new Set<string>();
+      const now = new Date();
+
+      for (const r of rows) {
+        const rawEmail = String(r[emailHeader] || '').trim();
+        if (!rawEmail) { skippedNoEmail++; continue; }
+        const normEmail = rawEmail.toLowerCase();
+        const pid = peopleEmailMap.get(normEmail);
+        if (!pid) { skippedNoMatch++; unmatchedEmails.add(normEmail); continue; }
+
+        // Date sources: Start Date / End Date (M/D/YYYY). Accept if Excel exported Date objects -> convert via XLSX to string already.
+        const sd = String(r['Start Date']||'').trim();
+        const ed = String(r['End Date']||sd).trim();
+        if (!sd) { // cannot parse without start date
+          skippedNoMatch++; continue;
+        }
+        let startDate: Date, endDate: Date;
+        try { startDate = parseMDY(sd); } catch { skippedNoMatch++; continue; }
+        try { endDate = parseMDY(ed); } catch { endDate = new Date(startDate.getTime()); }
+
+        const stRaw = String(r['Start Time']||'00:00');
+        const etRaw = String(r['End Time']||'23:59');
+        const st = parseTime(stRaw, 0, 0);
+        const et = parseTime(etRaw, 23, 59);
+        startDate.setHours(st.h, st.m, 0, 0);
+        endDate.setHours(et.h, et.m, 0, 0);
+        if (endDate < startDate) {
+          // Guard against inverted times: swap or clamp to same day end
+          endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // default 1h
+        }
+        // Optional: clamp absurdly long ranges (> 1 year)
+        if (endDate.getTime() - startDate.getTime() > 1000*60*60*24*366) {
+          endDate = new Date(startDate.getTime() + 1000*60*60*8); // clamp to a work day
+        }
+        const reason = String(r['Time Off Reason']||'');
+        try {
+          run(`INSERT INTO timeoff (person_id, start_ts, end_ts, reason) VALUES (?,?,?,?)`, [pid, startDate.toISOString(), endDate.toISOString(), reason]);
+          count++;
+        } catch (e:any) {
+          console.warn('Insert failed for row', r, e);
+        }
+      }
+
+      // Compose status message with limited unmatched preview
+      const unmatchedPreview = Array.from(unmatchedEmails).slice(0, 5).join(', ');
+      const extra = unmatchedEmails.size > 5 ? ` (+${unmatchedEmails.size-5} more)` : '';
+      const msgParts = [
+        `Imported ${count} time-off rows` ,
+        `Skipped ${skippedNoEmail} (missing email)`,
+        `Skipped ${skippedNoMatch} (no match)`
+      ];
+      if (unmatchedEmails.size) msgParts.push(`Unmatched examples: ${unmatchedPreview}${extra}`);
+      setStatus(msgParts.join('. ') + '.');
+      if (count === 0 && unmatchedEmails.size) {
+        console.info('Unmatched email set (first 50):', Array.from(unmatchedEmails).slice(0,50));
+      }
+      if (count === 0) {
+        // Guidance hint
+        setTimeout(()=>setStatus(s => s + ' Tip: Ensure People records use the same emails (case-insensitive) as the spreadsheet.'), 50);
+      }
     } catch (e:any) {
       console.error(e); alert("Time-off import failed: " + (e?.message||e));
     }
@@ -781,28 +862,45 @@ export default function App() {
   const canEdit = !!sqlDb && !!lockedBy && lockedBy !== "(read-only)";
   const selectedDateObj = useMemo(()=>parseMDY(selectedDate),[selectedDate]);
 
-  function peopleOptionsForSegment(date: Date, segment: Exclude<Segment, "Early">, role: any) {
-    // Filter: active people; weekend ignored earlier
+  function peopleOptionsForSegment(date: Date, segment: Segment, role: any) {
+    // Active people only
     const wd = weekdayName(date);
-    const availField = wd === "Monday" ? "avail_mon" : wd === "Tuesday" ? "avail_tue" : wd === "Wednesday" ? "avail_wed" : wd === "Thursday" ? "avail_thu" : "avail_fri";
+    const availField = wd === 'Monday' ? 'avail_mon' : wd === 'Tuesday' ? 'avail_tue' : wd === 'Wednesday' ? 'avail_wed' : wd === 'Thursday' ? 'avail_thu' : 'avail_fri';
     const rows = all(`SELECT * FROM person WHERE active=1 ORDER BY last_name, first_name`);
-    return rows.map((p:any)=>{
-      const avail = p[availField] as "U"|"AM"|"PM"|"B";
-      let warn = "";
-      if ((segment === "AM" && !(avail === "AM" || avail === "B")) ||
-          (segment === "PM" && !(avail === "PM" || avail === "B")) ||
-          (segment === "Lunch" && !(avail === "AM" || avail === "PM" || avail === "B"))) {
-        warn = "(Availability warning)"; // per spec: Warn
+
+    return rows.map((p: any) => {
+      const avail = p[availField] as 'U'|'AM'|'PM'|'B';
+      let warn = '';
+
+      if (segment === 'Early') {
+        // Treat Early like needing AM availability or Both
+        if (!(avail === 'AM' || avail === 'B')) warn = '(Availability warning)';
+      } else if ((segment === 'AM' && !(avail === 'AM' || avail === 'B')) ||
+                 (segment === 'PM' && !(avail === 'PM' || avail === 'B')) ||
+                 (segment === 'Lunch' && !(avail === 'AM' || avail === 'PM' || avail === 'B'))) {
+        warn = '(Availability warning)';
       }
-      // training status (warn)
+
+      // Training status warning (only if role actually covers this segment)
       const tr = all(`SELECT status FROM training WHERE person_id=? AND role_id=?`, [p.id, role.id])[0];
-      if (!warn && tr && tr.status !== 'Qualified') warn = tr.status === 'In training' ? '(In training)' : '(Not trained)';
+      if (!warn && tr && tr.status !== 'Qualified') {
+        warn = tr.status === 'In training' ? '(In training)' : '(Not trained)';
+      }
 
-      // time-off block enforcement: hard block on add
+      // Time-off block detection
       let blocked = false;
-      if (segment !== "Early") blocked = isSegmentBlockedByTimeOff(p.id, date, segment);
+      if (segment === 'Early') {
+        const intervals = listTimeOffIntervals(p.id, date);
+        if (intervals.length) {
+          const et = earlyTimes(date);
+          const es = et.start.getTime(); const ee = et.end.getTime();
+          blocked = intervals.some(iv => Math.max(iv.start.getTime(), es) < Math.min(iv.end.getTime(), ee));
+        }
+      } else {
+        blocked = isSegmentBlockedByTimeOff(p.id, date, segment as Exclude<Segment,'Early'>);
+      }
 
-      return { id: p.id, label: `${p.last_name}, ${p.first_name} ${warn}`, blocked };
+      return { id: p.id, label: `${p.last_name}, ${p.first_name} ${warn}`.trim(), blocked };
     });
   }
 
@@ -875,7 +973,7 @@ export default function App() {
   }
 
   function DailyRunBoard(){
-    const seg: Exclude<Segment, "Early"> = activeRunSegment;
+    const seg: Segment = activeRunSegment;
     const [layout, setLayout] = useState<any[]>([]);
     const [layoutLoaded, setLayoutLoaded] = useState(false);
 
@@ -925,7 +1023,7 @@ export default function App() {
             />
           </div>
           <div className="flex gap-2">
-            {(["AM","Lunch","PM"] as const).map(s => (
+            {(["Early","AM","Lunch","PM"] as const).map(s => (
               <button key={s} className={`px-3 py-1 rounded text-sm ${activeRunSegment===s?'bg-indigo-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveRunSegment(s)}>{s}</button>
             ))}
           </div>
@@ -970,7 +1068,7 @@ export default function App() {
     );
   }
 
-  function RoleCard({group, role, segment, dateMDY}:{group:any; role:any; segment:Exclude<Segment,'Early'>; dateMDY:string}){
+  function RoleCard({group, role, segment, dateMDY}:{group:any; role:any; segment:Segment; dateMDY:string}){
     const assigns = all(`SELECT a.id, p.first_name, p.last_name, p.id as person_id FROM assignment a JOIN person p ON p.id=a.person_id WHERE a.date=? AND a.role_id=? AND a.segment=? ORDER BY p.last_name,p.first_name`, [ymd(parseMDY(dateMDY)), role.id, segment]);
     const opts = peopleOptionsForSegment(parseMDY(dateMDY), segment, role);
 
@@ -1020,7 +1118,7 @@ export default function App() {
     const [sortKey, setSortKey] = useState<
       'name' | 'email' | 'brother_sister' | 'commuter' | 'active' |
       'avail_mon' | 'avail_tue' | 'avail_wed' | 'avail_thu' | 'avail_fri' |
-      'AM' | 'Lunch' | 'PM'
+      'Early' | 'AM' | 'Lunch' | 'PM'
     >('name');
     const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc');
     const [filterText, setFilterText] = useState('');
@@ -1028,7 +1126,7 @@ export default function App() {
     const viewPeople = useMemo(()=>{
       const low = filterText.toLowerCase();
       const filtered = people.filter((p:any)=>{
-        const roleNames = ['AM','Lunch','PM'].map(seg=>{
+  const roleNames = ['Early','AM','Lunch','PM'].map(seg=>{
           const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
           const role = roles.find(r=>r.id===def?.role_id);
           return role?.name || '';
@@ -1073,6 +1171,7 @@ export default function App() {
           case 'avail_wed': av = a.avail_wed; bv = b.avail_wed; break;
           case 'avail_thu': av = a.avail_thu; bv = b.avail_thu; break;
           case 'avail_fri': av = a.avail_fri; bv = b.avail_fri; break;
+          case 'Early':
           case 'AM':
           case 'Lunch':
           case 'PM':
@@ -1119,6 +1218,7 @@ export default function App() {
             <option value="avail_wed">Wed</option>
             <option value="avail_thu">Thu</option>
             <option value="avail_fri">Fri</option>
+            <option value="Early">Early Role</option>
             <option value="AM">AM Role</option>
             <option value="Lunch">Lunch Role</option>
             <option value="PM">PM Role</option>
@@ -1130,7 +1230,7 @@ export default function App() {
             <thead className="bg-slate-100">
               <tr>
                 <th className="p-2 text-left">Name</th>
-                {(['AM','Lunch','PM'] as const).map(seg=> (
+                {(['Early','AM','Lunch','PM'] as const).map(seg=> (
                   <th key={seg} className="p-2 text-left">{seg}</th>
                 ))}
               </tr>
@@ -1139,7 +1239,7 @@ export default function App() {
               {viewPeople.map((p:any) => (
                 <tr key={p.id} className="odd:bg-white even:bg-slate-50">
                   <td className="p-2">{p.last_name}, {p.first_name}</td>
-                  {(['AM','Lunch','PM'] as const).map(seg => {
+                  {(['Early','AM','Lunch','PM'] as const).map(seg => {
                     const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
                     return (
                       <td key={seg} className="p-2">
@@ -1165,7 +1265,7 @@ export default function App() {
   function CrewHistoryView(){
     const [defs, setDefs] = useState<any[]>([]);
     const [filter, setFilter] = useState("");
-    const [showSeg, setShowSeg] = useState({ AM: true, Lunch: true, PM: true });
+  const [showSeg, setShowSeg] = useState({ Early: true, AM: true, Lunch: true, PM: true });
     const [activeOnly, setActiveOnly] = useState(false);
     const [commuterOnly, setCommuterOnly] = useState(false);
     const [sortField, setSortField] = useState<'last'|'first'>('last');
@@ -1206,12 +1306,13 @@ export default function App() {
         .sort((a:any,b:any)=>sortField==='last' ? a.last_name.localeCompare(b.last_name) : a.first_name.localeCompare(b.first_name));
     }, [people, filter, activeOnly, commuterOnly, sortField]);
 
-    const segs = ([] as Exclude<Segment,'Early'>[]);
-    if (showSeg.AM) segs.push('AM');
-    if (showSeg.Lunch) segs.push('Lunch');
-    if (showSeg.PM) segs.push('PM');
+  const segs = ([] as Segment[]);
+  if (showSeg.Early) segs.push('Early');
+  if (showSeg.AM) segs.push('AM');
+  if (showSeg.Lunch) segs.push('Lunch');
+  if (showSeg.PM) segs.push('PM');
 
-    function RoleSelect({ month, personId, seg, def }: { month: string; personId: number; seg: Exclude<Segment,'Early'>; def: any }){
+  function RoleSelect({ month, personId, seg, def }: { month: string; personId: number; seg: Segment; def: any }){
       const ref = useRef<HTMLSelectElement>(null);
       const options = roleListForSegment(seg);
 
@@ -1254,7 +1355,7 @@ export default function App() {
       );
     }
 
-    function cellData(month:string, personId:number, seg:Exclude<Segment,'Early'>){
+  function cellData(month:string, personId:number, seg:Segment){
       const def = defs.find((d:any)=>d.month===month && d.person_id===personId && d.segment===seg);
       const role = roles.find((r:any)=>r.id===def?.role_id);
       const color = role ? GROUPS[role.group_name]?.color : undefined;
@@ -1282,6 +1383,9 @@ export default function App() {
           </label>
           <label className="text-sm flex items-center gap-1">
             <input type="checkbox" checked={commuterOnly} onChange={(e)=>setCommuterOnly(e.target.checked)} /> Commuter
+          </label>
+          <label className="text-sm flex items-center gap-1">
+            <input type="checkbox" checked={showSeg.Early} onChange={(e)=>setShowSeg({...showSeg, Early:e.target.checked})} /> Early
           </label>
           <label className="text-sm flex items-center gap-1">
             <input type="checkbox" checked={showSeg.AM} onChange={(e)=>setShowSeg({...showSeg, AM:e.target.checked})} /> AM
@@ -1357,6 +1461,7 @@ export default function App() {
 
   function NeedsView(){
     const d = selectedDateObj;
+    const ORDER: Segment[] = ['Early','AM','Lunch','PM'];
     return (
       <div className="p-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
@@ -1372,30 +1477,26 @@ export default function App() {
           />
           <span className="text-slate-500 text-sm">Edit overrides for this date. Baseline editor is in Daily Run toolbar.</span>
         </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
           {groups.map((g:any)=> (
             <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
               <div className="font-semibold mb-3">{g.name}</div>
-              {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
-                <div key={r.id} className="mb-4 border rounded p-3">
-                  <div className="font-medium mb-3">{r.name}</div>
-                  <div className="space-y-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">AM Required</div>
-                      <RequiredCell date={d} group={g} role={r} segment={'AM'} />
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">Lunch Required</div>
-                      <RequiredCell date={d} group={g} role={r} segment={'Lunch'} />
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">PM Required</div>
-                      <RequiredCell date={d} group={g} role={r} segment={'PM'} />
+              {roles.filter((r)=>r.group_id===g.id).map((r:any)=> {
+                const segs: Segment[] = ORDER.filter(s => (r.segments as Segment[]).includes(s));
+                return (
+                  <div key={r.id} className="mb-4 border rounded p-3">
+                    <div className="font-medium mb-3">{r.name}</div>
+                    <div className="grid gap-3" style={{gridTemplateColumns:`repeat(${segs.length},minmax(0,1fr))`}}>
+                      {segs.map(s => (
+                        <div key={s}>
+                          <div className="text-xs text-slate-500 mb-1">{s} Required</div>
+                          <RequiredCell date={d} group={g} role={r} segment={s} />
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ))}
         </div>
@@ -1605,40 +1706,38 @@ export default function App() {
   }
 
   function BaselineEditor(){
+    const ORDER: Segment[] = ['Early','AM','Lunch','PM'];
     return (
       <div className="fixed inset-0 bg-black/40 z-30 overflow-auto">
         <div className="min-h-full flex items-start justify-center p-4">
           <div className="bg-white w-full max-w-6xl max-h-[85vh] overflow-auto rounded-xl p-4 shadow-xl">
-          <div className="flex items-center justify-between mb-4">
-            <div className="font-semibold text-lg">Baseline Needs</div>
-            <button className="text-slate-600 hover:text-slate-800 px-2 py-1" onClick={()=>setShowBaselineEditor(false)}>Close</button>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-            {groups.map((g:any)=> (
-              <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
-                <div className="font-semibold mb-3">{g.name}</div>
-                {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
-                  <div key={r.id} className="mb-4 border rounded p-3">
-                    <div className="font-medium mb-3">{r.name}</div>
-                    <div className="space-y-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
-                      <div>
-                        <div className="text-xs text-slate-500 mb-1">AM Required</div>
-                        <RequiredCell date={null} group={g} role={r} segment={'AM'} />
+            <div className="flex items-center justify-between mb-4">
+              <div className="font-semibold text-lg">Baseline Needs</div>
+              <button className="text-slate-600 hover:text-slate-800 px-2 py-1" onClick={()=>setShowBaselineEditor(false)}>Close</button>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+              {groups.map((g:any)=> (
+                <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
+                  <div className="font-semibold mb-3">{g.name}</div>
+                  {roles.filter((r)=>r.group_id===g.id).map((r:any)=> {
+                    const segs: Segment[] = ORDER.filter(s => (r.segments as Segment[]).includes(s));
+                    return (
+                      <div key={r.id} className="mb-4 border rounded p-3">
+                        <div className="font-medium mb-3">{r.name}</div>
+                        <div className="grid gap-3" style={{gridTemplateColumns:`repeat(${segs.length},minmax(0,1fr))`}}>
+                          {segs.map(s => (
+                            <div key={s}>
+                              <div className="text-xs text-slate-500 mb-1">{s} Required</div>
+                              <RequiredCell date={null} group={g} role={r} segment={s} />
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-xs text-slate-500 mb-1">Lunch Required</div>
-                        <RequiredCell date={null} group={g} role={r} segment={'Lunch'} />
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 mb-1">PM Required</div>
-                        <RequiredCell date={null} group={g} role={r} segment={'PM'} />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
