@@ -1194,8 +1194,9 @@ export default function App() {
 
   function BaselineEditor(){
     return (
-      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-30 p-4">
-        <div className="bg-white w-full max-w-6xl max-h-[85vh] overflow-auto rounded-xl p-4 shadow-xl">
+      <div className="fixed inset-0 bg-black/40 z-30 overflow-auto">
+        <div className="min-h-full flex items-start justify-center p-4">
+          <div className="bg-white w-full max-w-6xl max-h-[85vh] overflow-auto rounded-xl p-4 shadow-xl">
           <div className="flex items-center justify-between mb-4">
             <div className="font-semibold text-lg">Baseline Needs</div>
             <button className="text-slate-600 hover:text-slate-800 px-2 py-1" onClick={()=>setShowBaselineEditor(false)}>Close</button>
@@ -1225,6 +1226,7 @@ export default function App() {
                 ))}
               </div>
             ))}
+          </div>
           </div>
         </div>
       </div>
