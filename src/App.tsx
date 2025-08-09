@@ -187,7 +187,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState<string>(() => fmtDateMDY(new Date()));
   const [exportStart, setExportStart] = useState<string>(() => fmtDateMDY(new Date()));
   const [exportEnd, setExportEnd] = useState<string>(() => fmtDateMDY(new Date()));
-  const [activeTab, setActiveTab] = useState<"RUN" | "NEEDS" | "EXPORT">("RUN");
+  const [activeTab, setActiveTab] = useState<"RUN" | "NEEDS" | "EXPORT" | "MONTHLY">("RUN");
   const [activeRunSegment, setActiveRunSegment] = useState<Exclude<Segment, "Early">>("AM");
 
   // Diagnostics
@@ -198,9 +198,19 @@ export default function App() {
   const [roles, setRoles] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
 
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
+    });
+  const [monthlyDefaults, setMonthlyDefaults] = useState<any[]>([]);
+
   // UI: simple dialogs
   const [showPeopleEditor, setShowPeopleEditor] = useState(false);
   const [showBaselineEditor, setShowBaselineEditor] = useState(false);
+
+  useEffect(() => {
+    if (sqlDb) loadMonthlyDefaults(selectedMonth);
+  }, [sqlDb, selectedMonth]);
 
   // Load sql.js
   useEffect(() => {
@@ -298,6 +308,17 @@ export default function App() {
       FOREIGN KEY (role_id) REFERENCES role(id)
     );`);
 
+    db.run(`CREATE TABLE IF NOT EXISTS monthly_default (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL, -- YYYY-MM
+      person_id INTEGER NOT NULL,
+      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      role_id INTEGER NOT NULL,
+      UNIQUE(month, person_id, segment),
+      FOREIGN KEY (person_id) REFERENCES person(id),
+      FOREIGN KEY (role_id) REFERENCES role(id)
+    );`);
+
     db.run(`CREATE TABLE IF NOT EXISTS needs_baseline (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       group_id INTEGER NOT NULL,
@@ -364,6 +385,17 @@ export default function App() {
       const file = await handle.getFile();
       const buf = await file.arrayBuffer();
       const db = new SQL.Database(new Uint8Array(buf));
+
+      db.run(`CREATE TABLE IF NOT EXISTS monthly_default (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        month TEXT NOT NULL,
+        person_id INTEGER NOT NULL,
+        segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+        role_id INTEGER NOT NULL,
+        UNIQUE(month, person_id, segment),
+        FOREIGN KEY (person_id) REFERENCES person(id),
+        FOREIGN KEY (role_id) REFERENCES role(id)
+      );`);
 
       // Check soft lock
       let lockJson = {} as any;
@@ -521,6 +553,53 @@ export default function App() {
       .map((r) => ({ start: new Date(r.start_ts), end: new Date(r.end_ts), reason: r.reason }))
       .filter((r) => r.end >= startDay && r.start <= endDay)
       .map((r) => ({ start: r.start < startDay ? startDay : r.start, end: r.end > endDay ? endDay : r.end, reason: r.reason }));
+  }
+
+  // Monthly default assignments
+  function loadMonthlyDefaults(month: string) {
+    if (!sqlDb) return;
+    const rows = all(`SELECT * FROM monthly_default WHERE month=?`, [month]);
+    setMonthlyDefaults(rows);
+  }
+
+  function setMonthlyDefault(personId: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
+    if (!sqlDb) return;
+    if (roleId) {
+      run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
+           ON CONFLICT(month, person_id, segment) DO UPDATE SET role_id=excluded.role_id`,
+          [selectedMonth, personId, segment, roleId]);
+    } else {
+      run(`DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=?`,
+          [selectedMonth, personId, segment]);
+    }
+    loadMonthlyDefaults(selectedMonth);
+  }
+
+  function applyMonthlyDefaults(month: string) {
+    if (!sqlDb) return;
+    const [y,m] = month.split('-').map(n=>parseInt(n,10));
+    const days = new Date(y, m, 0).getDate();
+    for (const def of monthlyDefaults) {
+      const person = people.find(p=>p.id===def.person_id);
+      if (!person) continue;
+      for (let day=1; day<=days; day++) {
+        const d = new Date(y, m-1, day);
+        const wd = weekdayName(d);
+        if (wd === 'Weekend') continue;
+        const availField = wd === 'Monday'? 'avail_mon' : wd === 'Tuesday'? 'avail_tue' : wd === 'Wednesday'? 'avail_wed' : wd === 'Thursday'? 'avail_thu' : 'avail_fri';
+        const avail = person[availField];
+        let ok = false;
+        if (def.segment === 'AM') ok = avail === 'AM' || avail === 'B';
+        else if (def.segment === 'PM') ok = avail === 'PM' || avail === 'B';
+        else if (def.segment === 'Lunch') ok = avail === 'AM' || avail === 'PM' || avail === 'B';
+        if (!ok) continue;
+        if (isSegmentBlockedByTimeOff(person.id, d, def.segment)) continue;
+        run(`INSERT OR REPLACE INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`,
+            [ymd(d), def.person_id, def.role_id, def.segment]);
+      }
+    }
+    refreshCaches();
+    setStatus('Applied monthly defaults.');
   }
 
   // Needs
@@ -843,6 +922,7 @@ export default function App() {
           <button className={`px-3 py-2 rounded text-sm ${activeTab==='RUN'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('RUN')}>Daily Run</button>
           <button className={`px-3 py-2 rounded text-sm ${activeTab==='NEEDS'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('NEEDS')}>Needs vs Coverage</button>
           <button className={`px-3 py-2 rounded text-sm ${activeTab==='EXPORT'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('EXPORT')}>Export Preview</button>
+          <button className={`px-3 py-2 rounded text-sm ${activeTab==='MONTHLY'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('MONTHLY')}>Monthly Defaults</button>
           <button className="px-3 py-2 rounded bg-slate-200 text-sm" onClick={runDiagnostics}>Run Diagnostics</button>
         </div>
       </div>
@@ -944,6 +1024,51 @@ export default function App() {
             </li>
           ))}
         </ul>
+      </div>
+    );
+  } 
+
+  function MonthlyView(){
+    return (
+      <div className="p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <label className="text-sm">Month</label>
+          <input type="month" className="border rounded px-2 py-1" value={selectedMonth} onChange={(e)=>setSelectedMonth(e.target.value)} />
+          <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>applyMonthlyDefaults(selectedMonth)}>Apply to Month</button>
+        </div>
+        <div className="overflow-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-100">
+              <tr>
+                <th className="p-2 text-left">Name</th>
+                {(['AM','Lunch','PM'] as const).map(seg=> (
+                  <th key={seg} className="p-2 text-left">{seg}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {people.map(p => (
+                <tr key={p.id} className="odd:bg-white even:bg-slate-50">
+                  <td className="p-2">{p.last_name}, {p.first_name}</td>
+                  {(['AM','Lunch','PM'] as const).map(seg => {
+                    const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
+                    return (
+                      <td key={seg} className="p-2">
+                        <select className="border rounded px-2 py-1 w-full" value={def?.role_id||""} onChange={(e)=>{
+                          const rid = Number(e.target.value);
+                          setMonthlyDefault(p.id, seg, rid||null);
+                        }}>
+                          <option value="">--</option>
+                          {roleListForSegment(seg).map((r:any)=>(<option key={r.id} value={r.id}>{r.name}</option>))}
+                        </select>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   }
@@ -1258,6 +1383,7 @@ export default function App() {
           {activeTab === 'RUN' && <DailyRunBoard />}
           {activeTab === 'NEEDS' && <NeedsView />}
           {activeTab === 'EXPORT' && <ExportView />}
+          {activeTab === 'MONTHLY' && <MonthlyView />}
         </>
       )}
 
