@@ -1205,28 +1205,55 @@ export default function App() {
     if (showSeg.Lunch) segs.push('Lunch');
     if (showSeg.PM) segs.push('PM');
 
+    function RoleSelect({ month, personId, seg, def }: { month: string; personId: number; seg: Exclude<Segment,'Early'>; def: any }){
+      const ref = useRef<HTMLSelectElement>(null);
+      const options = roleListForSegment(seg);
+
+      function showNames(){
+        const sel = ref.current; if(!sel) return;
+        Array.from(sel.options).forEach(o => {
+          const r = options.find((rr:any)=>rr.id===Number(o.value));
+          if(r) o.text = r.name;
+        });
+      }
+
+      function showCode(){
+        const sel = ref.current; if(!sel) return;
+        const opt = Array.from(sel.options).find(o=>Number(o.value)===Number(sel.value));
+        if(opt){
+          const r = options.find((rr:any)=>rr.id===Number(opt.value));
+          if(r) opt.text = r.code;
+        }
+      }
+
+      useEffect(()=>{ showCode(); }, [def?.role_id, options]);
+
+      return (
+        <select
+          ref={ref}
+          className="border rounded px-2 py-1 w-full"
+          value={def?.role_id||""}
+          onFocus={showNames}
+          onBlur={showCode}
+          onChange={(e)=>{
+            const rid = Number(e.target.value);
+            setMonthlyDefaultForMonth(month, personId, seg, rid||null);
+            setDefs(all(`SELECT * FROM monthly_default`));
+            showCode();
+          }}
+        >
+          <option value=""></option>
+          {options.map((r:any)=>(<option key={r.id} value={r.id}>{r.name}</option>))}
+        </select>
+      );
+    }
+
     function cellData(month:string, personId:number, seg:Exclude<Segment,'Early'>){
       const def = defs.find((d:any)=>d.month===month && d.person_id===personId && d.segment===seg);
       const role = roles.find((r:any)=>r.id===def?.role_id);
       const color = role ? GROUPS[role.group_name]?.color : undefined;
       if (month === nextMonth) {
-        return {
-          content: (
-            <select
-              className="border rounded px-2 py-1 w-full"
-              value={def?.role_id||""}
-              onChange={(e)=>{
-                const rid = Number(e.target.value);
-                setMonthlyDefaultForMonth(month, personId, seg, rid||null);
-                setDefs(all(`SELECT * FROM monthly_default`));
-              }}
-            >
-              <option value=""></option>
-              {roleListForSegment(seg).map((r:any)=>(<option key={r.id} value={r.id}>{r.code}</option>))}
-            </select>
-          ),
-          color
-        };
+        return { content: <RoleSelect month={month} personId={personId} seg={seg} def={def} />, color };
       }
       return { content: role?.code || "", color };
     }
