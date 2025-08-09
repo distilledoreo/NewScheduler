@@ -1107,8 +1107,9 @@ export default function App() {
     const [form,setForm] = useState<any>({ active:true, commuter:false, brother_sister:'Brother', avail_mon:'U', avail_tue:'U', avail_wed:'U', avail_thu:'U', avail_fri:'U' });
     const [editing,setEditing] = useState<any|null>(null);
     return (
-      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-30">
-        <div className="bg-white w-[900px] max-h-[80vh] overflow-auto rounded-xl p-4 shadow-xl">
+      <div className="fixed inset-0 bg-black/40 z-30 overflow-auto">
+        <div className="min-h-full flex items-start justify-center p-4">
+          <div className="bg-white w-full max-w-[900px] max-h-[80vh] overflow-auto rounded-xl p-4 shadow-xl">
           <div className="flex items-center justify-between mb-3">
             <div className="font-semibold text-lg">People</div>
             <button className="text-slate-600" onClick={()=>setShowPeopleEditor(false)}>Close</button>
@@ -1189,13 +1190,15 @@ export default function App() {
           </div>
         </div>
       </div>
+    </div>
     );
   }
 
   function BaselineEditor(){
     return (
-      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-30 p-4">
-        <div className="bg-white w-full max-w-6xl max-h-[85vh] overflow-auto rounded-xl p-4 shadow-xl">
+      <div className="fixed inset-0 bg-black/40 z-30 overflow-auto">
+        <div className="min-h-full flex items-start justify-center p-4">
+          <div className="bg-white w-full max-w-6xl max-h-[85vh] overflow-auto rounded-xl p-4 shadow-xl">
           <div className="flex items-center justify-between mb-4">
             <div className="font-semibold text-lg">Baseline Needs</div>
             <button className="text-slate-600 hover:text-slate-800 px-2 py-1" onClick={()=>setShowBaselineEditor(false)}>Close</button>
@@ -1225,6 +1228,7 @@ export default function App() {
                 ))}
               </div>
             ))}
+          </div>
           </div>
         </div>
       </div>
