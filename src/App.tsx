@@ -115,7 +115,7 @@ export default function App() {
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const d = new Date();
     return `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
-    });
+  });
   const [monthlyDefaults, setMonthlyDefaults] = useState<any[]>([]);
   const [monthlyEditing, setMonthlyEditing] = useState(false);
 
@@ -290,7 +290,7 @@ export default function App() {
     refreshCaches(db);
   }
 
-  async function openDbFromFile() {
+  async function openDbFromFile(readOnly = false) {
     try {
       // Ask user for SQLite DB
       const [handle] = await (window as any).showOpenFilePicker({
@@ -314,37 +314,44 @@ export default function App() {
         FOREIGN KEY (role_id) REFERENCES role(id)
       );`);
 
-      // Check soft lock
-      let lockJson = {} as any;
-      try {
-        const rows = db.exec(`SELECT value FROM meta WHERE key='lock'`);
-        if (rows && rows[0] && rows[0].values[0] && rows[0].values[0][0]) {
-          lockJson = JSON.parse(String(rows[0].values[0][0]));
-        }
-      } catch {}
-
-      if (lockJson && lockJson.active) {
-        setLockedBy(lockJson.email || "unknown");
+      if (readOnly) {
+        setLockedBy("(read-only)");
         setSqlDb(db);
         fileHandleRef.current = handle;
-        setStatus(`DB is locked by ${lockJson.email}. You can browse but cannot edit. (Per your policy: never force; make a copy if needed.)`);
+        setStatus(`Opened ${file.name} (read-only)`);
       } else {
-        // Ask for editor email to lock
-        const email = prompt("Enter your Work Email to take the edit lock:") || "";
-        if (!email) {
-          alert("Lock required to edit. Opening read-only.");
-          setLockedBy("(read-only)");
+        // Check soft lock
+        let lockJson = {} as any;
+        try {
+          const rows = db.exec(`SELECT value FROM meta WHERE key='lock'`);
+          if (rows && rows[0] && rows[0].values[0] && rows[0].values[0][0]) {
+            lockJson = JSON.parse(String(rows[0].values[0][0]));
+          }
+        } catch {}
+
+        if (lockJson && lockJson.active) {
+          setLockedBy(lockJson.email || "unknown");
+          setSqlDb(db);
+          fileHandleRef.current = handle;
+          setStatus(`DB is locked by ${lockJson.email}. You can browse but cannot edit. (Per your policy: never force; make a copy if needed.)`);
         } else {
-          const stmt = db.prepare(`INSERT OR REPLACE INTO meta (key,value) VALUES ('lock', ?) `);
-          stmt.bind([JSON.stringify({ active: true, email, ts: new Date().toISOString() })]);
-          stmt.step();
-          stmt.free();
-          setLockEmail(email);
-          setLockedBy(email);
+          // Ask for editor email to lock
+          const email = prompt("Enter your Work Email to take the edit lock:") || "";
+          if (!email) {
+            alert("Lock required to edit. Opening read-only.");
+            setLockedBy("(read-only)");
+          } else {
+            const stmt = db.prepare(`INSERT OR REPLACE INTO meta (key,value) VALUES ('lock', ?) `);
+            stmt.bind([JSON.stringify({ active: true, email, ts: new Date().toISOString() })]);
+            stmt.step();
+            stmt.free();
+            setLockEmail(email);
+            setLockedBy(email);
+          }
+          setSqlDb(db);
+          fileHandleRef.current = handle;
+          setStatus(`Opened ${file.name}`);
         }
-        setSqlDb(db);
-        fileHandleRef.current = handle;
-        setStatus(`Opened ${file.name}`);
       }
       refreshCaches(db);
     } catch (e:any) {
@@ -543,6 +550,49 @@ export default function App() {
     }
     refreshCaches();
     setStatus('Applied monthly defaults.');
+  }
+
+  async function exportMonthlyDefaults(month: string) {
+    if (!sqlDb) return;
+    const headers = [
+      'Last Name','First Name','Email','B/S','Commute','Active',
+      'Mon','Tue','Wed','Thu','Fri','AM Role','Lunch Role','PM Role'
+    ];
+    const rows = people.map((p:any) => {
+      const roleNames = ['AM','Lunch','PM'].map(seg => {
+        const def = monthlyDefaults.find(d => d.person_id===p.id && d.segment===seg);
+        const role = roles.find(r => r.id===def?.role_id);
+        return role?.name || '';
+      });
+      return [
+        p.last_name,
+        p.first_name,
+        p.work_email,
+        p.brother_sister || '',
+        p.commuter ? 'Yes' : 'No',
+        p.active ? 'Yes' : 'No',
+        p.avail_mon,
+        p.avail_tue,
+        p.avail_wed,
+        p.avail_thu,
+        p.avail_fri,
+        ...roleNames
+      ];
+    });
+
+    const data = [headers, ...rows];
+    const XLSX = await loadXLSX();
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'MonthlyDefaults');
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `monthly-defaults-${month}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // Needs
@@ -1107,6 +1157,7 @@ export default function App() {
             Copy From Month
           </button>
           <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</button>
+          <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>exportMonthlyDefaults(selectedMonth)}>Export</button>
           <input type="text" className="border rounded px-2 py-1" placeholder="Filter" value={filterText} onChange={(e)=>setFilterText(e.target.value)} />
           <select className="border rounded px-2 py-1" value={sortKey} onChange={(e)=>setSortKey(e.target.value as any)}>
             <option value="name">Name</option>
