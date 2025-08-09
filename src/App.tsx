@@ -1084,6 +1084,80 @@ export default function App() {
   } 
 
   function MonthlyView(){
+    const [sortKey, setSortKey] = useState<
+      'name' | 'email' | 'brother_sister' | 'commuter' | 'active' |
+      'avail_mon' | 'avail_tue' | 'avail_wed' | 'avail_thu' | 'avail_fri' |
+      'AM' | 'Lunch' | 'PM'
+    >('name');
+    const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc');
+    const [filterText, setFilterText] = useState('');
+
+    const viewPeople = useMemo(()=>{
+      const low = filterText.toLowerCase();
+      const filtered = people.filter((p:any)=>{
+        const roleNames = ['AM','Lunch','PM'].map(seg=>{
+          const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
+          const role = roles.find(r=>r.id===def?.role_id);
+          return role?.name || '';
+        });
+        const text = [
+          p.last_name,
+          p.first_name,
+          p.work_email,
+          p.brother_sister || '',
+          p.commuter ? 'commuter' : '',
+          p.active ? 'active' : '',
+          p.avail_mon,
+          p.avail_tue,
+          p.avail_wed,
+          p.avail_thu,
+          p.avail_fri,
+          ...roleNames,
+        ].join(' ').toLowerCase();
+        return text.includes(low);
+      });
+
+      const sorted = filtered.slice().sort((a:any,b:any)=>{
+        const field = sortKey;
+        let av:any; let bv:any;
+        switch(field){
+          case 'name':
+            av = `${a.last_name}, ${a.first_name}`;
+            bv = `${b.last_name}, ${b.first_name}`;
+            break;
+          case 'email':
+            av = a.work_email; bv = b.work_email; break;
+          case 'brother_sister':
+            av = a.brother_sister || '';
+            bv = b.brother_sister || '';
+            break;
+          case 'commuter':
+            av = a.commuter?1:0; bv = b.commuter?1:0; break;
+          case 'active':
+            av = a.active?1:0; bv = b.active?1:0; break;
+          case 'avail_mon': av = a.avail_mon; bv = b.avail_mon; break;
+          case 'avail_tue': av = a.avail_tue; bv = b.avail_tue; break;
+          case 'avail_wed': av = a.avail_wed; bv = b.avail_wed; break;
+          case 'avail_thu': av = a.avail_thu; bv = b.avail_thu; break;
+          case 'avail_fri': av = a.avail_fri; bv = b.avail_fri; break;
+          case 'AM':
+          case 'Lunch':
+          case 'PM':
+            const defA = monthlyDefaults.find(d=>d.person_id===a.id && d.segment===field);
+            const defB = monthlyDefaults.find(d=>d.person_id===b.id && d.segment===field);
+            const roleA = roles.find(r=>r.id===defA?.role_id)?.name || '';
+            const roleB = roles.find(r=>r.id===defB?.role_id)?.name || '';
+            av = roleA; bv = roleB; break;
+          default:
+            av = ''; bv = ''; break;
+        }
+        if (av < bv) return sortDir === 'asc' ? -1 : 1;
+        if (av > bv) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+      });
+      return sorted;
+    }, [people, monthlyDefaults, roles, filterText, sortKey, sortDir]);
+
     return (
       <div className="p-4">
         <div className="flex items-center gap-2 mb-4">
@@ -1091,6 +1165,23 @@ export default function App() {
           <input type="month" className="border rounded px-2 py-1" value={selectedMonth} onChange={(e)=>setSelectedMonth(e.target.value)} />
           <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>applyMonthlyDefaults(selectedMonth)}>Apply to Month</button>
           <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</button>
+          <input type="text" className="border rounded px-2 py-1" placeholder="Filter" value={filterText} onChange={(e)=>setFilterText(e.target.value)} />
+          <select className="border rounded px-2 py-1" value={sortKey} onChange={(e)=>setSortKey(e.target.value as any)}>
+            <option value="name">Name</option>
+            <option value="email">Email</option>
+            <option value="brother_sister">B/S</option>
+            <option value="commuter">Commute</option>
+            <option value="active">Active</option>
+            <option value="avail_mon">Mon</option>
+            <option value="avail_tue">Tue</option>
+            <option value="avail_wed">Wed</option>
+            <option value="avail_thu">Thu</option>
+            <option value="avail_fri">Fri</option>
+            <option value="AM">AM Role</option>
+            <option value="Lunch">Lunch Role</option>
+            <option value="PM">PM Role</option>
+          </select>
+          <button className="px-2 py-1 bg-slate-200 rounded text-sm" onClick={()=>setSortDir(sortDir==='asc'?'desc':'asc')}>{sortDir==='asc'?'Asc':'Desc'}</button>
         </div>
         <div className="overflow-auto">
           <table className="min-w-full text-sm">
@@ -1103,7 +1194,7 @@ export default function App() {
               </tr>
             </thead>
             <tbody>
-              {people.map(p => (
+              {viewPeople.map((p:any) => (
                 <tr key={p.id} className="odd:bg-white even:bg-slate-50">
                   <td className="p-2">{p.last_name}, {p.first_name}</td>
                   {(['AM','Lunch','PM'] as const).map(seg => {
