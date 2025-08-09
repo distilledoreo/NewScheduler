@@ -811,8 +811,19 @@ export default function App() {
     useEffect(()=>setVal(req),[req]);
     return (
       <div className="flex items-center gap-2">
-        <input type="number" className="w-20 border rounded px-2 py-1" value={val} min={0} onChange={(e)=>setVal(parseInt(e.target.value||'0',10))} />
-        <button className="px-2 py-1 bg-blue-600 text-white rounded" onClick={()=>setRequired(date, group.id, role.id, segment, val)}>Save</button>
+        <input 
+          type="number" 
+          className="flex-1 min-w-0 border rounded px-2 py-1 text-sm" 
+          value={val} 
+          min={0} 
+          onChange={(e)=>setVal(parseInt(e.target.value||'0',10))} 
+        />
+        <button 
+          className="px-2 py-1 bg-blue-600 text-white rounded text-sm whitespace-nowrap hover:bg-blue-700" 
+          onClick={()=>setRequired(date, group.id, role.id, segment, val)}
+        >
+          Save
+        </button>
       </div>
     );
   }
@@ -821,16 +832,18 @@ export default function App() {
   function Toolbar(){
     return (
       <div className="flex flex-wrap items-center gap-2 p-3 border-b bg-white sticky top-0 z-20">
-        <button className="px-3 py-2 bg-slate-900 text-white rounded" onClick={createNewDb} disabled={!ready}>New DB</button>
-        <button className="px-3 py-2 bg-slate-800 text-white rounded" onClick={openDbFromFile} disabled={!ready}>Open DB</button>
-        <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={saveDb} disabled={!sqlDb}>Save</button>
-        <button className="px-3 py-2 bg-emerald-800 text-white rounded" onClick={saveDbAs} disabled={!sqlDb}>Save As</button>
-        <div className="mx-4 text-sm text-slate-600">{status}</div>
-        <div className="ml-auto flex items-center gap-2">
-          <button className={`px-3 py-2 rounded ${activeTab==='RUN'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('RUN')}>Daily Run</button>
-          <button className={`px-3 py-2 rounded ${activeTab==='NEEDS'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('NEEDS')}>Needs vs Coverage</button>
-          <button className={`px-3 py-2 rounded ${activeTab==='EXPORT'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('EXPORT')}>Export Preview</button>
-          <button className="px-3 py-2 rounded bg-slate-200" onClick={runDiagnostics}>Run Diagnostics</button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="px-3 py-2 bg-slate-900 text-white rounded text-sm" onClick={createNewDb} disabled={!ready}>New DB</button>
+          <button className="px-3 py-2 bg-slate-800 text-white rounded text-sm" onClick={openDbFromFile} disabled={!ready}>Open DB</button>
+          <button className="px-3 py-2 bg-emerald-700 text-white rounded text-sm" onClick={saveDb} disabled={!sqlDb}>Save</button>
+          <button className="px-3 py-2 bg-emerald-800 text-white rounded text-sm" onClick={saveDbAs} disabled={!sqlDb}>Save As</button>
+        </div>
+        <div className="mx-2 text-sm text-slate-600 flex-1 min-w-0 truncate">{status}</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className={`px-3 py-2 rounded text-sm ${activeTab==='RUN'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('RUN')}>Daily Run</button>
+          <button className={`px-3 py-2 rounded text-sm ${activeTab==='NEEDS'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('NEEDS')}>Needs vs Coverage</button>
+          <button className={`px-3 py-2 rounded text-sm ${activeTab==='EXPORT'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('EXPORT')}>Export Preview</button>
+          <button className="px-3 py-2 rounded bg-slate-200 text-sm" onClick={runDiagnostics}>Run Diagnostics</button>
         </div>
       </div>
     );
@@ -842,20 +855,24 @@ export default function App() {
 
     return (
       <div className="p-4">
-        <div className="flex items-center gap-4 mb-4">
-          <label className="text-sm">Date</label>
-          <input type="text" className="border rounded px-2 py-1" value={selectedDate} onChange={(e)=>setSelectedDate(e.target.value)} placeholder="M/D/YYYY"/>
-          <div className="ml-6 flex gap-2">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 mb-4">
+          <div className="flex items-center gap-2">
+            <label className="text-sm whitespace-nowrap">Date</label>
+            <input type="text" className="border rounded px-2 py-1 min-w-0" value={selectedDate} onChange={(e)=>setSelectedDate(e.target.value)} placeholder="M/D/YYYY"/>
+          </div>
+          <div className="flex gap-2">
             {(["AM","Lunch","PM"] as const).map(s => (
-              <button key={s} className={`px-3 py-1 rounded ${activeRunSegment===s?'bg-indigo-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveRunSegment(s)}>{s}</button>
+              <button key={s} className={`px-3 py-1 rounded text-sm ${activeRunSegment===s?'bg-indigo-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveRunSegment(s)}>{s}</button>
             ))}
           </div>
-          <button className="ml-auto px-3 py-2 bg-slate-200 rounded" onClick={()=>setShowPeopleEditor(true)}>Manage People</button>
-          <button className="px-3 py-2 bg-slate-200 rounded" onClick={()=>setShowBaselineEditor(true)}>Edit Baseline Needs</button>
+          <div className="flex flex-wrap gap-2 lg:ml-auto">
+            <button className="px-3 py-2 bg-slate-200 rounded text-sm" onClick={()=>setShowPeopleEditor(true)}>Manage People</button>
+            <button className="px-3 py-2 bg-slate-200 rounded text-sm" onClick={()=>setShowBaselineEditor(true)}>Edit Baseline Needs</button>
+          </div>
         </div>
 
         {/* Board: Group -> Roles -> assignment slots */}
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
           {groups.map((g:any)=> (
             <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
               <div className="font-semibold mb-2 flex items-center justify-between">
@@ -935,30 +952,30 @@ export default function App() {
     const d = selectedDateObj;
     return (
       <div className="p-4">
-        <div className="flex items-center gap-3 mb-4">
-          <label>Date</label>
-          <input type="text" className="border rounded px-2 py-1" value={selectedDate} onChange={(e)=>setSelectedDate(e.target.value)} placeholder="M/D/YYYY" />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
+          <label className="whitespace-nowrap">Date</label>
+          <input type="text" className="border rounded px-2 py-1 min-w-0" value={selectedDate} onChange={(e)=>setSelectedDate(e.target.value)} placeholder="M/D/YYYY" />
           <span className="text-slate-500 text-sm">Edit overrides for this date. Baseline editor is in Daily Run toolbar.</span>
         </div>
 
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
           {groups.map((g:any)=> (
             <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
-              <div className="font-semibold mb-2">{g.name}</div>
+              <div className="font-semibold mb-3">{g.name}</div>
               {roleListForSegment("AM").filter((r)=>r.group_id===g.id).map((r:any)=> (
-                <div key={r.id} className="mb-3 border rounded p-2">
-                  <div className="font-medium mb-2">{r.name}</div>
-                  <div className="grid grid-cols-3 gap-2 text-sm">
+                <div key={r.id} className="mb-4 border rounded p-3">
+                  <div className="font-medium mb-3">{r.name}</div>
+                  <div className="space-y-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
                     <div>
-                      <div className="text-xs text-slate-500">AM Required</div>
+                      <div className="text-xs text-slate-500 mb-1">AM Required</div>
                       <RequiredCell date={d} group={g} role={r} segment={'AM'} />
                     </div>
                     <div>
-                      <div className="text-xs text-slate-500">Lunch Required</div>
+                      <div className="text-xs text-slate-500 mb-1">Lunch Required</div>
                       <RequiredCell date={d} group={g} role={r} segment={'Lunch'} />
                     </div>
                     <div>
-                      <div className="text-xs text-slate-500">PM Required</div>
+                      <div className="text-xs text-slate-500 mb-1">PM Required</div>
                       <RequiredCell date={d} group={g} role={r} segment={'PM'} />
                     </div>
                   </div>
@@ -1177,30 +1194,30 @@ export default function App() {
 
   function BaselineEditor(){
     return (
-      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-30">
-        <div className="bg-white w-[900px] max-h-[80vh] overflow-auto rounded-xl p-4 shadow-xl">
-          <div className="flex items-center justify-between mb-3">
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-30 p-4">
+        <div className="bg-white w-full max-w-6xl max-h-[85vh] overflow-auto rounded-xl p-4 shadow-xl">
+          <div className="flex items-center justify-between mb-4">
             <div className="font-semibold text-lg">Baseline Needs</div>
-            <button className="text-slate-600" onClick={()=>setShowBaselineEditor(false)}>Close</button>
+            <button className="text-slate-600 hover:text-slate-800 px-2 py-1" onClick={()=>setShowBaselineEditor(false)}>Close</button>
           </div>
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
             {groups.map((g:any)=> (
               <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
-                <div className="font-semibold mb-2">{g.name}</div>
+                <div className="font-semibold mb-3">{g.name}</div>
                 {roleListForSegment("AM").filter((r)=>r.group_id===g.id).map((r:any)=> (
-                  <div key={r.id} className="mb-3 border rounded p-2">
-                    <div className="font-medium mb-2">{r.name}</div>
-                    <div className="grid grid-cols-3 gap-2 text-sm">
+                  <div key={r.id} className="mb-4 border rounded p-3">
+                    <div className="font-medium mb-3">{r.name}</div>
+                    <div className="space-y-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
                       <div>
-                        <div className="text-xs text-slate-500">AM Required</div>
+                        <div className="text-xs text-slate-500 mb-1">AM Required</div>
                         <RequiredCell date={null} group={g} role={r} segment={'AM'} />
                       </div>
                       <div>
-                        <div className="text-xs text-slate-500">Lunch Required</div>
+                        <div className="text-xs text-slate-500 mb-1">Lunch Required</div>
                         <RequiredCell date={null} group={g} role={r} segment={'Lunch'} />
                       </div>
                       <div>
-                        <div className="text-xs text-slate-500">PM Required</div>
+                        <div className="text-xs text-slate-500 mb-1">PM Required</div>
                         <RequiredCell date={null} group={g} role={r} segment={'PM'} />
                       </div>
                     </div>
