@@ -209,6 +209,7 @@ export default function App() {
     return `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
     });
   const [monthlyDefaults, setMonthlyDefaults] = useState<any[]>([]);
+  const [monthlyEditing, setMonthlyEditing] = useState(false);
 
   // UI: simple dialogs
   const [showBaselineEditor, setShowBaselineEditor] = useState(false);
@@ -1048,6 +1049,7 @@ export default function App() {
           <label className="text-sm">Month</label>
           <input type="month" className="border rounded px-2 py-1" value={selectedMonth} onChange={(e)=>setSelectedMonth(e.target.value)} />
           <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>applyMonthlyDefaults(selectedMonth)}>Apply to Month</button>
+          <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</button>
         </div>
         <div className="overflow-auto">
           <table className="min-w-full text-sm">
@@ -1067,7 +1069,7 @@ export default function App() {
                     const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
                     return (
                       <td key={seg} className="p-2">
-                        <select className="border rounded px-2 py-1 w-full" value={def?.role_id||""} onChange={(e)=>{
+                        <select className="border rounded px-2 py-1 w-full" value={def?.role_id||""} disabled={!monthlyEditing} onChange={(e)=>{
                           const rid = Number(e.target.value);
                           setMonthlyDefault(p.id, seg, rid||null);
                         }}>
