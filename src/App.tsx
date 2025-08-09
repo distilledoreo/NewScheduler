@@ -395,7 +395,7 @@ export default function App() {
       [
         rec.last_name?.trim()||"",
         rec.first_name?.trim()||"",
-        rec.work_email?.trim()||"",
+        rec.work_email?.trim().toLowerCase()||"",
         rec.brother_sister||null,
         rec.commuter?1:0,
         rec.active?1:1,
@@ -408,7 +408,7 @@ export default function App() {
   function updatePerson(rec:any){
     run(
       `UPDATE person SET last_name=?, first_name=?, work_email=?, brother_sister=?, commuter=?, active=?, avail_mon=?, avail_tue=?, avail_wed=?, avail_thu=?, avail_fri=? WHERE id=?`,
-      [rec.last_name, rec.first_name, rec.work_email, rec.brother_sister, rec.commuter?1:0, rec.active?1:0, rec.avail_mon, rec.avail_tue, rec.avail_wed, rec.avail_thu, rec.avail_fri, rec.id]
+      [rec.last_name, rec.first_name, rec.work_email?.trim().toLowerCase(), rec.brother_sister, rec.commuter?1:0, rec.active?1:0, rec.avail_mon, rec.avail_tue, rec.avail_wed, rec.avail_thu, rec.avail_fri, rec.id]
     );
     refreshCaches();
   }
@@ -579,9 +579,9 @@ export default function App() {
       // Expected columns: Member, Work Email, Start Date, Start Time, End Date, End Time, Time Off Reason
       let count = 0, skipped = 0;
       for (const r of rows) {
-        const email = String(r["Work Email"] || "").trim();
+        const email = String(r["Work Email"] || "").trim().toLowerCase();
         if (!email) { skipped++; continue; }
-        const p = all(`SELECT id FROM person WHERE work_email=?`, [email])[0];
+        const p = all(`SELECT id FROM person WHERE LOWER(work_email)=?`, [email])[0];
         if (!p) { skipped++; continue; }
         const pid = p.id;
         const sd = String(r["Start Date"]||"").trim();
