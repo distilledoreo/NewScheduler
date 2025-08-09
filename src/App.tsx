@@ -861,7 +861,7 @@ export default function App() {
 
     useEffect(() => {
       setLayoutLoaded(false);
-      const key = `layout:${lockEmail || 'default'}`;
+      const key = `layout:${seg}:${lockEmail || 'default'}`;
       let saved: any[] = [];
       try {
         const rows = all(`SELECT value FROM meta WHERE key=?`, [key]);
@@ -880,7 +880,7 @@ export default function App() {
     function handleLayoutChange(l:any[]){
       setLayout(l);
       if (!layoutLoaded) return;
-      const key = `layout:${lockEmail || 'default'}`;
+      const key = `layout:${seg}:${lockEmail || 'default'}`;
       try {
         const stmt = sqlDb.prepare(`INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)`);
         stmt.bind([key, JSON.stringify(l)]);
