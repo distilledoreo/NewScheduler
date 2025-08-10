@@ -30,7 +30,17 @@ const RIGHT_GROUPS = ['Dining Room','Machine Room'] as const;
 const DAY_ORDER = ['M','T','W','TH','F'] as const;
 type DayLetter = typeof DAY_ORDER[number];
 
-type Row = { date:string; segment:'AM'|'PM'; group_name:string; person:string; commuter:number };
+type Row = {
+  segment:'AM'|'PM';
+  group_name:string;
+  person:string;
+  commuter:number;
+  avail_mon:string;
+  avail_tue:string;
+  avail_wed:string;
+  avail_thu:string;
+  avail_fri:string;
+};
 
 type Buckets = Record<'regular'|'commuter',
   Record<string, Record<string, { AM: Set<DayLetter>; PM: Set<DayLetter> }>>
@@ -52,42 +62,21 @@ function all<T = any>(sql: string, params: any[] = []): T[] {
   return rows;
 }
 
-function monthBounds(ym: string): [string,string] {
-  const [y,m] = ym.split('-').map(n=>parseInt(n,10));
-  const start = new Date(Date.UTC(y, m-1, 1));
-  const end = new Date(Date.UTC(y, m, 1));
-  const fmt = (d: Date) => d.toISOString().slice(0,10);
-  return [fmt(start), fmt(end)];
-}
-
-function weekdayLetterUTC(ymd: string): DayLetter|null {
-  const d = new Date(ymd + 'T00:00:00Z');
-  switch (d.getUTCDay()) {
-    case 1: return 'M';
-    case 2: return 'T';
-    case 3: return 'W';
-    case 4: return 'TH';
-    case 5: return 'F';
-    default: return null;
-  }
-}
-
 export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   requireDb();
   const ExcelJS = await loadExcelJS();
-
-  const [startYMD, endYMD] = monthBounds(month);
   const rows = all<Row>(
-    `SELECT a.date, a.segment, g.name AS group_name,
+    `SELECT md.segment, g.name AS group_name,
             (p.last_name || ', ' || p.first_name) AS person,
-            p.commuter AS commuter
-     FROM assignment a
-     JOIN role r ON r.id = a.role_id
+            p.commuter AS commuter,
+            p.avail_mon, p.avail_tue, p.avail_wed, p.avail_thu, p.avail_fri
+     FROM monthly_default md
+     JOIN role r ON r.id = md.role_id
      JOIN grp g  ON g.id = r.group_id
-     JOIN person p ON p.id = a.person_id
-     WHERE a.date >= ? AND a.date < ? AND a.segment IN ('AM','PM')
-     ORDER BY a.date, g.name, a.segment, person`,
-    [startYMD, endYMD]
+     JOIN person p ON p.id = md.person_id
+     WHERE md.month = ? AND md.segment IN ('AM','PM')
+     ORDER BY g.name, md.segment, person`,
+    [month]
   );
 
   const buckets: Buckets = { regular: {}, commuter: {} };
@@ -95,12 +84,21 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   for (const row of rows) {
     const code = GROUP_TO_CODE[row.group_name];
     if (!code) continue;
-    const day = weekdayLetterUTC(row.date);
-    if (!day) continue;
     const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
     const bucket = buckets[kind][code] || (buckets[kind][code] = {});
     const person = bucket[row.person] || (bucket[row.person] = { AM: new Set(), PM: new Set() });
-    person[row.segment].add(day);
+    const availMap: Record<DayLetter,string> = {
+      M: row.avail_mon,
+      T: row.avail_tue,
+      W: row.avail_wed,
+      TH: row.avail_thu,
+      F: row.avail_fri,
+    };
+    for (const day of DAY_ORDER) {
+      const avail = availMap[day];
+      if (row.segment === 'AM' && (avail === 'AM' || avail === 'B')) person.AM.add(day);
+      else if (row.segment === 'PM' && (avail === 'PM' || avail === 'B')) person.PM.add(day);
+    }
   }
 
   const monthDate = new Date(month + '-01T00:00:00Z');
