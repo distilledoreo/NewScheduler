@@ -104,7 +104,8 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     }
   }
 
-  const monthDate = new Date(month + '-01T00:00:00Z');
+  const [y, m] = month.split('-').map(n => parseInt(n, 10));
+  const monthDate = new Date(y, m - 1, 1);
   const titleText = monthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
   const wb = new ExcelJS.Workbook();
