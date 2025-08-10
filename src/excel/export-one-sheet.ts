@@ -24,8 +24,8 @@ const GROUP_COLORS: Record<string,string> = {
   'Office':        'FFFFF2CC'
 };
 
-const KITCHEN_COL1_GROUPS = ['Veggie Room','Bakery','Main Course'] as const;
-const KITCHEN_COL2_GROUPS = ['Receiving','Prepack','Office'] as const;
+const KITCHEN_COL1_GROUPS = ['Veggie Room','Bakery'] as const;
+const KITCHEN_COL2_GROUPS = ['Main Course','Receiving','Prepack','Office'] as const;
 const DINING_GROUPS = ['Dining Room','Machine Room'] as const;
 
 const DAY_ORDER = ['M','T','W','TH','F'] as const;
