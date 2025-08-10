@@ -116,7 +116,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   ws.mergeCells(1,1,1,14);
   const titleCell = ws.getCell(1,1);
   titleCell.value = `Kitchen / Dining Room Schedule — ${titleText}`;
-  titleCell.font = { bold: true, size: 14, name: 'Calibri' };
+  titleCell.font = { bold: true, size: 18, name: 'Calibri' };
   titleCell.alignment = { horizontal: 'center' };
 
   const paneState = {
@@ -142,11 +142,12 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     people: Record<string,{AM:Set<DayLetter>;PM:Set<DayLetter>}>)
   {
     const startCol = pane==='kitchen1'?1:pane==='kitchen2'?6:11;
+    if (!people || !Object.keys(people).length) return;
     const rowIndex = paneState[pane];
     ws.mergeCells(rowIndex, startCol, rowIndex, startCol+3);
     const hcell = ws.getCell(rowIndex,startCol);
     hcell.value = group;
-    hcell.font = { bold:true, size:12 };
+    hcell.font = { bold:true, size:18 };
     hcell.alignment = { horizontal:'left' };
     const fill = GROUP_COLORS[group] || 'FFEFEFEF';
     hcell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:fill} };
@@ -157,11 +158,21 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     for (const name of names) {
       const info = people[name];
       const daySet = new Set<DayLetter>([...info.AM, ...info.PM]);
-      const days = DAY_ORDER.filter(d=>daySet.has(d)).join('/');
+      const dayList = DAY_ORDER.filter(d=>daySet.has(d));
+      const days = dayList.length === DAY_ORDER.length ? 'Full-Time' : dayList.join('/');
+      const hasAM = info.AM.size > 0;
+      const hasPM = info.PM.size > 0;
       ws.getCell(r, startCol).value = name;
-      ws.getCell(r, startCol + 1).value = info.AM.size ? code : '';
-      ws.getCell(r, startCol + 2).value = info.PM.size ? code : '';
+      if (hasAM && hasPM) {
+        ws.getCell(r, startCol + 1).value = 'AM';
+        ws.getCell(r, startCol + 2).value = 'PM';
+      } else if (hasAM) {
+        ws.getCell(r, startCol + 1).value = 'AM only';
+      } else if (hasPM) {
+        ws.getCell(r, startCol + 2).value = 'PM only';
+      }
       ws.getCell(r, startCol + 3).value = days;
+      ws.getRow(r).font = { size:16 };
       setRowBorders(ws.getRow(r), startCol, startCol + 3);
       r++;
     }
@@ -171,34 +182,49 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   function renderSection(kind: 'regular'|'commuter') {
     for (const g of KITCHEN_COL1_GROUPS) {
       const code = GROUP_TO_CODE[g];
-      renderBlock('kitchen1', g, code, buckets[kind][code] || {});
+      const people = buckets[kind][code];
+      if (people && Object.keys(people).length)
+        renderBlock('kitchen1', g, code, people);
     }
     for (const g of KITCHEN_COL2_GROUPS) {
       const code = GROUP_TO_CODE[g];
-      renderBlock('kitchen2', g, code, buckets[kind][code] || {});
+      const people = buckets[kind][code];
+      if (people && Object.keys(people).length)
+        renderBlock('kitchen2', g, code, people);
     }
     for (const g of DINING_GROUPS) {
       const code = GROUP_TO_CODE[g];
-      renderBlock('dining', g, code, buckets[kind][code] || {});
+      const people = buckets[kind][code];
+      if (people && Object.keys(people).length)
+        renderBlock('dining', g, code, people);
     }
   }
 
   renderSection('regular');
 
-  const afterRegular = Math.max(paneState.kitchen1, paneState.kitchen2, paneState.dining);
-  ws.mergeCells(afterRegular,1,afterRegular,14);
-  const commCell = ws.getCell(afterRegular,1);
-  commCell.value = 'COMMUTERS';
-  commCell.font = { bold:true, size:12 };
-  commCell.alignment = { horizontal:'left' };
-  commCell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFEFEFEF'} };
-  commCell.border = { top:{ style:'thick' } };
+  function hasAny(kind:'regular'|'commuter'): boolean {
+    for (const code of Object.keys(buckets[kind])) {
+      if (Object.keys(buckets[kind][code]).length) return true;
+    }
+    return false;
+  }
 
-  paneState.kitchen1 = afterRegular + 1;
-  paneState.kitchen2 = afterRegular + 1;
-  paneState.dining = afterRegular + 1;
+  if (hasAny('commuter')) {
+    const afterRegular = Math.max(paneState.kitchen1, paneState.kitchen2, paneState.dining);
+    ws.mergeCells(afterRegular,1,afterRegular,14);
+    const commCell = ws.getCell(afterRegular,1);
+    commCell.value = 'COMMUTERS';
+    commCell.font = { bold:true, size:18 };
+    commCell.alignment = { horizontal:'left' };
+    commCell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFEFEFEF'} };
+    commCell.border = { top:{ style:'thick' } };
 
-  renderSection('commuter');
+    paneState.kitchen1 = afterRegular + 1;
+    paneState.kitchen2 = afterRegular + 1;
+    paneState.dining = afterRegular + 1;
+
+    renderSection('commuter');
+  }
 
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
