@@ -96,8 +96,8 @@ export default function App() {
   const [lockedBy, setLockedBy] = useState<string | null>(null);
   const [status, setStatus] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>(() => fmtDateMDY(new Date()));
-  const [exportStart, setExportStart] = useState<string>(() => fmtDateMDY(new Date()));
-  const [exportEnd, setExportEnd] = useState<string>(() => fmtDateMDY(new Date()));
+  const [exportStart, setExportStart] = useState<string>(() => ymd(new Date()));
+  const [exportEnd, setExportEnd] = useState<string>(() => ymd(new Date()));
   const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY">("RUN");
   const [activeRunSegment, setActiveRunSegment] = useState<Exclude<Segment, "Early">>("AM");
 
@@ -701,8 +701,8 @@ export default function App() {
   async function exportShifts() {
     if (!sqlDb) { alert("Open a DB first"); return; }
     const XLSX = await loadXLSX();
-    const start = parseMDY(exportStart);
-    const end = parseMDY(exportEnd);
+    const start = parseYMD(exportStart);
+    const end = parseYMD(exportEnd);
     if (end < start) { alert("End before start"); return; }
 
     const rows: any[] = [];
@@ -781,7 +781,7 @@ export default function App() {
 
     const blob = XLSX.write(wb, { type: "array", bookType: "xlsx" });
     const fileHandle = await (window as any).showSaveFilePicker({
-      suggestedName: `teams-shifts-export_${exportStart.replaceAll("/","-")}_${exportEnd.replaceAll("/","-")}.xlsx`,
+      suggestedName: `teams-shifts-export_${exportStart}_${exportEnd}.xlsx`,
       types: [{ description: "Excel", accept: { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"] } }],
     });
     const writable = await (fileHandle as any).createWritable();
@@ -1333,7 +1333,7 @@ export default function App() {
     // Generate preview rows same as actual export
     const previewRows = useMemo(()=>{
       if (!sqlDb) return [] as any[];
-      const start = parseMDY(exportStart); const end = parseMDY(exportEnd);
+      const start = parseYMD(exportStart); const end = parseYMD(exportEnd);
       if (end < start) return [] as any[];
       const rows: any[] = [];
       let d = new Date(start.getTime());
@@ -1397,9 +1397,9 @@ export default function App() {
       <div className="p-4">
         <div className="flex items-center gap-3 mb-4">
           <label>Start</label>
-          <input type="text" className="border rounded px-2 py-1" value={exportStart} onChange={(e)=>setExportStart(e.target.value)} placeholder="M/D/YYYY" />
+          <input type="date" className="border rounded px-2 py-1" value={exportStart} onChange={(e)=>setExportStart(e.target.value)} />
           <label>End</label>
-          <input type="text" className="border rounded px-2 py-1" value={exportEnd} onChange={(e)=>setExportEnd(e.target.value)} placeholder="M/D/YYYY" />
+          <input type="date" className="border rounded px-2 py-1" value={exportEnd} onChange={(e)=>setExportEnd(e.target.value)} />
           <button className="ml-auto px-3 py-2 bg-emerald-700 text-white rounded" onClick={exportShifts}>Download XLSX</button>
           <label className="ml-4 px-3 py-2 bg-slate-200 rounded cursor-pointer">
             Import Time-Off XLSX
