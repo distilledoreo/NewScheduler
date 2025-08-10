@@ -112,7 +112,7 @@ export default function App() {
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const d = new Date();
     return `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
-    });
+  });
   const [monthlyDefaults, setMonthlyDefaults] = useState<any[]>([]);
   const [monthlyEditing, setMonthlyEditing] = useState(false);
 
@@ -287,7 +287,7 @@ export default function App() {
     refreshCaches(db);
   }
 
-  async function openDbFromFile() {
+  async function openDbFromFile(readOnly = false) {
     try {
       // Ask user for SQLite DB
       const [handle] = await (window as any).showOpenFilePicker({
@@ -311,37 +311,44 @@ export default function App() {
         FOREIGN KEY (role_id) REFERENCES role(id)
       );`);
 
-      // Check soft lock
-      let lockJson = {} as any;
-      try {
-        const rows = db.exec(`SELECT value FROM meta WHERE key='lock'`);
-        if (rows && rows[0] && rows[0].values[0] && rows[0].values[0][0]) {
-          lockJson = JSON.parse(String(rows[0].values[0][0]));
-        }
-      } catch {}
-
-      if (lockJson && lockJson.active) {
-        setLockedBy(lockJson.email || "unknown");
+      if (readOnly) {
+        setLockedBy("(read-only)");
         setSqlDb(db);
         fileHandleRef.current = handle;
-        setStatus(`DB is locked by ${lockJson.email}. You can browse but cannot edit. (Per your policy: never force; make a copy if needed.)`);
+        setStatus(`Opened ${file.name} (read-only)`);
       } else {
-        // Ask for editor email to lock
-        const email = prompt("Enter your Work Email to take the edit lock:") || "";
-        if (!email) {
-          alert("Lock required to edit. Opening read-only.");
-          setLockedBy("(read-only)");
+        // Check soft lock
+        let lockJson = {} as any;
+        try {
+          const rows = db.exec(`SELECT value FROM meta WHERE key='lock'`);
+          if (rows && rows[0] && rows[0].values[0] && rows[0].values[0][0]) {
+            lockJson = JSON.parse(String(rows[0].values[0][0]));
+          }
+        } catch {}
+
+        if (lockJson && lockJson.active) {
+          setLockedBy(lockJson.email || "unknown");
+          setSqlDb(db);
+          fileHandleRef.current = handle;
+          setStatus(`DB is locked by ${lockJson.email}. You can browse but cannot edit. (Per your policy: never force; make a copy if needed.)`);
         } else {
-          const stmt = db.prepare(`INSERT OR REPLACE INTO meta (key,value) VALUES ('lock', ?) `);
-          stmt.bind([JSON.stringify({ active: true, email, ts: new Date().toISOString() })]);
-          stmt.step();
-          stmt.free();
-          setLockEmail(email);
-          setLockedBy(email);
+          // Ask for editor email to lock
+          const email = prompt("Enter your Work Email to take the edit lock:") || "";
+          if (!email) {
+            alert("Lock required to edit. Opening read-only.");
+            setLockedBy("(read-only)");
+          } else {
+            const stmt = db.prepare(`INSERT OR REPLACE INTO meta (key,value) VALUES ('lock', ?) `);
+            stmt.bind([JSON.stringify({ active: true, email, ts: new Date().toISOString() })]);
+            stmt.step();
+            stmt.free();
+            setLockEmail(email);
+            setLockedBy(email);
+          }
+          setSqlDb(db);
+          fileHandleRef.current = handle;
+          setStatus(`Opened ${file.name}`);
         }
-        setSqlDb(db);
-        fileHandleRef.current = handle;
-        setStatus(`Opened ${file.name}`);
       }
       refreshCaches(db);
     } catch (e:any) {
@@ -540,6 +547,94 @@ export default function App() {
     }
     refreshCaches();
     setStatus('Applied monthly defaults.');
+  }
+
+  async function exportMonthlyDefaults(month: string) {
+    if (!sqlDb) return;
+    const headers = [
+      'Last Name','First Name','AM Role','Lunch Role','PM Role','B/S','Commute','Active',
+      'Mon','Tue','Wed','Thu','Fri'
+    ];
+
+    const contrastColor = (hex: string) => {
+      const c = hex.replace('#','');
+      if (c.length !== 6) return '#000';
+      const r = parseInt(c.substring(0,2),16);
+      const g = parseInt(c.substring(2,4),16);
+      const b = parseInt(c.substring(4,6),16);
+      const l = 0.299*r + 0.587*g + 0.114*b;
+      return l > 186 ? '#000' : '#fff';
+    };
+
+    const monthDate = new Date(month + '-01');
+    const titleText = monthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+    const escapeHtml = (s: string) => String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    const headerHtml = headers.map(h => `<th>${escapeHtml(h)}</th>`).join('');
+    const bodyHtml = people.map((p:any) => {
+      const roleTds = ['AM','Lunch','PM'].map(seg => {
+        const def = monthlyDefaults.find(d => d.person_id===p.id && d.segment===seg);
+        const role = roles.find(r => r.id===def?.role_id);
+        const group = groups.find(g => g.id === role?.group_id);
+        const bg = group?.theme_color || '';
+        const color = bg ? contrastColor(bg) : '';
+        const style = bg ? ` style="background:${bg};color:${color};"` : '';
+        return `<td${style}>${escapeHtml(role?.name || '')}</td>`;
+      }).join('');
+      return `<tr>`+
+        `<td>${escapeHtml(p.last_name)}</td>`+
+        `<td>${escapeHtml(p.first_name)}</td>`+
+        roleTds+
+        `<td>${escapeHtml(p.brother_sister || '')}</td>`+
+        `<td>${p.commuter ? 'Yes' : 'No'}</td>`+
+        `<td>${p.active ? 'Yes' : 'No'}</td>`+
+        `<td>${escapeHtml(p.avail_mon)}</td>`+
+        `<td>${escapeHtml(p.avail_tue)}</td>`+
+        `<td>${escapeHtml(p.avail_wed)}</td>`+
+        `<td>${escapeHtml(p.avail_thu)}</td>`+
+        `<td>${escapeHtml(p.avail_fri)}</td>`+
+        `</tr>`;
+    }).join('');
+
+    const style = `body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f5f7fa;color:#1a1a1a;margin:0;padding:40px;}\n`+
+      `h1{text-align:center;font-weight:300;margin-bottom:24px;}\n`+
+      `.search{text-align:right;margin-bottom:12px;}\n`+
+      `.search input{padding:8px 12px;border:1px solid #cbd5e1;border-radius:4px;}\n`+
+      `table{width:100%;border-collapse:collapse;box-shadow:0 2px 4px rgba(0,0,0,0.1);}\n`+
+      `th,td{padding:12px 16px;border-bottom:1px solid #e5e7eb;}\n`+
+      `th{background:#111827;color:#fff;position:sticky;top:0;cursor:pointer;}\n`+
+      `tr:nth-child(even){background:#f9fafb;}`;
+
+    const script = `const getCellValue=(tr,idx)=>tr.children[idx].innerText;\n`+
+      `const comparer=(idx,asc)=>((a,b)=>((v1,v2)=>v1!==''&&v2!==''&&!isNaN(v1)&&!isNaN(v2)?v1-v2:v1.localeCompare(v2))(`+
+      `getCellValue(asc?a:b,idx),getCellValue(asc?b:a,idx)));\n`+
+      `document.querySelectorAll('th').forEach(th=>th.addEventListener('click',(()=>{`+
+      `const table=th.closest('table');const tbody=table.querySelector('tbody');Array.from(tbody.querySelectorAll('tr'))`+
+      `.sort(comparer(Array.from(th.parentNode.children).indexOf(th),this.asc=!this.asc))`+
+      `.forEach(tr=>tbody.appendChild(tr));})));\n`+
+      `const search=document.getElementById('table-search');search.addEventListener('input',()=>{`+
+      `const term=search.value.toLowerCase();document.querySelectorAll('tbody tr').forEach(tr=>{`+
+      `tr.style.display=Array.from(tr.children).some(td=>td.textContent.toLowerCase().includes(term))?'':'none';});});`;
+
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>`+
+      `<title>Monthly Defaults - ${escapeHtml(titleText)}</title>`+
+      `<style>${style}</style></head><body>`+
+      `<h1>Monthly Defaults - ${escapeHtml(titleText)}</h1>`+
+      `<div class="search"><label>Search: <input id="table-search" type="search" placeholder="Filter rows"/></label></div>`+
+      `<table><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`+
+      `<script>${script}<\/script></body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `monthly-defaults-${month}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // Needs
@@ -937,6 +1032,7 @@ export default function App() {
             Copy From Month
           </button>
           <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</button>
+          <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>exportMonthlyDefaults(selectedMonth)}>Export HTML</button>
           <input type="text" className="border rounded px-2 py-1" placeholder="Filter" value={filterText} onChange={(e)=>setFilterText(e.target.value)} />
           <select className="border rounded px-2 py-1" value={sortKey} onChange={(e)=>setSortKey(e.target.value as any)}>
             <option value="name">Name</option>
