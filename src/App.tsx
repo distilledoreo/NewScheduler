@@ -581,56 +581,48 @@ export default function App() {
 
     const monthDate = new Date(month + '-01');
     const titleText = monthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-    const data = [[`Monthly Defaults - ${titleText}`], headers, ...rows];
-    const XLSX = await loadXLSX();
-    const ws = XLSX.utils.aoa_to_sheet(data);
 
-    // Merge title across columns
-    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } }];
+    const escapeHtml = (s: string) => String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
 
-    // Column widths
-    ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 2, 12) }));
+    const headerHtml = headers.map(h => `<th>${escapeHtml(h)}</th>`).join('');
+    const bodyHtml = rows.map(r => `<tr>${r.map(c => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('');
 
-    // Header styling
-    for (let C = 0; C < headers.length; ++C) {
-      const addr = XLSX.utils.encode_cell({ r: 1, c: C });
-      const cell = ws[addr];
-      if (cell) {
-        cell.s = {
-          font: { bold: true, color: { rgb: 'FFFFFF' } },
-          fill: { patternType: 'solid', fgColor: { rgb: '305496' } },
-          alignment: { horizontal: 'center', vertical: 'center' }
-        };
-      }
-    }
+    const style = `body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f5f7fa;color:#1a1a1a;margin:0;padding:40px;}\n`+
+      `h1{text-align:center;font-weight:300;margin-bottom:24px;}\n`+
+      `.search{text-align:right;margin-bottom:12px;}\n`+
+      `.search input{padding:8px 12px;border:1px solid #cbd5e1;border-radius:4px;}\n`+
+      `table{width:100%;border-collapse:collapse;box-shadow:0 2px 4px rgba(0,0,0,0.1);}\n`+
+      `th,td{padding:12px 16px;border-bottom:1px solid #e5e7eb;}\n`+
+      `th{background:#111827;color:#fff;position:sticky;top:0;cursor:pointer;}\n`+
+      `tr:nth-child(even){background:#f9fafb;}`;
 
-    // Zebra stripe rows for readability
-    const range = XLSX.utils.decode_range(ws['!ref'] as string);
-    for (let R = 2; R <= range.e.r; ++R) {
-      if (R % 2 === 0) {
-        for (let C = 0; C <= range.e.c; ++C) {
-          const addr = XLSX.utils.encode_cell({ r: R, c: C });
-          const cell = ws[addr];
-          if (cell) {
-            cell.s = { ...cell.s, fill: { patternType: 'solid', fgColor: { rgb: 'F2F2F2' } } };
-          }
-        }
-      }
-    }
+    const script = `const getCellValue=(tr,idx)=>tr.children[idx].innerText;\n`+
+      `const comparer=(idx,asc)=>((a,b)=>((v1,v2)=>v1!==''&&v2!==''&&!isNaN(v1)&&!isNaN(v2)?v1-v2:v1.localeCompare(v2))(`+
+      `getCellValue(asc?a:b,idx),getCellValue(asc?b:a,idx)));\n`+
+      `document.querySelectorAll('th').forEach(th=>th.addEventListener('click',(()=>{`+
+      `const table=th.closest('table');Array.from(table.querySelectorAll('tr:nth-child(n+2)'))`+
+      `.sort(comparer(Array.from(th.parentNode.children).indexOf(th),this.asc=!this.asc))`+
+      `.forEach(tr=>table.appendChild(tr));})));\n`+
+      `const search=document.getElementById('table-search');search.addEventListener('input',()=>{`+
+      `const term=search.value.toLowerCase();document.querySelectorAll('tbody tr').forEach(tr=>{`+
+      `tr.style.display=Array.from(tr.children).some(td=>td.textContent.toLowerCase().includes(term))?'':'none';});});`;
 
-    // Enable filtering and freeze header row
-    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 1, c: 0 }, e: { r: range.e.r, c: range.e.c } }) };
-    // @ts-ignore - freeze panes
-    ws['!freeze'] = { xSplit: 0, ySplit: 2 };
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>`+
+      `<title>Monthly Defaults - ${escapeHtml(titleText)}</title>`+
+      `<style>${style}</style></head><body>`+
+      `<h1>Monthly Defaults - ${escapeHtml(titleText)}</h1>`+
+      `<div class="search"><label>Search: <input id="table-search" type="search" placeholder="Filter rows"/></label></div>`+
+      `<table><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`+
+      `<script>${script}<\/script></body></html>`;
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'MonthlyDefaults');
-    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `monthly-defaults-${month}.xlsx`;
+    a.download = `monthly-defaults-${month}.html`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -1197,7 +1189,7 @@ export default function App() {
             Copy From Month
           </button>
           <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</button>
-          <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>exportMonthlyDefaults(selectedMonth)}>Export</button>
+          <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>exportMonthlyDefaults(selectedMonth)}>Export HTML</button>
           <input type="text" className="border rounded px-2 py-1" placeholder="Filter" value={filterText} onChange={(e)=>setFilterText(e.target.value)} />
           <select className="border rounded px-2 py-1" value={sortKey} onChange={(e)=>setSortKey(e.target.value as any)}>
             <option value="name">Name</option>
