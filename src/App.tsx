@@ -558,26 +558,16 @@ export default function App() {
       'Last Name','First Name','AM Role','Lunch Role','PM Role','B/S','Commute','Active',
       'Mon','Tue','Wed','Thu','Fri'
     ];
-    const rows = people.map((p:any) => {
-      const roleNames = ['AM','Lunch','PM'].map(seg => {
-        const def = monthlyDefaults.find(d => d.person_id===p.id && d.segment===seg);
-        const role = roles.find(r => r.id===def?.role_id);
-        return role?.name || '';
-      });
-      return [
-        p.last_name,
-        p.first_name,
-        ...roleNames,
-        p.brother_sister || '',
-        p.commuter ? 'Yes' : 'No',
-        p.active ? 'Yes' : 'No',
-        p.avail_mon,
-        p.avail_tue,
-        p.avail_wed,
-        p.avail_thu,
-        p.avail_fri
-      ];
-    });
+
+    const contrastColor = (hex: string) => {
+      const c = hex.replace('#','');
+      if (c.length !== 6) return '#000';
+      const r = parseInt(c.substring(0,2),16);
+      const g = parseInt(c.substring(2,4),16);
+      const b = parseInt(c.substring(4,6),16);
+      const l = 0.299*r + 0.587*g + 0.114*b;
+      return l > 186 ? '#000' : '#fff';
+    };
 
     const monthDate = new Date(month + '-01');
     const titleText = monthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
@@ -588,7 +578,30 @@ export default function App() {
       .replace(/>/g, '&gt;');
 
     const headerHtml = headers.map(h => `<th>${escapeHtml(h)}</th>`).join('');
-    const bodyHtml = rows.map(r => `<tr>${r.map(c => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('');
+    const bodyHtml = people.map((p:any) => {
+      const roleTds = ['AM','Lunch','PM'].map(seg => {
+        const def = monthlyDefaults.find(d => d.person_id===p.id && d.segment===seg);
+        const role = roles.find(r => r.id===def?.role_id);
+        const group = groups.find(g => g.id === role?.group_id);
+        const bg = group?.theme_color || '';
+        const color = bg ? contrastColor(bg) : '';
+        const style = bg ? ` style="background:${bg};color:${color};"` : '';
+        return `<td${style}>${escapeHtml(role?.name || '')}</td>`;
+      }).join('');
+      return `<tr>`+
+        `<td>${escapeHtml(p.last_name)}</td>`+
+        `<td>${escapeHtml(p.first_name)}</td>`+
+        roleTds+
+        `<td>${escapeHtml(p.brother_sister || '')}</td>`+
+        `<td>${p.commuter ? 'Yes' : 'No'}</td>`+
+        `<td>${p.active ? 'Yes' : 'No'}</td>`+
+        `<td>${escapeHtml(p.avail_mon)}</td>`+
+        `<td>${escapeHtml(p.avail_tue)}</td>`+
+        `<td>${escapeHtml(p.avail_wed)}</td>`+
+        `<td>${escapeHtml(p.avail_thu)}</td>`+
+        `<td>${escapeHtml(p.avail_fri)}</td>`+
+        `</tr>`;
+    }).join('');
 
     const style = `body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f5f7fa;color:#1a1a1a;margin:0;padding:40px;}\n`+
       `h1{text-align:center;font-weight:300;margin-bottom:24px;}\n`+
@@ -603,9 +616,9 @@ export default function App() {
       `const comparer=(idx,asc)=>((a,b)=>((v1,v2)=>v1!==''&&v2!==''&&!isNaN(v1)&&!isNaN(v2)?v1-v2:v1.localeCompare(v2))(`+
       `getCellValue(asc?a:b,idx),getCellValue(asc?b:a,idx)));\n`+
       `document.querySelectorAll('th').forEach(th=>th.addEventListener('click',(()=>{`+
-      `const table=th.closest('table');Array.from(table.querySelectorAll('tr:nth-child(n+2)'))`+
+      `const table=th.closest('table');const tbody=table.querySelector('tbody');Array.from(tbody.querySelectorAll('tr'))`+
       `.sort(comparer(Array.from(th.parentNode.children).indexOf(th),this.asc=!this.asc))`+
-      `.forEach(tr=>table.appendChild(tr));})));\n`+
+      `.forEach(tr=>tbody.appendChild(tr));})));\n`+
       `const search=document.getElementById('table-search');search.addEventListener('input',()=>{`+
       `const term=search.value.toLowerCase();document.querySelectorAll('tbody tr').forEach(tr=>{`+
       `tr.style.display=Array.from(tr.children).some(td=>td.textContent.toLowerCase().includes(term))?'':'none';});});`;
