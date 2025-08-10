@@ -579,9 +579,50 @@ export default function App() {
       ];
     });
 
-    const data = [headers, ...rows];
+    const monthDate = new Date(month + '-01');
+    const titleText = monthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+    const data = [[`Monthly Defaults - ${titleText}`], headers, ...rows];
     const XLSX = await loadXLSX();
     const ws = XLSX.utils.aoa_to_sheet(data);
+
+    // Merge title across columns
+    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } }];
+
+    // Column widths
+    ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 2, 12) }));
+
+    // Header styling
+    for (let C = 0; C < headers.length; ++C) {
+      const addr = XLSX.utils.encode_cell({ r: 1, c: C });
+      const cell = ws[addr];
+      if (cell) {
+        cell.s = {
+          font: { bold: true, color: { rgb: 'FFFFFF' } },
+          fill: { patternType: 'solid', fgColor: { rgb: '305496' } },
+          alignment: { horizontal: 'center', vertical: 'center' }
+        };
+      }
+    }
+
+    // Zebra stripe rows for readability
+    const range = XLSX.utils.decode_range(ws['!ref'] as string);
+    for (let R = 2; R <= range.e.r; ++R) {
+      if (R % 2 === 0) {
+        for (let C = 0; C <= range.e.c; ++C) {
+          const addr = XLSX.utils.encode_cell({ r: R, c: C });
+          const cell = ws[addr];
+          if (cell) {
+            cell.s = { ...cell.s, fill: { patternType: 'solid', fgColor: { rgb: 'F2F2F2' } } };
+          }
+        }
+      }
+    }
+
+    // Enable filtering and freeze header row
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 1, c: 0 }, e: { r: range.e.r, c: range.e.c } }) };
+    // @ts-ignore - freeze panes
+    ws['!freeze'] = { xSplit: 0, ySplit: 2 };
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'MonthlyDefaults');
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
