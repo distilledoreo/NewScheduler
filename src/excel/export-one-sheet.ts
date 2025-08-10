@@ -24,8 +24,9 @@ const GROUP_COLORS: Record<string,string> = {
   'Office':        'FFFFF2CC'
 };
 
-const LEFT_GROUPS = ['Veggie Room','Bakery','Main Course','Receiving','Prepack','Office'] as const;
-const RIGHT_GROUPS = ['Dining Room','Machine Room'] as const;
+const KITCHEN_COL1_GROUPS = ['Veggie Room','Bakery','Main Course'] as const;
+const KITCHEN_COL2_GROUPS = ['Receiving','Prepack','Office'] as const;
+const DINING_GROUPS = ['Dining Room','Machine Room'] as const;
 
 const DAY_ORDER = ['M','T','W','TH','F'] as const;
 type DayLetter = typeof DAY_ORDER[number];
@@ -108,17 +109,21 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   const ws = wb.addWorksheet('Schedule');
   ws.columns = [
     { width:26 }, { width:7 }, { width:7 }, { width:14 }, { width:2 },
+    { width:26 }, { width:7 }, { width:7 }, { width:14 }, { width:2 },
     { width:26 }, { width:7 }, { width:7 }, { width:14 }
   ];
 
-  ws.mergeCells(1,1,1,9);
+  ws.mergeCells(1,1,1,14);
   const titleCell = ws.getCell(1,1);
   titleCell.value = `Kitchen / Dining Room Schedule — ${titleText}`;
   titleCell.font = { bold: true, size: 14, name: 'Calibri' };
   titleCell.alignment = { horizontal: 'center' };
 
-  let leftRow = 2;
-  let rightRow = 2;
+  const paneState = {
+    kitchen1: 2,
+    kitchen2: 2,
+    dining: 2,
+  } as Record<'kitchen1'|'kitchen2'|'dining', number>;
 
   function setRowBorders(row: any, startCol: number, endCol: number) {
     for (let c = startCol; c <= endCol; c++) {
@@ -130,9 +135,14 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     }
   }
 
-  function renderBlock(pane: 'left'|'right', group: string, code: string, people: Record<string,{AM:Set<DayLetter>;PM:Set<DayLetter>}>){
-    const startCol = pane==='left'?1:6;
-    const rowIndex = pane==='left'?leftRow:rightRow;
+  function renderBlock(
+    pane: 'kitchen1'|'kitchen2'|'dining',
+    group: string,
+    code: string,
+    people: Record<string,{AM:Set<DayLetter>;PM:Set<DayLetter>}>)
+  {
+    const startCol = pane==='kitchen1'?1:pane==='kitchen2'?6:11;
+    const rowIndex = paneState[pane];
     ws.mergeCells(rowIndex, startCol, rowIndex, startCol+3);
     const hcell = ws.getCell(rowIndex,startCol);
     hcell.value = group;
@@ -155,24 +165,28 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
       setRowBorders(ws.getRow(r), startCol, startCol + 3);
       r++;
     }
-    if (pane==='left') leftRow = r; else rightRow = r;
+    paneState[pane] = r;
   }
 
   function renderSection(kind: 'regular'|'commuter') {
-    for (const g of LEFT_GROUPS) {
+    for (const g of KITCHEN_COL1_GROUPS) {
       const code = GROUP_TO_CODE[g];
-      renderBlock('left', g, code, buckets[kind][code] || {});
+      renderBlock('kitchen1', g, code, buckets[kind][code] || {});
     }
-    for (const g of RIGHT_GROUPS) {
+    for (const g of KITCHEN_COL2_GROUPS) {
       const code = GROUP_TO_CODE[g];
-      renderBlock('right', g, code, buckets[kind][code] || {});
+      renderBlock('kitchen2', g, code, buckets[kind][code] || {});
+    }
+    for (const g of DINING_GROUPS) {
+      const code = GROUP_TO_CODE[g];
+      renderBlock('dining', g, code, buckets[kind][code] || {});
     }
   }
 
   renderSection('regular');
 
-  const afterRegular = Math.max(leftRow, rightRow);
-  ws.mergeCells(afterRegular,1,afterRegular,9);
+  const afterRegular = Math.max(paneState.kitchen1, paneState.kitchen2, paneState.dining);
+  ws.mergeCells(afterRegular,1,afterRegular,14);
   const commCell = ws.getCell(afterRegular,1);
   commCell.value = 'COMMUTERS';
   commCell.font = { bold:true, size:12 };
@@ -180,8 +194,9 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   commCell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFEFEFEF'} };
   commCell.border = { top:{ style:'thick' } };
 
-  leftRow = afterRegular + 1;
-  rightRow = afterRegular + 1;
+  paneState.kitchen1 = afterRegular + 1;
+  paneState.kitchen2 = afterRegular + 1;
+  paneState.dining = afterRegular + 1;
 
   renderSection('commuter');
 
