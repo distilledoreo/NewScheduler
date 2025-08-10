@@ -92,6 +92,10 @@ async function loadXLSX(){
 export default function App() {
   const [ready, setReady] = useState(false);
   const [sqlDb, setSqlDb] = useState<any | null>(null);
+
+  useEffect(() => {
+    (window as any).sqlDb = sqlDb;
+  }, [sqlDb]);
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
   const [lockEmail, setLockEmail] = useState<string>("");
   const [lockedBy, setLockedBy] = useState<string | null>(null);

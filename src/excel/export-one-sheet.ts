@@ -1,8 +1,5 @@
 import { loadExcelJS } from './exceljs-loader';
 
-declare const sqlDb: any;
-declare function all<T=any>(sql: string, params?: any[]): T[];
-
 const GROUP_TO_CODE: Record<string, string> = {
   'Dining Room': 'DR',
   'Buffet': 'DR',
@@ -39,6 +36,22 @@ type Buckets = Record<'regular'|'commuter',
   Record<string, Record<string, { AM: Set<DayLetter>; PM: Set<DayLetter> }>>
 >;
 
+function requireDb() {
+  const db = (globalThis as any).sqlDb;
+  if (!db) throw new Error('No database loaded');
+  return db;
+}
+
+function all<T = any>(sql: string, params: any[] = []): T[] {
+  const db = requireDb();
+  const stmt = db.prepare(sql);
+  const rows: T[] = [];
+  stmt.bind(params);
+  while (stmt.step()) rows.push(stmt.getAsObject() as T);
+  stmt.free();
+  return rows;
+}
+
 function monthBounds(ym: string): [string,string] {
   const [y,m] = ym.split('-').map(n=>parseInt(n,10));
   const start = new Date(Date.UTC(y, m-1, 1));
@@ -60,7 +73,7 @@ function weekdayLetterUTC(ymd: string): DayLetter|null {
 }
 
 export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
-  if (!sqlDb) throw new Error('No database loaded');
+  requireDb();
   const ExcelJS = await loadExcelJS();
 
   const [startYMD, endYMD] = monthBounds(month);
