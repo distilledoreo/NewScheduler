@@ -35,6 +35,7 @@ type Row = {
   segment:'AM'|'PM';
   group_name:string;
   person:string;
+  role_name:string;
   commuter:number;
   avail_mon:string;
   avail_tue:string;
@@ -44,7 +45,7 @@ type Row = {
 };
 
 type Buckets = Record<'regular'|'commuter',
-  Record<string, Record<string, { AM: Set<DayLetter>; PM: Set<DayLetter> }>>
+  Record<string, Record<string, { AM: Set<DayLetter>; PM: Set<DayLetter>; roles: Set<string> }>>
 >;
 
 function requireDb() {
@@ -67,7 +68,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   requireDb();
   const ExcelJS = await loadExcelJS();
   const rows = all<Row>(
-    `SELECT md.segment, g.name AS group_name,
+    `SELECT md.segment, g.name AS group_name, r.name AS role_name,
             (p.last_name || ', ' || p.first_name) AS person,
             p.commuter AS commuter,
             p.avail_mon, p.avail_tue, p.avail_wed, p.avail_thu, p.avail_fri
@@ -87,7 +88,8 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     if (!code) continue;
     const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
     const bucket = buckets[kind][code] || (buckets[kind][code] = {});
-    const person = bucket[row.person] || (bucket[row.person] = { AM: new Set(), PM: new Set() });
+    const person = bucket[row.person] || (bucket[row.person] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>(), roles: new Set<string>() });
+    person.roles.add(row.role_name);
     const availMap: Record<DayLetter,string> = {
       M: row.avail_mon,
       T: row.avail_tue,
@@ -108,9 +110,9 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Schedule');
   ws.columns = [
-    { width:26 }, { width:7 }, { width:7 }, { width:14 }, { width:2 },
-    { width:26 }, { width:7 }, { width:7 }, { width:14 }, { width:2 },
-    { width:26 }, { width:7 }, { width:7 }, { width:14 }
+    { width:26 }, { width:16 }, { width:5 }, { width:14 }, { width:2 },
+    { width:26 }, { width:16 }, { width:5 }, { width:14 }, { width:2 },
+    { width:26 }, { width:16 }, { width:5 }, { width:14 }
   ];
 
   ws.mergeCells(1,1,1,14);
@@ -138,8 +140,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   function renderBlock(
     pane: 'kitchen1'|'kitchen2'|'dining',
     group: string,
-    code: string,
-    people: Record<string,{AM:Set<DayLetter>;PM:Set<DayLetter>}>)
+    people: Record<string,{AM:Set<DayLetter>;PM:Set<DayLetter>;roles:Set<string>}>)
   {
     const startCol = pane==='kitchen1'?1:pane==='kitchen2'?6:11;
     if (!people || !Object.keys(people).length) return;
@@ -163,13 +164,14 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
       const hasAM = info.AM.size > 0;
       const hasPM = info.PM.size > 0;
       ws.getCell(r, startCol).value = name;
+      const roleText = Array.from(info.roles).sort().join('/');
+      ws.getCell(r, startCol + 1).value = roleText;
       if (hasAM && hasPM) {
-        ws.getCell(r, startCol + 1).value = 'AM';
-        ws.getCell(r, startCol + 2).value = 'PM';
+        // leave shift column blank
       } else if (hasAM) {
-        ws.getCell(r, startCol + 1).value = 'AM only';
+        ws.getCell(r, startCol + 2).value = 'AM';
       } else if (hasPM) {
-        ws.getCell(r, startCol + 2).value = 'PM only';
+        ws.getCell(r, startCol + 2).value = 'PM';
       }
       ws.getCell(r, startCol + 3).value = days;
       ws.getRow(r).font = { size:16 };
@@ -184,19 +186,19 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
       const code = GROUP_TO_CODE[g];
       const people = buckets[kind][code];
       if (people && Object.keys(people).length)
-        renderBlock('kitchen1', g, code, people);
+        renderBlock('kitchen1', g, people);
     }
     for (const g of KITCHEN_COL2_GROUPS) {
       const code = GROUP_TO_CODE[g];
       const people = buckets[kind][code];
       if (people && Object.keys(people).length)
-        renderBlock('kitchen2', g, code, people);
+        renderBlock('kitchen2', g, people);
     }
     for (const g of DINING_GROUPS) {
       const code = GROUP_TO_CODE[g];
       const people = buckets[kind][code];
       if (people && Object.keys(people).length)
-        renderBlock('dining', g, code, people);
+        renderBlock('dining', g, people);
     }
   }
 
