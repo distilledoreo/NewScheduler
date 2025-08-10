@@ -118,6 +118,11 @@ export default function App() {
     const d = new Date();
     return `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
   });
+  const [copyFromMonth, setCopyFromMonth] = useState<string>(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+  });
   const [monthlyDefaults, setMonthlyDefaults] = useState<any[]>([]);
   const [monthlyEditing, setMonthlyEditing] = useState(false);
 
@@ -126,6 +131,10 @@ export default function App() {
 
   useEffect(() => {
     if (sqlDb) loadMonthlyDefaults(selectedMonth);
+    const [y, m] = selectedMonth.split('-').map(n => parseInt(n, 10));
+    const d = new Date(y, m - 1, 1);
+    d.setMonth(d.getMonth() - 1);
+    setCopyFromMonth(`${d.getFullYear()}-${pad2(d.getMonth() + 1)}`);
   }, [sqlDb, selectedMonth]);
 
   // Load sql.js
@@ -1027,13 +1036,8 @@ export default function App() {
           <label className="text-sm">Month</label>
           <input type="month" className="border rounded px-2 py-1" value={selectedMonth} onChange={(e)=>setSelectedMonth(e.target.value)} />
           <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>applyMonthlyDefaults(selectedMonth)}>Apply to Month</button>
-          <button
-            className="px-3 py-1 bg-slate-200 rounded text-sm"
-            onClick={() => {
-              const src = prompt('Copy defaults from which month? (YYYY-MM)');
-              if (src) copyMonthlyDefaults(src, selectedMonth);
-            }}
-          >
+          <input type="month" className="border rounded px-2 py-1" value={copyFromMonth} onChange={(e)=>setCopyFromMonth(e.target.value)} />
+          <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>copyMonthlyDefaults(copyFromMonth, selectedMonth)}>
             Copy From Month
           </button>
           <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</button>
