@@ -4,6 +4,7 @@ import { SEGMENTS, GROUPS, ROLE_SEED, baseSegmentTimes, earlyTimes } from "./con
 import type { Segment } from "./config/domain";
 import Toolbar from "./components/Toolbar";
 import DailyRunBoard from "./components/DailyRunBoard";
+import { exportMonthOneSheetXlsx } from "./excel/export-one-sheet";
 
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
@@ -1033,6 +1034,14 @@ export default function App() {
           </button>
           <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</button>
           <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>exportMonthlyDefaults(selectedMonth)}>Export HTML</button>
+          <button
+            className="px-3 py-1 bg-slate-200 rounded text-sm"
+            onClick={() =>
+              exportMonthOneSheetXlsx(selectedMonth).catch((err) => alert(err.message))
+            }
+          >
+            Export One Sheet (.xlsx)
+          </button>
           <input type="text" className="border rounded px-2 py-1" placeholder="Filter" value={filterText} onChange={(e)=>setFilterText(e.target.value)} />
           <select className="border rounded px-2 py-1" value={sortKey} onChange={(e)=>setSortKey(e.target.value as any)}>
             <option value="name">Name</option>
