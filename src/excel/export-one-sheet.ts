@@ -150,12 +150,11 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
       const info = people[name];
       const daySet = new Set<DayLetter>([...info.AM, ...info.PM]);
       const days = DAY_ORDER.filter(d=>daySet.has(d)).join('/');
-      const row = ws.getRow(r);
-      row.getCell(startCol).value = name;
-      row.getCell(startCol+1).value = info.AM.size ? code : '';
-      row.getCell(startCol+2).value = info.PM.size ? code : '';
-      row.getCell(startCol+3).value = days;
-      setRowBorders(row, startCol, startCol+3);
+      ws.getCell(r, startCol).value = name;
+      ws.getCell(r, startCol + 1).value = info.AM.size ? code : '';
+      ws.getCell(r, startCol + 2).value = info.PM.size ? code : '';
+      ws.getCell(r, startCol + 3).value = days;
+      setRowBorders(ws.getRow(r), startCol, startCol + 3);
       r++;
     }
     if (pane==='left') leftRow = r; else rightRow = r;
