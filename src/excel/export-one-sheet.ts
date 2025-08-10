@@ -154,6 +154,15 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     hcell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:fill} };
     setRowBorders(ws.getRow(rowIndex), startCol, startCol+3);
 
+    function simplifyRole(role: string): string | null {
+      if (role === group) return null;
+      const prefix = group + ' ';
+      if (role.startsWith(prefix)) {
+        return role.slice(prefix.length);
+      }
+      return role;
+    }
+
     let r = rowIndex + 1;
     const names = Object.keys(people).sort((a,b)=>a.localeCompare(b));
     for (const name of names) {
@@ -164,7 +173,10 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
       const hasAM = info.AM.size > 0;
       const hasPM = info.PM.size > 0;
       ws.getCell(r, startCol).value = name;
-      const roleText = Array.from(info.roles).sort().join('/');
+      const roleNames = Array.from(info.roles)
+        .map(simplifyRole)
+        .filter((v): v is string => Boolean(v));
+      const roleText = Array.from(new Set(roleNames)).sort().join('/');
       ws.getCell(r, startCol + 1).value = roleText;
       if (hasAM && hasPM) {
         // leave shift column blank
