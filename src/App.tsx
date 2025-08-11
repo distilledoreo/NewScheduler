@@ -888,28 +888,48 @@ export default function App() {
   const selectedDateObj = useMemo(()=>parseMDY(selectedDate),[selectedDate]);
 
   function peopleOptionsForSegment(date: Date, segment: Exclude<Segment, "Early">, role: any) {
-    // Filter: active people; weekend ignored earlier
+    // Determine weekday availability field
     const wd = weekdayName(date);
-    const availField = wd === "Monday" ? "avail_mon" : wd === "Tuesday" ? "avail_tue" : wd === "Wednesday" ? "avail_wed" : wd === "Thursday" ? "avail_thu" : "avail_fri";
+    const availField =
+      wd === "Monday"
+        ? "avail_mon"
+        : wd === "Tuesday"
+        ? "avail_tue"
+        : wd === "Wednesday"
+        ? "avail_wed"
+        : wd === "Thursday"
+        ? "avail_thu"
+        : "avail_fri";
+
     const rows = all(`SELECT * FROM person WHERE active=1 ORDER BY last_name, first_name`);
-    return rows.map((p:any)=>{
-      const avail = p[availField] as "U"|"AM"|"PM"|"B";
-      let warn = "";
-      if ((segment === "AM" && !(avail === "AM" || avail === "B")) ||
-          (segment === "PM" && !(avail === "PM" || avail === "B")) ||
-          (segment === "Lunch" && !(avail === "AM" || avail === "PM" || avail === "B"))) {
-        warn = "(Availability warning)"; // per spec: Warn
-      }
-      // training status (warn)
-      const tr = all(`SELECT status FROM training WHERE person_id=? AND role_id=?`, [p.id, role.id])[0];
-      if (!warn && tr && tr.status !== 'Qualified') warn = tr.status === 'In training' ? '(In training)' : '(Not trained)';
+    const trained = new Set(
+      all(
+        `SELECT DISTINCT person_id FROM assignment WHERE role_id=? AND date < ?`,
+        [role.id, ymd(date)]
+      ).map((r: any) => r.person_id)
+    );
 
-      // time-off block enforcement: hard block on add
-      let blocked = false;
-      if (segment !== "Early") blocked = isSegmentBlockedByTimeOff(p.id, date, segment);
+    return rows
+      .filter((p: any) => {
+        const avail = p[availField] as "U" | "AM" | "PM" | "B";
+        const availOk =
+          (segment === "AM" && (avail === "AM" || avail === "B")) ||
+          (segment === "PM" && (avail === "PM" || avail === "B")) ||
+          (segment === "Lunch" && (avail === "AM" || avail === "PM" || avail === "B"));
+        if (!availOk) return false;
 
-      return { id: p.id, label: `${p.last_name}, ${p.first_name} ${warn}`, blocked };
-    });
+        if (segment !== "Early" && isSegmentBlockedByTimeOff(p.id, date, segment)) return false;
+
+        return true;
+      })
+      .map((p: any) => {
+        const warn = trained.has(p.id) ? "" : "(Untrained)";
+        return {
+          id: p.id,
+          label: `${p.last_name}, ${p.first_name}${warn ? ` ${warn}` : ""}`,
+          blocked: false,
+        };
+      });
   }
 
   function roleListForSegment(segment: Segment) {

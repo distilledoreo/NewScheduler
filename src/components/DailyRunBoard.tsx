@@ -104,6 +104,12 @@ export default function DailyRunBoard({
       `SELECT a.id, p.first_name, p.last_name, p.id as person_id FROM assignment a JOIN person p ON p.id=a.person_id WHERE a.date=? AND a.role_id=? AND a.segment=? ORDER BY p.last_name,p.first_name`,
       [ymd(selectedDateObj), role.id, seg]
     );
+    const trainedBefore = new Set(
+      all(
+        `SELECT DISTINCT person_id FROM assignment WHERE role_id=? AND date < ?`,
+        [role.id, ymd(selectedDateObj)]
+      ).map((r: any) => r.person_id)
+    );
     const opts = peopleOptionsForSegment(selectedDateObj, seg, role);
 
     const req = getRequiredFor(selectedDateObj, group.id, role.id, seg);
@@ -154,6 +160,7 @@ export default function DailyRunBoard({
             <li key={a.id} className="flex items-center justify-between bg-slate-50 rounded px-2 py-1">
               <span>
                 {a.last_name}, {a.first_name}
+                {!trainedBefore.has(a.person_id) && " (Untrained)"}
               </span>
               {canEdit && (
                 <button className="text-red-600 text-sm" onClick={() => deleteAssignment(a.id)}>
