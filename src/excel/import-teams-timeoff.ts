@@ -68,9 +68,11 @@ function findHeaderCols(ws:any){
   const headerRow = 1;
   const want = ['Member','Work Email','Start Date','Start Time','End Date','End Time','Time Off Reason','Notes'];
   const idx: Record<string, number | null> = Object.fromEntries(want.map(k=>[k,null]));
-  const maxC = ws.columnCount || 50;
+  const maxC = ws.actualColumnCount || ws.columnCount || 50;
   for (let c=1;c<=maxC;c++){
-    const v = lower(ws.getCell(headerRow,c).value);
+    const cell = ws.getCell(headerRow,c);
+    // ExcelJS cell.value may be objects; .text consistently exposes string view
+    const v = lower((cell && 'text' in cell) ? cell.text : cell?.value);
     if (!v) continue;
     for (const k of want) if (v === lower(k)) idx[k] = c;
   }
