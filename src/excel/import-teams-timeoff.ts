@@ -71,7 +71,7 @@ function excelSerialToDateUTC(n:number): Date {
 
 function toLocalYMD(d: Date): string {
   const y = d.getFullYear(), m=d.getMonth()+1, day=d.getDate();
-  return \`\${y}-\${String(m).padStart(2,'0')}-\${String(day).padStart(2,'0')}\`;
+  return `${y}-\${String(m).padStart(2,'0')}-\${String(day).padStart(2,'0')}`;
 }
 function parseExcelDate(val:any): string | null {
   if (val == null || val === '') return null;
@@ -86,14 +86,14 @@ function parseExcelTime(val:any): string | null {
   if (val instanceof Date) {
     const hh = String(val.getHours()).padStart(2,'0');
     const mm = String(val.getMinutes()).padStart(2,'0');
-    return \`\${hh}:\${mm}\`;
+    return `${hh}:\${mm}`;
   }
   if (typeof val === 'number') {
     // Excel serial fraction
     const totalMinutes = Math.round((val % 1) * 24 * 60);
     const hh = String(Math.floor(totalMinutes/60)).padStart(2,'0');
     const mm = String(totalMinutes%60).padStart(2,'0');
-    return \`\${hh}:\${mm}\`;
+    return `${hh}:\${mm}`;
   }
   const s = norm(val);
   const m = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)?$/i);
@@ -105,12 +105,12 @@ function parseExcelTime(val:any): string | null {
       if (ampm === 'pm' && hh < 12) hh += 12;
       if (ampm === 'am' && hh === 12) hh = 0;
     }
-    return \`\${String(hh).padStart(2,'0')}:\${mm}\`;
+    return `${String(hh).padStart(2,'0')}:\${mm}`;
   }
   return null;
 }
 function combineLocal(ymd:string, hm:string|null, which:'start'|'end'): string {
-  return \`\${ymd}T\${hm ?? (which==='start'?'00:00':'23:59')}\`;
+  return `${ymd}T\${hm ?? (which==='start'?'00:00':'23:59')}`;
 }
 
 // ----------------- header detection -----------------
@@ -198,7 +198,7 @@ export async function previewTeamsTimeOff(file: File): Promise<TimeOffPreview> {
   const byName  = new Map<string, number>();
   for (const p of people) {
     if (p.work_email) byEmail.set(lower(p.work_email), p.id);
-    byName.set(\`\${lower(p.last_name)},\${lower(p.first_name)}\`, p.id);
+    byName.set(`${lower(p.last_name)},\${lower(p.first_name)}`, p.id);
   }
 
   const previewRows: PreviewRow[] = [];
@@ -239,7 +239,7 @@ export async function previewTeamsTimeOff(file: File): Promise<TimeOffPreview> {
     if (email) personId = byEmail.get(lower(email)) ?? null;
     if (!personId && member && member.includes(',')) {
       const [last, ...rest] = member.split(',');
-      const key = \`\${lower(last)},\${lower(rest.join(','))}\`;
+      const key = `${lower(last)},\${lower(rest.join(','))}`;
       personId = byName.get(key) ?? null;
     }
 
@@ -279,7 +279,7 @@ export async function previewTeamsTimeOff(file: File): Promise<TimeOffPreview> {
   }
 
   // dedupe
-  const key = (x:{personId:number;start_ts:string;end_ts:string;reason:string}) => \`\${x.personId}|\${x.start_ts}|\${x.end_ts}|\${x.reason}\`;
+  const key = (x:{personId:number;start_ts:string;end_ts:string;reason:string}) => `${x.personId}|\${x.start_ts}|\${x.end_ts}|\${x.reason}`;
   const uniq = new Map<string, typeof plan[number]>();
   for (const x of plan) uniq.set(key(x), x);
 
@@ -308,10 +308,10 @@ export async function applyTeamsTimeOff(plan: TimeOffPreview['plan'], opts?: { m
   const existing = all<{ person_id:number; start_ts:string; end_ts:string; reason:string }>(
     "SELECT person_id, start_ts, end_ts, reason FROM timeoff WHERE source='TeamsImport'"
   );
-  const seen = new Set(existing.map(e => \`\${e.person_id}|\${e.start_ts}|\${e.end_ts}|\${e.reason}\`));
+  const seen = new Set(existing.map(e => `${e.person_id}|\${e.start_ts}|\${e.end_ts}|\${e.reason}`));
 
   for (const x of plan) {
-    const k = \`\${x.personId}|\${x.start_ts}|\${x.end_ts}|\${x.reason}\`;
+    const k = `${x.personId}|\${x.start_ts}|\${x.end_ts}|\${x.reason}`;
     if (seen.has(k)) continue;
     run("INSERT INTO timeoff (person_id, start_ts, end_ts, reason, source) VALUES (?,?,?,?, 'TeamsImport')",
       [x.personId, x.start_ts, x.end_ts, x.reason]);
