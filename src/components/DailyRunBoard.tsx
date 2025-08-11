@@ -219,7 +219,10 @@ export default function DailyRunBoard({
               <span>{g.name}</span>
               <span className="text-xs text-slate-500">Theme: {g.theme_color || '-'}</span>
             </div>
-            <div className="flex-1 flex flex-col gap-3 px-3 pb-3 overflow-auto">
+            <div
+              className="flex-1 grid gap-3 px-3 pb-3 overflow-auto"
+              style={{ gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))" }}
+            >
               {roleListForSegment(seg)
                 .filter((r) => r.group_id === g.id)
                 .map((r: any) => (
