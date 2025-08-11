@@ -1417,7 +1417,7 @@ export default function App() {
               onChange={async (e)=>{
                 const f = e.currentTarget.files?.[0];
                 if (!f) return;
-                const { previewTeamsTimeOff, applyTeamsTimeOff } = await import('./excel/import-teams-timeoff');
+                const { previewTeamsTimeOff, applyTeamsTimeOff } = await import('./excel/import-teams-timeoff-sheetjs');
                 try {
                   const pv = await previewTeamsTimeOff(f);
                   console.log('[TO Preview]', pv);
