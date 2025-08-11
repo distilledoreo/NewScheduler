@@ -1,12 +1,29 @@
 import { loadExcelJS } from './exceljs-loader';
 
-// SQL helpers provided globally
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare const sqlDb: any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare function all<T = any>(sql: string, params?: any[]): T[];
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare function run(sql: string, params?: any[]): void;
+// Local SQL helpers
+function requireDb() {
+  const db = (globalThis as any).sqlDb;
+  if (!db) throw new Error('No database loaded');
+  return db;
+}
+
+function all<T = any>(sql: string, params: any[] = []): T[] {
+  const db = requireDb();
+  const stmt = db.prepare(sql);
+  const rows: T[] = [];
+  stmt.bind(params);
+  while (stmt.step()) rows.push(stmt.getAsObject() as T);
+  stmt.free();
+  return rows;
+}
+
+function run(sql: string, params: any[] = []): void {
+  const db = requireDb();
+  const stmt = db.prepare(sql);
+  stmt.bind(params);
+  stmt.step();
+  stmt.free();
+}
 
 export type ImportPreview = {
   months: string[];
@@ -107,7 +124,7 @@ function resolveRoleId(roles: RoleRow[], group: string, role: string): number | 
 }
 
 export async function previewTrainingChart(file: File): Promise<ImportPreview> {
-  if (!sqlDb) throw new Error('No database loaded');
+  requireDb();
   const ExcelJS = await loadExcelJS();
   const data = await file.arrayBuffer();
   const wb = new ExcelJS.Workbook();
@@ -209,7 +226,7 @@ export async function previewTrainingChart(file: File): Promise<ImportPreview> {
 }
 
 export async function applyTrainingChart(plan: ImportPreview['plan']): Promise<void> {
-  if (!sqlDb) throw new Error('No database loaded');
+  requireDb();
   for (const { month, personId, segment, roleId } of plan) {
     run(
       `INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)

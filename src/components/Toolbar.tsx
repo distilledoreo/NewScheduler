@@ -1,9 +1,6 @@
 import React from "react";
 import { previewTrainingChart, applyTrainingChart } from "../excel/import-training-chart";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare function all<T = any>(sql: string, params?: any[]): T[];
-
 function norm(s: string): string {
   return s.toLowerCase().replace(/\s+/g, " ").trim();
 }
@@ -35,6 +32,15 @@ export default function Toolbar({
   setActiveTab,
   runDiagnostics,
 }: ToolbarProps) {
+  function all<T = any>(sql: string, params: any[] = []): T[] {
+    if (!sqlDb) throw new Error('No database loaded');
+    const stmt = sqlDb.prepare(sql);
+    const rows: T[] = [];
+    stmt.bind(params);
+    while (stmt.step()) rows.push(stmt.getAsObject() as T);
+    stmt.free();
+    return rows;
+  }
   return (
     <div className="flex flex-wrap items-center gap-2 p-3 border-b bg-white sticky top-0 z-20">
       <div className="flex flex-wrap items-center gap-2">
