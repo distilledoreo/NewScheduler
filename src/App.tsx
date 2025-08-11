@@ -1112,8 +1112,8 @@ export default function App() {
     const [activeOnly, setActiveOnly] = useState(false);
     const [commuterOnly, setCommuterOnly] = useState(false);
     const [sortField, setSortField] = useState<'last'|'first'>('last');
-    const [months, setMonths] = useState<string[]>([]);
-    const [newMonth, setNewMonth] = useState<string>("");
+    const [startMonth, setStartMonth] = useState<string>("");
+    const [endMonth, setEndMonth] = useState<string>("");
     const [editPast, setEditPast] = useState(false);
 
     useEffect(() => {
@@ -1122,23 +1122,40 @@ export default function App() {
       }
     }, [sqlDb, monthlyDefaults]);
 
-    useEffect(() => {
-      setMonths(prev => {
-        const ms = new Set(prev);
-        defs.forEach((d:any) => ms.add(d.month));
-        const now = new Date();
-        const nm = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-        const nmStr = `${nm.getFullYear()}-${pad2(nm.getMonth() + 1)}`;
-        ms.add(nmStr);
-        return Array.from(ms).sort();
-      });
-    }, [defs]);
-
     const nextMonth = useMemo(() => {
       const now = new Date();
       const nm = new Date(now.getFullYear(), now.getMonth() + 1, 1);
       return `${nm.getFullYear()}-${pad2(nm.getMonth() + 1)}`;
     }, []);
+
+    useEffect(() => {
+      if (startMonth && endMonth) return;
+      let min: string | null = null;
+      let max: string | null = null;
+      defs.forEach((d:any) => {
+        if (!min || d.month < min) min = d.month;
+        if (!max || d.month > max) max = d.month;
+      });
+      const nm = nextMonth;
+      if (!min) min = nm;
+      if (!max || nm > max) max = nm;
+      setStartMonth(min);
+      setEndMonth(max);
+    }, [defs, nextMonth, startMonth, endMonth]);
+
+    const months = useMemo(() => {
+      const arr: string[] = [];
+      if (!startMonth || !endMonth) return arr;
+      const [sy, sm] = startMonth.split('-').map(Number);
+      const [ey, em] = endMonth.split('-').map(Number);
+      let d = new Date(sy, sm - 1, 1);
+      const end = new Date(ey, em - 1, 1);
+      while (d <= end) {
+        arr.push(`${d.getFullYear()}-${pad2(d.getMonth() + 1)}`);
+        d.setMonth(d.getMonth() + 1);
+      }
+      return arr;
+    }, [startMonth, endMonth]);
 
     const filteredPeople = useMemo(() => {
       const f = filter.toLowerCase();
@@ -1239,21 +1256,20 @@ export default function App() {
             <input type="checkbox" checked={editPast} onChange={(e)=>setEditPast(e.target.checked)} /> Edit past months
           </label>
           <div className="flex items-center gap-1">
+            <label className="text-sm">From</label>
             <input
               type="month"
               className="border rounded px-2 py-1 text-sm"
-              value={newMonth}
-              onChange={(e)=>setNewMonth(e.target.value)}
+              value={startMonth}
+              onChange={(e)=>setStartMonth(e.target.value)}
             />
-            <button
-              className="px-2 py-1 bg-slate-200 rounded text-sm"
-              onClick={()=>{
-                if(newMonth){
-                  setMonths(prev=>Array.from(new Set([...prev, newMonth])).sort());
-                  setNewMonth("");
-                }
-              }}
-            >Add Month</button>
+            <label className="text-sm">To</label>
+            <input
+              type="month"
+              className="border rounded px-2 py-1 text-sm"
+              value={endMonth}
+              onChange={(e)=>setEndMonth(e.target.value)}
+            />
           </div>
         </div>
         <div className="overflow-auto">
