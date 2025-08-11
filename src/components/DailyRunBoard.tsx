@@ -114,6 +114,12 @@ export default function DailyRunBoard({
 
     const req = getRequiredFor(selectedDateObj, group.id, role.id, seg);
     const assignedCount = assigns.length;
+    const cardColor =
+      assignedCount < req
+        ? 'bg-pink-100'
+        : assignedCount === req
+        ? 'bg-green-50'
+        : 'bg-yellow-50';
     const statusColor =
       assignedCount < req
         ? 'bg-red-100 text-red-800'
@@ -122,7 +128,7 @@ export default function DailyRunBoard({
         : 'bg-yellow-100 text-yellow-800';
 
     return (
-      <div className="border rounded p-2">
+      <div className={`border rounded p-2 ${cardColor}`}>
         <div className="flex items-center justify-between mb-2">
           <div className="font-medium">{role.name}</div>
           <div className={`text-xs px-2 py-0.5 rounded ${statusColor}`}>{assignedCount}/{req}</div>
@@ -173,6 +179,15 @@ export default function DailyRunBoard({
     );
   }
 
+  const roles = roleListForSegment(seg);
+  const assignedCountRows = all(
+    `SELECT role_id, COUNT(*) as c FROM assignment WHERE date=? AND segment=? GROUP BY role_id`,
+    [ymd(selectedDateObj), seg]
+  );
+  const assignedCountMap = new Map<number, number>(
+    assignedCountRows.map((r: any) => [r.role_id, r.c])
+  );
+
   return (
     <div className="p-4">
       <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 mb-4">
@@ -219,24 +234,34 @@ export default function DailyRunBoard({
         onLayoutChange={handleLayoutChange}
         draggableHandle=".drag-handle"
       >
-        {groups.map((g: any) => (
-          <div key={String(g.id)} className="border rounded-lg bg-white shadow-sm flex flex-col h-full">
-            <div className="font-semibold flex items-center justify-between mb-2 drag-handle px-3 pt-3">
-              <span>{g.name}</span>
-              <span className="text-xs text-slate-500">Theme: {g.theme_color || '-'}</span>
-            </div>
+        {groups.map((g: any) => {
+          const rolesForGroup = roles.filter((r) => r.group_id === g.id);
+          const groupNeedsMet = rolesForGroup.every((r: any) => {
+            const assignedCount = assignedCountMap.get(r.id) || 0;
+            const req = getRequiredFor(selectedDateObj, g.id, r.id, seg);
+            return assignedCount >= req;
+          });
+          const groupColor = groupNeedsMet ? 'bg-green-50' : 'bg-pink-100';
+          return (
             <div
-              className="flex-1 grid gap-3 px-3 pb-3 overflow-auto"
-              style={{ gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))" }}
+              key={String(g.id)}
+              className={`border rounded-lg shadow-sm flex flex-col h-full ${groupColor}`}
             >
-              {roleListForSegment(seg)
-                .filter((r) => r.group_id === g.id)
-                .map((r: any) => (
+              <div className="font-semibold flex items-center justify-between mb-2 drag-handle px-3 pt-3">
+                <span>{g.name}</span>
+                <span className="text-xs text-slate-500">Theme: {g.theme_color || '-'}</span>
+              </div>
+              <div
+                className="flex-1 grid gap-3 px-3 pb-3 overflow-auto"
+                style={{ gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))" }}
+              >
+                {rolesForGroup.map((r: any) => (
                   <RoleCard key={r.id} group={g} role={r} />
                 ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </Grid>
 
       {diag && (
