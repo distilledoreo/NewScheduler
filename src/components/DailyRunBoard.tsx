@@ -126,6 +126,18 @@ export default function DailyRunBoard({
         : assignedCount === req
         ? 'bg-green-100 text-green-800'
         : 'bg-yellow-100 text-yellow-800';
+    const isOverstaffed = assignedCount > req;
+
+    function handleMove(a: any, target: any) {
+      if (
+        confirm(
+          `Move ${a.last_name}, ${a.first_name} to ${target.group.name} - ${target.role.name}?`
+        )
+      ) {
+        deleteAssignment(a.id);
+        addAssignment(selectedDate, a.person_id, target.role.id, seg);
+      }
+    }
 
     return (
       <div className={`border rounded p-2 ${cardColor}`}>
@@ -168,9 +180,32 @@ export default function DailyRunBoard({
                 {!trainedBefore.has(a.person_id) && " (Untrained)"}
               </span>
               {canEdit && (
-                <button className="text-red-600 text-sm" onClick={() => deleteAssignment(a.id)}>
-                  Remove
-                </button>
+                <div className="flex gap-2">
+                  {isOverstaffed && (
+                    (() => {
+                      const target = deficitRoles.find((d: any) => {
+                        const opts = peopleOptionsForSegment(selectedDateObj, seg, d.role);
+                        return opts.some(
+                          (o) => o.id === a.person_id && !o.blocked
+                        );
+                      });
+                      return target ? (
+                        <button
+                          className="text-blue-600 text-sm"
+                          onClick={() => handleMove(a, target)}
+                        >
+                          Move
+                        </button>
+                      ) : null;
+                    })()
+                  )}
+                  <button
+                    className="text-red-600 text-sm"
+                    onClick={() => deleteAssignment(a.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
               )}
             </li>
           ))}
@@ -187,6 +222,14 @@ export default function DailyRunBoard({
   const assignedCountMap = new Map<number, number>(
     assignedCountRows.map((r: any) => [r.role_id, r.c])
   );
+  const groupMap = new Map(groups.map((g: any) => [g.id, g]));
+  const deficitRoles = roles
+    .map((r: any) => {
+      const assigned = assignedCountMap.get(r.id) || 0;
+      const req = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
+      return assigned < req ? { role: r, group: groupMap.get(r.group_id) } : null;
+    })
+    .filter(Boolean) as Array<{ role: any; group: any }>;
 
   return (
     <div className="p-4">
