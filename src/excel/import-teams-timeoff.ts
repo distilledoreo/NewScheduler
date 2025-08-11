@@ -187,10 +187,11 @@ export type TimeOffPreview = {
   plan: TimeOffPlan;
 };
 
-export async function previewTeamsTimeOff(file: File): Promise<TimeOffPreview> {
-  const ExcelJS = await loadExcelJS();
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(await file.arrayBuffer());
+export async function previewTeamsTimeOff(file: File) {
+  const { Workbook } = await loadExcelJS();
+  const wb = new Workbook();
+  const buf = await file.arrayBuffer();
+  await wb.xlsx.load(buf);
 
   const { ws, cols } = findBestSheetAndHeaders(wb);
 
