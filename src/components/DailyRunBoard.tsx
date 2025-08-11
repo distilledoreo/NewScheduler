@@ -128,33 +128,32 @@ export default function DailyRunBoard({
           <div className={`text-xs px-2 py-0.5 rounded ${statusColor}`}>{assignedCount}/{req}</div>
         </div>
 
-        {canEdit && (
-          <div className="flex items-center gap-2 mb-2">
-            <select
-              className="border rounded w-full px-2 py-1"
-              defaultValue=""
-              onChange={(e) => {
-                const pid = Number(e.target.value);
-                if (!pid) return;
-                const sel = opts.find((o) => o.id === pid);
-                if (sel?.blocked) {
-                  alert("Blocked by time-off for this segment.");
-                  return;
-                }
-                addAssignment(selectedDate, pid, role.id, seg);
-                (e.target as HTMLSelectElement).value = "";
-              }}
-            >
-              <option value="">+ Add person…</option>
-              {opts.map((o) => (
-                <option key={o.id} value={o.id} disabled={o.blocked}>
-                  {o.label}
-                  {o.blocked ? " (Time-off)" : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div className="flex items-center gap-2 mb-2">
+          <select
+            className="border rounded w-full px-2 py-1"
+            defaultValue=""
+            disabled={!canEdit}
+            onChange={(e) => {
+              const pid = Number(e.target.value);
+              if (!pid) return;
+              const sel = opts.find((o) => o.id === pid);
+              if (sel?.blocked) {
+                alert("Blocked by time-off for this segment.");
+                return;
+              }
+              addAssignment(selectedDate, pid, role.id, seg);
+              (e.target as HTMLSelectElement).value = "";
+            }}
+          >
+            <option value="">{canEdit ? "+ Add person…" : "Add person…"}</option>
+            {opts.map((o) => (
+              <option key={o.id} value={o.id} disabled={o.blocked}>
+                {o.label}
+                {o.blocked ? " (Time-off)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
         <ul className="space-y-1">
           {assigns.map((a: any) => (
             <li key={a.id} className="flex items-center justify-between bg-slate-50 rounded px-2 py-1">
