@@ -127,7 +127,7 @@ export default function App() {
   const [monthlyEditing, setMonthlyEditing] = useState(false);
 
   // UI: simple dialogs
-  const [showBaselineEditor, setShowBaselineEditor] = useState(false);
+  const [showNeedsEditor, setShowNeedsEditor] = useState(false);
 
   useEffect(() => {
     if (sqlDb) loadMonthlyDefaults(selectedMonth);
@@ -1314,24 +1314,10 @@ export default function App() {
     );
   }
 
-  function NeedsView(){
-    const d = selectedDateObj;
+  function BaselineView(){
     return (
       <div className="p-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
-          <label className="whitespace-nowrap">Date</label>
-          <input
-            type="date"
-            className="border rounded px-2 py-1 min-w-0"
-            value={ymd(selectedDateObj)}
-            onChange={(e)=>{
-              const v = e.target.value;
-              if (v) setSelectedDate(fmtDateMDY(parseYMD(v)));
-            }}
-          />
-          <span className="text-slate-500 text-sm">Edit overrides for this date. Baseline editor is in Daily Run toolbar.</span>
-        </div>
-
+        <div className="font-semibold text-lg mb-4">Baseline Needs</div>
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
           {groups.map((g:any)=> (
             <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
@@ -1342,15 +1328,15 @@ export default function App() {
                   <div className="space-y-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
                     <div>
                       <div className="text-xs text-slate-500 mb-1">AM Required</div>
-                      <RequiredCell date={d} group={g} role={r} segment={'AM'} />
+                      <RequiredCell date={null} group={g} role={r} segment={'AM'} />
                     </div>
                     <div>
                       <div className="text-xs text-slate-500 mb-1">Lunch Required</div>
-                      <RequiredCell date={d} group={g} role={r} segment={'Lunch'} />
+                      <RequiredCell date={null} group={g} role={r} segment={'Lunch'} />
                     </div>
                     <div>
                       <div className="text-xs text-slate-500 mb-1">PM Required</div>
-                      <RequiredCell date={d} group={g} role={r} segment={'PM'} />
+                      <RequiredCell date={null} group={g} role={r} segment={'PM'} />
                     </div>
                   </div>
                 </div>
@@ -1563,41 +1549,42 @@ export default function App() {
     );
   }
 
-  function BaselineEditor(){
+  function NeedsEditor(){
+    const d = selectedDateObj;
     return (
       <div className="fixed inset-0 bg-black/40 z-30 overflow-auto">
         <div className="min-h-full flex items-start justify-center p-4">
           <div className="bg-white w-full max-w-6xl max-h-[85vh] overflow-auto rounded-xl p-4 shadow-xl">
-          <div className="flex items-center justify-between mb-4">
-            <div className="font-semibold text-lg">Baseline Needs</div>
-            <button className="text-slate-600 hover:text-slate-800 px-2 py-1" onClick={()=>setShowBaselineEditor(false)}>Close</button>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-            {groups.map((g:any)=> (
-              <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
-                <div className="font-semibold mb-3">{g.name}</div>
-                {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
-                  <div key={r.id} className="mb-4 border rounded p-3">
-                    <div className="font-medium mb-3">{r.name}</div>
-                    <div className="space-y-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
-                      <div>
-                        <div className="text-xs text-slate-500 mb-1">AM Required</div>
-                        <RequiredCell date={null} group={g} role={r} segment={'AM'} />
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 mb-1">Lunch Required</div>
-                        <RequiredCell date={null} group={g} role={r} segment={'Lunch'} />
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 mb-1">PM Required</div>
-                        <RequiredCell date={null} group={g} role={r} segment={'PM'} />
+            <div className="flex items-center justify-between mb-4">
+              <div className="font-semibold text-lg">Needs for {fmtDateMDY(d)}</div>
+              <button className="text-slate-600 hover:text-slate-800 px-2 py-1" onClick={()=>setShowNeedsEditor(false)}>Close</button>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+              {groups.map((g:any)=> (
+                <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
+                  <div className="font-semibold mb-3">{g.name}</div>
+                  {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
+                    <div key={r.id} className="mb-4 border rounded p-3">
+                      <div className="font-medium mb-3">{r.name}</div>
+                      <div className="space-y-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
+                        <div>
+                          <div className="text-xs text-slate-500 mb-1">AM Required</div>
+                          <RequiredCell date={d} group={g} role={r} segment={'AM'} />
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-500 mb-1">Lunch Required</div>
+                          <RequiredCell date={d} group={g} role={r} segment={'Lunch'} />
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-500 mb-1">PM Required</div>
+                          <RequiredCell date={d} group={g} role={r} segment={'PM'} />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -1650,7 +1637,7 @@ export default function App() {
                 fmtDateMDY={fmtDateMDY}
                 parseYMD={parseYMD}
                 ymd={ymd}
-                setShowBaselineEditor={setShowBaselineEditor}
+                setShowNeedsEditor={setShowNeedsEditor}
                 diag={diag}
                 canEdit={canEdit}
                 peopleOptionsForSegment={peopleOptionsForSegment}
@@ -1660,14 +1647,14 @@ export default function App() {
               />
             )}
           {activeTab === 'PEOPLE' && <PeopleEditor />}
-          {activeTab === 'NEEDS' && <NeedsView />}
+          {activeTab === 'NEEDS' && <BaselineView />}
           {activeTab === 'EXPORT' && <ExportView />}
           {activeTab === 'MONTHLY' && <MonthlyView />}
           {activeTab === 'HISTORY' && <CrewHistoryView />}
         </>
       )}
 
-      {showBaselineEditor && <BaselineEditor />}
+      {showNeedsEditor && <NeedsEditor />}
     </div>
   );
 }
