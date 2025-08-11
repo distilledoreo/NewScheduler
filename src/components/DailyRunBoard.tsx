@@ -104,6 +104,12 @@ export default function DailyRunBoard({
       `SELECT a.id, p.first_name, p.last_name, p.id as person_id FROM assignment a JOIN person p ON p.id=a.person_id WHERE a.date=? AND a.role_id=? AND a.segment=? ORDER BY p.last_name,p.first_name`,
       [ymd(selectedDateObj), role.id, seg]
     );
+    const trainedBefore = new Set(
+      all(
+        `SELECT DISTINCT person_id FROM assignment WHERE role_id=? AND date < ?`,
+        [role.id, ymd(selectedDateObj)]
+      ).map((r: any) => r.person_id)
+    );
     const opts = peopleOptionsForSegment(selectedDateObj, seg, role);
 
     const req = getRequiredFor(selectedDateObj, group.id, role.id, seg);
@@ -122,38 +128,38 @@ export default function DailyRunBoard({
           <div className={`text-xs px-2 py-0.5 rounded ${statusColor}`}>{assignedCount}/{req}</div>
         </div>
 
-        {canEdit && (
-          <div className="flex items-center gap-2 mb-2">
-            <select
-              className="border rounded w-full px-2 py-1"
-              defaultValue=""
-              onChange={(e) => {
-                const pid = Number(e.target.value);
-                if (!pid) return;
-                const sel = opts.find((o) => o.id === pid);
-                if (sel?.blocked) {
-                  alert("Blocked by time-off for this segment.");
-                  return;
-                }
-                addAssignment(selectedDate, pid, role.id, seg);
-                (e.target as HTMLSelectElement).value = "";
-              }}
-            >
-              <option value="">+ Add person…</option>
-              {opts.map((o) => (
-                <option key={o.id} value={o.id} disabled={o.blocked}>
-                  {o.label}
-                  {o.blocked ? " (Time-off)" : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div className="flex items-center gap-2 mb-2">
+          <select
+            className="border rounded w-full px-2 py-1"
+            defaultValue=""
+            disabled={!canEdit}
+            onChange={(e) => {
+              const pid = Number(e.target.value);
+              if (!pid) return;
+              const sel = opts.find((o) => o.id === pid);
+              if (sel?.blocked) {
+                alert("Blocked by time-off for this segment.");
+                return;
+              }
+              addAssignment(selectedDate, pid, role.id, seg);
+              (e.target as HTMLSelectElement).value = "";
+            }}
+          >
+            <option value="">{canEdit ? "+ Add person…" : "Add person…"}</option>
+            {opts.map((o) => (
+              <option key={o.id} value={o.id} disabled={o.blocked}>
+                {o.label}
+                {o.blocked ? " (Time-off)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
         <ul className="space-y-1">
           {assigns.map((a: any) => (
             <li key={a.id} className="flex items-center justify-between bg-slate-50 rounded px-2 py-1">
               <span>
                 {a.last_name}, {a.first_name}
+                {!trainedBefore.has(a.person_id) && " (Untrained)"}
               </span>
               {canEdit && (
                 <button className="text-red-600 text-sm" onClick={() => deleteAssignment(a.id)}>
