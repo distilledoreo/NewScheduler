@@ -2,7 +2,11 @@ import React from "react";
 import { previewTrainingChart, applyTrainingChart } from "../excel/import-training-chart";
 
 function norm(s: string): string {
-  return s.toLowerCase().replace(/\s+/g, " ").trim();
+  return s
+    .toLowerCase()
+    .replace(/\s*,\s*/g, ",")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 type Tab = "RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY";

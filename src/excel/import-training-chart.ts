@@ -102,7 +102,11 @@ const CODE_MAP: Record<string, Target> = {
 type RoleRow = { id: number; role_name: string; group_name: string };
 
 function norm(s: string): string {
-  return s.toLowerCase().replace(/\s+/g, ' ').trim();
+  return s
+    .toLowerCase()
+    .replace(/\s*,\s*/g, ',')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function normalizeCode(cellString: string): string {
@@ -130,12 +134,19 @@ export async function previewTrainingChart(file: File): Promise<ImportPreview> {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(data);
 
-  const people = all<{ id: number; last_name: string; first_name: string }>(
-    'SELECT id, last_name, first_name FROM person'
-  );
-  const peopleIndex = new Map<string, number>();
+  const people = all<{
+    id: number;
+    last_name: string;
+    first_name: string;
+  }>('SELECT id, last_name, first_name FROM person');
+  const peopleIndex = new Map<string, number | null>();
   for (const p of people) {
-    peopleIndex.set(norm(`${p.last_name},${p.first_name}`), p.id);
+    const key = norm(`${p.last_name},${p.first_name}`);
+    if (peopleIndex.has(key)) {
+      peopleIndex.set(key, null); // ambiguous
+    } else {
+      peopleIndex.set(key, p.id);
+    }
   }
 
   const roles = all<RoleRow>(
@@ -174,11 +185,14 @@ export async function previewTrainingChart(file: File): Promise<ImportPreview> {
       const personIds: number[] = [];
       for (const part of nameParts) {
         const n = norm(part);
-        let pid = peopleIndex.get(n);
-        if (!pid) {
-          pid = overrides[n];
+        const overrideId = overrides[n];
+        if (overrideId !== undefined) {
+          personIds.push(overrideId);
+          matchedPeople.add(overrideId);
+          continue;
         }
-        if (pid) {
+        const pid = peopleIndex.get(n);
+        if (typeof pid === 'number') {
           personIds.push(pid);
           matchedPeople.add(pid);
         } else {
