@@ -20,7 +20,7 @@ interface DailyRunBoardProps {
   fmtDateMDY: (d: Date) => string;
   parseYMD: (s: string) => Date;
   ymd: (d: Date) => string;
-  setShowBaselineEditor: (v: boolean) => void;
+  setShowNeedsEditor: (v: boolean) => void;
   diag: { passed: number; failed: number; details: string[] } | null;
   canEdit: boolean;
   peopleOptionsForSegment: (
@@ -57,7 +57,7 @@ export default function DailyRunBoard({
   fmtDateMDY,
   parseYMD,
   ymd,
-  setShowBaselineEditor,
+  setShowNeedsEditor,
   diag,
   canEdit,
   peopleOptionsForSegment,
@@ -198,9 +198,9 @@ export default function DailyRunBoard({
         <div className="flex flex-wrap gap-2 lg:ml-auto">
           <button
             className="px-3 py-2 bg-slate-200 rounded text-sm"
-            onClick={() => setShowBaselineEditor(true)}
+            onClick={() => setShowNeedsEditor(true)}
           >
-            Edit Baseline Needs
+            Edit Needs for This Day
           </button>
         </div>
       </div>
