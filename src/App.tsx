@@ -678,43 +678,6 @@ export default function App() {
     refreshCaches();
   }
 
-  // Time-Off Import (from Teams XLSX)
-  async function importTimeOffXlsx(file: File) {
-    try {
-      const XLSX = await loadXLSX();
-      const data = await file.arrayBuffer();
-      const wb = XLSX.read(data);
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
-      // Expected columns: Member, Work Email, Start Date, Start Time, End Date, End Time, Time Off Reason
-      let count = 0, skipped = 0;
-      for (const r of rows) {
-        const email = String(r["Work Email"] || "").trim().toLowerCase();
-        if (!email) { skipped++; continue; }
-        const p = all(`SELECT id FROM person WHERE LOWER(work_email)=?`, [email])[0];
-        if (!p) { skipped++; continue; }
-        const pid = p.id;
-        const sd = String(r["Start Date"]||"").trim();
-        const st = String(r["Start Time"]||"00:00").trim();
-        const ed = String(r["End Date"]||sd).trim();
-        const et = String(r["End Time"]||"23:59").trim();
-        const reason = String(r["Time Off Reason"]||"");
-        // Date = M/D/YYYY, Time = 24-hour HH:MM
-        const start = parseMDY(sd);
-        const [sh, sm] = st.split(":").map((x:string)=>parseInt(x,10));
-        start.setHours(sh||0, sm||0, 0, 0);
-        const end = parseMDY(ed);
-        const [eh, em] = et.split(":").map((x:string)=>parseInt(x,10));
-        end.setHours(eh||0, em||0, 0, 0);
-        run(`INSERT INTO timeoff (person_id, start_ts, end_ts, reason) VALUES (?,?,?,?)`, [pid, start.toISOString(), end.toISOString(), reason]);
-        count++;
-      }
-      setStatus(`Imported ${count} time-off rows. Skipped ${skipped} (no email match).`);
-    } catch (e:any) {
-      console.error(e); alert("Time-off import failed: " + (e?.message||e));
-    }
-  }
-
   // Export to Shifts XLSX
   async function exportShifts() {
     if (!sqlDb) { alert("Open a DB first"); return; }
@@ -1447,10 +1410,33 @@ export default function App() {
           <button className="ml-auto px-3 py-2 bg-emerald-700 text-white rounded" onClick={exportShifts}>Download XLSX</button>
           <label className="ml-4 px-3 py-2 bg-slate-200 rounded cursor-pointer">
             Import Time-Off XLSX
-            <input type="file" className="hidden" accept=".xlsx,.xls" onChange={(e)=>{
-              const f = e.target.files?.[0]; if (f) importTimeOffXlsx(f);
-              e.currentTarget.value = "";
-            }} />
+            <input
+              type="file"
+              className="hidden"
+              accept=".xlsx"
+              onChange={async (e)=>{
+                const f = e.currentTarget.files?.[0];
+                if (!f) return;
+                const { previewTeamsTimeOff, applyTeamsTimeOff } = await import('./excel/import-teams-timeoff');
+                try {
+                  const pv = await previewTeamsTimeOff(f);
+                  console.log('[TO Preview]', pv);
+                  if (pv.unknownEmails.length) {
+                    alert('Unknown emails:\n' + pv.unknownEmails.map(u=>`${u.email} × ${u.count}`).join('\n'));
+                  }
+                  if (pv.badRows.length) {
+                    alert('Bad rows:\n' + pv.badRows.slice(0,10).map(b=>`Row ${b.index}: ${b.error}`).join('\n'));
+                  }
+                  const confirmed = confirm(`Import ${pv.rowsPlanned} time-off rows from ${pv.dateMin} to ${pv.dateMax}?`);
+                  if (!confirmed) { e.currentTarget.value = ''; return; }
+                  await applyTeamsTimeOff(pv.plan, { mode:'replace-range', from: pv.dateMin!, to: pv.dateMax! });
+                  alert('Time Off import complete.');
+                } catch(err:any) {
+                  alert('Import failed: ' + (err?.message || String(err)));
+                }
+                e.currentTarget.value = '';
+              }}
+            />
           </label>
         </div>
         <div className="overflow-auto max-h-[60vh] border rounded">
