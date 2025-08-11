@@ -1,8 +1,12 @@
 import { loadExcelJS } from './exceljs-loader';
 
+// Runtime bridges (use existing globals from your app)
+const _db = (window as any);
+const all: <T=any>(sql: string, params?: any[]) => T[] = _db.all;
+const run: (sql: string, params?: any[]) => void = _db.run;
+const sqlDb: any = _db.sqlDb;
+
 declare const sqlDb: any;
-declare function all<T=any>(sql: string, params?: any[]): T[];
-declare function run(sql: string, params?: any[]): void;
 
 type PreviewRow = {
   email: string | null;
