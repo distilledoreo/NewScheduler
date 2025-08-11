@@ -383,6 +383,10 @@ export default function App() {
 
   async function saveDb() {
     if (!sqlDb) return;
+    if (lockedBy && lockedBy !== lockEmail) {
+      alert("File is read-only or locked. Use Save As to create a copy.");
+      return;
+    }
     if (!fileHandleRef.current) return saveDbAs();
     await writeDbToHandle(fileHandleRef.current);
   }
@@ -884,7 +888,8 @@ export default function App() {
   }
 
   // UI helpers
-  const canEdit = !!sqlDb && !!lockedBy && lockedBy !== "(read-only)";
+  const canEdit = !!sqlDb;
+  const canSave = !!sqlDb && (!lockedBy || lockedBy === lockEmail);
   const selectedDateObj = useMemo(()=>parseMDY(selectedDate),[selectedDate]);
 
   function peopleOptionsForSegment(date: Date, segment: Exclude<Segment, "Early">, role: any) {
@@ -1624,6 +1629,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         runDiagnostics={runDiagnostics}
+        canSave={canSave}
       />
 
       {!sqlDb && (

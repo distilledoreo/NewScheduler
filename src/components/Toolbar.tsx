@@ -5,6 +5,7 @@ type Tab = "RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY";
 interface ToolbarProps {
   ready: boolean;
   sqlDb: any;
+  canSave: boolean;
   createNewDb: () => void;
   openDbFromFile: () => void;
   saveDb: () => void;
@@ -18,6 +19,7 @@ interface ToolbarProps {
 export default function Toolbar({
   ready,
   sqlDb,
+  canSave,
   createNewDb,
   openDbFromFile,
   saveDb,
@@ -32,7 +34,7 @@ export default function Toolbar({
       <div className="flex flex-wrap items-center gap-2">
         <button className="px-3 py-2 bg-slate-900 text-white rounded text-sm" onClick={createNewDb} disabled={!ready}>New DB</button>
         <button className="px-3 py-2 bg-slate-800 text-white rounded text-sm" onClick={openDbFromFile} disabled={!ready}>Open DB</button>
-        <button className="px-3 py-2 bg-emerald-700 text-white rounded text-sm" onClick={saveDb} disabled={!sqlDb}>Save</button>
+        <button className="px-3 py-2 bg-emerald-700 text-white rounded text-sm" onClick={saveDb} disabled={!canSave}>Save</button>
         <button className="px-3 py-2 bg-emerald-800 text-white rounded text-sm" onClick={saveDbAs} disabled={!sqlDb}>Save As</button>
       </div>
       <div className="mx-2 text-sm text-slate-600 flex-1 min-w-0 truncate">{status}</div>
