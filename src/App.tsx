@@ -1491,115 +1491,160 @@ async function exportShifts() {
     );
   }
 
-  function PeopleEditor(){
-    const [form,setForm] = useState<any>({ active:true, commuter:false, brother_sister:'Brother', avail_mon:'U', avail_tue:'U', avail_wed:'U', avail_thu:'U', avail_fri:'U' });
-    const [editing,setEditing] = useState<any|null>(null);
-    const [qualifications,setQualifications] = useState<Set<number>>(new Set());
-    useEffect(()=>{
-      if(editing){
-        const rows = all(`SELECT role_id FROM training WHERE person_id=? AND status='Qualified'`, [editing.id]);
-        setQualifications(new Set(rows.map((r:any)=>r.role_id)));
-      } else {
-        setQualifications(new Set());
-      }
-    },[editing]);
-    return (
-      <div className="p-4">
-        <div className="w-full">
-          <div className="font-semibold text-lg mb-3">People</div>
+function PeopleEditor(){
+  const emptyForm = { active:true, commuter:false, brother_sister:'Brother', avail_mon:'U', avail_tue:'U', avail_wed:'U', avail_thu:'U', avail_fri:'U' };
+  const [form,setForm] = useState<any>(emptyForm);
+  const [editing,setEditing] = useState<any|null>(null);
+  const [qualifications,setQualifications] = useState<Set<number>>(new Set());
+  const [showModal,setShowModal] = useState(false);
 
-          <div className="grid grid-cols-12 gap-2 mb-3">
-            <input className="border rounded px-2 py-1 col-span-3" placeholder="Last Name" value={form.last_name||''} onChange={e=>setForm({...form,last_name:e.target.value})} />
-            <input className="border rounded px-2 py-1 col-span-3" placeholder="First Name" value={form.first_name||''} onChange={e=>setForm({...form,first_name:e.target.value})} />
-            <input className="border rounded px-2 py-1 col-span-4" placeholder="Work Email" value={form.work_email||''} onChange={e=>setForm({...form,work_email:e.target.value})} />
-            <select className="border rounded px-2 py-1 col-span-2" value={form.brother_sister||'Brother'} onChange={e=>setForm({...form,brother_sister:e.target.value})}>
-              <option>Brother</option>
-              <option>Sister</option>
-            </select>
-            <label className="col-span-2 flex items-center gap-2"><input type="checkbox" checked={!!form.commuter} onChange={e=>setForm({...form,commuter:e.target.checked})}/> Commuter</label>
-            <label className="col-span-2 flex items-center gap-2"><input type="checkbox" checked={form.active!==false} onChange={e=>setForm({...form,active:e.target.checked})}/> Active</label>
-            {WEEKDAYS.map((w,idx)=> (
-              <div key={w} className="col-span-2">
-                <div className="text-xs text-slate-500">{w} Availability</div>
-                <select className="border rounded px-2 py-1 w-full" value={form[["avail_mon","avail_tue","avail_wed","avail_thu","avail_fri"][idx]]||'U'} onChange={(e)=>{
-                  const key = ["avail_mon","avail_tue","avail_wed","avail_thu","avail_fri"][idx];
-                  setForm({...form,[key]:e.target.value});
-                }}>
-                  <option value="U">Unavailable</option>
-                  <option value="AM">AM</option>
-                  <option value="PM">PM</option>
-                  <option value="B">Both</option>
-                </select>
-              </div>
-            ))}
-          </div>
+  useEffect(()=>{
+    if(editing){
+      const rows = all(`SELECT role_id FROM training WHERE person_id=? AND status='Qualified'`, [editing.id]);
+      setQualifications(new Set(rows.map((r:any)=>r.role_id)));
+    } else {
+      setQualifications(new Set());
+    }
+  },[editing]);
 
-          <div className="mb-4">
-            <div className="text-xs text-slate-500 mb-1">Qualified Roles</div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 max-h-40 overflow-auto border rounded p-2">
-              {roles.map((r:any)=>(
-                <label key={r.id} className="flex items-center gap-1 text-xs">
-                  <input type="checkbox" checked={qualifications.has(r.id)} onChange={e => {
-                    const next = new Set(qualifications);
-                    if(e.target.checked) next.add(r.id); else next.delete(r.id);
-                    setQualifications(next);
-                  }} />
-                  {r.name}
-                </label>
-              ))}
-            </div>
-          </div>
-            <div className="flex gap-2 mb-4">
-              {editing ? (
-                <button className="px-3 py-2 bg-blue-700 text-white rounded" onClick={()=>{ updatePerson({...editing, ...form}); saveTraining(editing.id, qualifications); setForm({ active:true, commuter:false, brother_sister:'Brother', avail_mon:'U', avail_tue:'U', avail_wed:'U', avail_thu:'U', avail_fri:'U' }); setQualifications(new Set()); setEditing(null); }}>Save Changes</button>
-              ) : (
-                <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={()=>{ const id = addPerson(form); saveTraining(id, qualifications); setForm({ active:true, commuter:false, brother_sister:'Brother', avail_mon:'U', avail_tue:'U', avail_wed:'U', avail_thu:'U', avail_fri:'U' }); setQualifications(new Set()); }}>Add Person</button>
-              )}
-            </div>
+  function openModal(p?:any){
+    if(p){
+      setEditing(p);
+      setForm(p);
+    } else {
+      setEditing(null);
+      setForm(emptyForm);
+      setQualifications(new Set());
+    }
+    setShowModal(true);
+  }
+  function closeModal(){
+    setShowModal(false);
+    setEditing(null);
+    setForm(emptyForm);
+    setQualifications(new Set());
+  }
+  function save(){
+    if(editing){
+      updatePerson({...editing, ...form});
+      saveTraining(editing.id, qualifications);
+    } else {
+      const id = addPerson(form);
+      saveTraining(id, qualifications);
+    }
+    closeModal();
+  }
 
-          <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
-            <table className="min-w-full text-sm divide-y divide-slate-200">
-              <thead className="bg-slate-100 sticky top-0">
-                <tr>
-                  <th className="p-2 text-left font-medium text-slate-600">Name</th>
-                  <th className="p-2 text-left font-medium text-slate-600">Email</th>
-                  <th className="p-2 text-left font-medium text-slate-600">B/S</th>
-                  <th className="p-2 text-left font-medium text-slate-600">Commute</th>
-                  <th className="p-2 text-left font-medium text-slate-600">Active</th>
-                  <th className="p-2 text-left font-medium text-slate-600">Mon</th>
-                  <th className="p-2 text-left font-medium text-slate-600">Tue</th>
-                  <th className="p-2 text-left font-medium text-slate-600">Wed</th>
-                  <th className="p-2 text-left font-medium text-slate-600">Thu</th>
-                  <th className="p-2 text-left font-medium text-slate-600">Fri</th>
-                  <th className="p-2 text-left font-medium text-slate-600">Actions</th>
+  return (
+    <div className="p-4">
+      <div className="w-full">
+        <div className="flex items-center justify-between mb-3">
+          <div className="font-semibold text-lg">People</div>
+          <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={()=>openModal()}>Add Person</button>
+        </div>
+
+        <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
+          <table className="min-w-full text-sm divide-y divide-slate-200">
+            <thead className="bg-slate-100 sticky top-0">
+              <tr>
+                <th className="p-2 text-left font-medium text-slate-600">Name</th>
+                <th className="p-2 text-left font-medium text-slate-600">Email</th>
+                <th className="p-2 text-left font-medium text-slate-600">B/S</th>
+                <th className="p-2 text-left font-medium text-slate-600">Commute</th>
+                <th className="p-2 text-left font-medium text-slate-600">Active</th>
+                <th className="p-2 text-left font-medium text-slate-600">Mon</th>
+                <th className="p-2 text-left font-medium text-slate-600">Tue</th>
+                <th className="p-2 text-left font-medium text-slate-600">Wed</th>
+                <th className="p-2 text-left font-medium text-slate-600">Thu</th>
+                <th className="p-2 text-left font-medium text-slate-600">Fri</th>
+                <th className="p-2 text-left font-medium text-slate-600">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {people.map(p => (
+                <tr key={p.id} className="odd:bg-white even:bg-slate-50 hover:bg-slate-100">
+                  <td className="p-2">{p.last_name}, {p.first_name}</td>
+                  <td className="p-2">{p.work_email}</td>
+                  <td className="p-2">{p.brother_sister||'-'}</td>
+                  <td className="p-2">{p.commuter?"Yes":"No"}</td>
+                  <td className="p-2">{p.active?"Yes":"No"}</td>
+                  <td className="p-2">{p.avail_mon}</td>
+                  <td className="p-2">{p.avail_tue}</td>
+                  <td className="p-2">{p.avail_wed}</td>
+                  <td className="p-2">{p.avail_thu}</td>
+                  <td className="p-2">{p.avail_fri}</td>
+                  <td className="p-2 flex gap-2">
+                    <button className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded" onClick={()=>openModal(p)}>Edit</button>
+                    <button className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded" onClick={()=>{ if(confirm('Delete?')) deletePerson(p.id); }}>Delete</button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {people.map(p => (
-                  <tr key={p.id} className="odd:bg-white even:bg-slate-50 hover:bg-slate-100">
-                    <td className="p-2">{p.last_name}, {p.first_name}</td>
-                    <td className="p-2">{p.work_email}</td>
-                    <td className="p-2">{p.brother_sister||'-'}</td>
-                    <td className="p-2">{p.commuter?"Yes":"No"}</td>
-                    <td className="p-2">{p.active?"Yes":"No"}</td>
-                    <td className="p-2">{p.avail_mon}</td>
-                    <td className="p-2">{p.avail_tue}</td>
-                    <td className="p-2">{p.avail_wed}</td>
-                    <td className="p-2">{p.avail_thu}</td>
-                    <td className="p-2">{p.avail_fri}</td>
-                    <td className="p-2 flex gap-2">
-                      <button className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded" onClick={()=>{ setEditing(p); setForm(p); }}>Edit</button>
-                      <button className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded" onClick={()=>{ if(confirm('Delete?')) deletePerson(p.id); }}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
-    );
-  }
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/40 z-30 overflow-auto">
+          <div className="min-h-full flex items-start justify-center p-4">
+            <div className="bg-white w-full max-w-3xl max-h-[85vh] overflow-auto rounded-xl p-4 shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <div className="font-semibold text-lg">{editing ? 'Edit Person' : 'Add Person'}</div>
+                <button className="text-slate-600 hover:text-slate-800 px-2 py-1" onClick={closeModal}>Close</button>
+              </div>
+
+              <div className="grid grid-cols-12 gap-2 mb-3">
+                <input className="border rounded px-2 py-1 col-span-3" placeholder="Last Name" value={form.last_name||''} onChange={e=>setForm({...form,last_name:e.target.value})} />
+                <input className="border rounded px-2 py-1 col-span-3" placeholder="First Name" value={form.first_name||''} onChange={e=>setForm({...form,first_name:e.target.value})} />
+                <input className="border rounded px-2 py-1 col-span-4" placeholder="Work Email" value={form.work_email||''} onChange={e=>setForm({...form,work_email:e.target.value})} />
+                <select className="border rounded px-2 py-1 col-span-2" value={form.brother_sister||'Brother'} onChange={e=>setForm({...form,brother_sister:e.target.value})}>
+                  <option>Brother</option>
+                  <option>Sister</option>
+                </select>
+                <label className="col-span-2 flex items-center gap-2"><input type="checkbox" checked={!!form.commuter} onChange={e=>setForm({...form,commuter:e.target.checked})}/> Commuter</label>
+                <label className="col-span-2 flex items-center gap-2"><input type="checkbox" checked={form.active!==false} onChange={e=>setForm({...form,active:e.target.checked})}/> Active</label>
+                {WEEKDAYS.map((w,idx)=> (
+                  <div key={w} className="col-span-2">
+                    <div className="text-xs text-slate-500">{w} Availability</div>
+                    <select className="border rounded px-2 py-1 w-full" value={form[["avail_mon","avail_tue","avail_wed","avail_thu","avail_fri"][idx]]||'U'} onChange={(e)=>{
+                      const key = ["avail_mon","avail_tue","avail_wed","avail_thu","avail_fri"][idx];
+                      setForm({...form,[key]:e.target.value});
+                    }}>
+                      <option value="U">Unavailable</option>
+                      <option value="AM">AM</option>
+                      <option value="PM">PM</option>
+                      <option value="B">Both</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mb-4">
+                <div className="text-xs text-slate-500 mb-1">Qualified Roles</div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 max-h-40 overflow-auto border rounded p-2">
+                  {roles.map((r:any)=>(
+                    <label key={r.id} className="flex items-center gap-1 text-xs">
+                      <input type="checkbox" checked={qualifications.has(r.id)} onChange={e => {
+                        const next = new Set(qualifications);
+                        if(e.target.checked) next.add(r.id); else next.delete(r.id);
+                        setQualifications(next);
+                      }} />
+                      {r.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button className={`px-3 py-2 text-white rounded ${editing? 'bg-blue-700' : 'bg-emerald-700'}`} onClick={save}>{editing ? 'Save Changes' : 'Add Person'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
   function NeedsEditor(){
     const d = selectedDateObj;
