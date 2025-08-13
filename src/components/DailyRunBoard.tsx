@@ -68,6 +68,11 @@ export default function DailyRunBoard({
   const seg: Exclude<Segment, "Early"> = activeRunSegment;
   const [layout, setLayout] = useState<any[]>([]);
   const [layoutLoaded, setLayoutLoaded] = useState(false);
+  const [moveContext, setMoveContext] = useState<{
+    assignment: any;
+    targets: Array<{ role: any; group: any }>;
+  } | null>(null);
+  const [moveTargetId, setMoveTargetId] = useState<number | null>(null);
 
   useEffect(() => {
     setLayoutLoaded(false);
@@ -126,6 +131,13 @@ export default function DailyRunBoard({
         : assignedCount === req
         ? 'bg-green-100 text-green-800'
         : 'bg-yellow-100 text-yellow-800';
+    const isOverstaffed = assignedCount > req;
+
+    function handleMove(a: any, targets: any[]) {
+      if (!targets.length) return;
+      setMoveContext({ assignment: a, targets });
+      setMoveTargetId(null);
+    }
 
     return (
       <div className={`border rounded p-2 ${cardColor}`}>
@@ -168,9 +180,32 @@ export default function DailyRunBoard({
                 {!trainedBefore.has(a.person_id) && " (Untrained)"}
               </span>
               {canEdit && (
-                <button className="text-red-600 text-sm" onClick={() => deleteAssignment(a.id)}>
-                  Remove
-                </button>
+                <div className="flex gap-2">
+                  {isOverstaffed && (
+                    (() => {
+                      const targets = deficitRoles.filter((d: any) => {
+                        const opts = peopleOptionsForSegment(selectedDateObj, seg, d.role);
+                        return opts.some(
+                          (o) => o.id === a.person_id && !o.blocked
+                        );
+                      });
+                      return targets.length ? (
+                        <button
+                          className="text-blue-600 text-sm"
+                          onClick={() => handleMove(a, targets)}
+                        >
+                          Move
+                        </button>
+                      ) : null;
+                    })()
+                  )}
+                  <button
+                    className="text-red-600 text-sm"
+                    onClick={() => deleteAssignment(a.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
               )}
             </li>
           ))}
@@ -187,6 +222,35 @@ export default function DailyRunBoard({
   const assignedCountMap = new Map<number, number>(
     assignedCountRows.map((r: any) => [r.role_id, r.c])
   );
+  const groupMap = new Map(groups.map((g: any) => [g.id, g]));
+  const deficitRoles = roles
+    .map((r: any) => {
+      const assigned = assignedCountMap.get(r.id) || 0;
+      const req = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
+      return assigned < req ? { role: r, group: groupMap.get(r.group_id) } : null;
+    })
+    .filter(Boolean) as Array<{ role: any; group: any }>;
+
+  function confirmMove() {
+    if (!moveContext || moveTargetId == null) return;
+    const chosen = moveContext.targets.find((t) => t.role.id === moveTargetId);
+    if (!chosen) return;
+    if (
+      !confirm(
+        `Move ${moveContext.assignment.last_name}, ${moveContext.assignment.first_name} to ${chosen.group.name} - ${chosen.role.name}?`
+      )
+    )
+      return;
+    deleteAssignment(moveContext.assignment.id);
+    addAssignment(selectedDate, moveContext.assignment.person_id, chosen.role.id, seg);
+    setMoveContext(null);
+    setMoveTargetId(null);
+  }
+
+  function cancelMove() {
+    setMoveContext(null);
+    setMoveTargetId(null);
+  }
 
   return (
     <div className="p-4">
@@ -273,6 +337,45 @@ export default function DailyRunBoard({
               <li key={i}>{d}</li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {moveContext && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white p-4 rounded shadow-md w-72">
+            <div className="mb-2 font-medium">
+              Move {moveContext.assignment.last_name}, {moveContext.assignment.first_name} to:
+            </div>
+            <select
+              className="border rounded w-full px-2 py-1 mb-4"
+              value={moveTargetId ?? ""}
+              onChange={(e) =>
+                setMoveTargetId(e.target.value ? Number(e.target.value) : null)
+              }
+            >
+              <option value="">Select destination</option>
+              {moveContext.targets.map((t) => (
+                <option key={t.role.id} value={t.role.id}>
+                  {t.group.name} - {t.role.name}
+                </option>
+              ))}
+            </select>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-3 py-1 text-sm bg-slate-200 rounded"
+                onClick={cancelMove}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-3 py-1 text-sm bg-blue-600 text-white rounded disabled:opacity-50"
+                disabled={moveTargetId == null}
+                onClick={confirmMove}
+              >
+                Move
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
