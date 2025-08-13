@@ -5,6 +5,9 @@ import type { Segment } from "./config/domain";
 import Toolbar from "./components/Toolbar";
 import DailyRunBoard from "./components/DailyRunBoard";
 import { exportMonthOneSheetXlsx } from "./excel/export-one-sheet";
+import PersonName from "./components/PersonName";
+import PersonProfileModal from "./components/PersonProfileModal";
+import { ProfileContext } from "./components/ProfileContext";
 
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
@@ -128,6 +131,7 @@ export default function App() {
 
   // UI: simple dialogs
   const [showNeedsEditor, setShowNeedsEditor] = useState(false);
+  const [profilePersonId, setProfilePersonId] = useState<number | null>(null);
 
   useEffect(() => {
     if (sqlDb) loadMonthlyDefaults(selectedMonth);
@@ -1069,7 +1073,7 @@ async function exportShifts() {
             <tbody>
               {viewPeople.map((p:any) => (
                 <tr key={p.id} className="odd:bg-white even:bg-slate-50">
-                  <td className="p-2">{p.last_name}, {p.first_name}</td>
+                  <td className="p-2"><PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName></td>
                   {(['AM','Lunch','PM'] as const).map(seg => {
                     const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
                     return (
@@ -1279,7 +1283,7 @@ async function exportShifts() {
                     {segList.map((seg, idx) => (
                       <tr key={`${p.id}-${seg}`} className="odd:bg-white even:bg-slate-50">
                         {idx === 0 && (
-                          <td className="p-2 border border-slate-300" rowSpan={segList.length}>{p.last_name}, {p.first_name}</td>
+                          <td className="p-2 border border-slate-300" rowSpan={segList.length}><PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName></td>
                         )}
                         <td className="p-2 border border-slate-300">{seg}</td>
                         {months.map(m => {
@@ -1506,7 +1510,7 @@ async function exportShifts() {
               <tbody className="divide-y divide-slate-200">
                 {people.map(p => (
                   <tr key={p.id} className="odd:bg-white even:bg-slate-50 hover:bg-slate-100">
-                    <td className="p-2">{p.last_name}, {p.first_name}</td>
+                    <td className="p-2"><PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName></td>
                     <td className="p-2">{p.work_email}</td>
                     <td className="p-2">{p.brother_sister||'-'}</td>
                     <td className="p-2">{p.commuter?"Yes":"No"}</td>
@@ -1573,6 +1577,7 @@ async function exportShifts() {
   }
 
   return (
+    <ProfileContext.Provider value={{ showProfile: (id: number) => setProfilePersonId(id) }}>
     <div className="min-h-screen bg-slate-50">
       <Toolbar
         ready={ready}
@@ -1637,6 +1642,14 @@ async function exportShifts() {
       )}
 
       {showNeedsEditor && <NeedsEditor />}
+      {profilePersonId !== null && (
+        <PersonProfileModal
+          personId={profilePersonId}
+          onClose={() => setProfilePersonId(null)}
+          all={all}
+        />
+      )}
     </div>
+    </ProfileContext.Provider>
   );
 }

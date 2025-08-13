@@ -3,6 +3,7 @@ import GridLayout, { WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import type { Segment } from "../config/domain";
+import PersonName from "./PersonName";
 
 const Grid = WidthProvider(GridLayout);
 
@@ -175,10 +176,10 @@ export default function DailyRunBoard({
         <ul className="space-y-1">
           {assigns.map((a: any) => (
             <li key={a.id} className="flex items-center justify-between bg-slate-50 rounded px-2 py-1">
-              <span>
+              <PersonName personId={a.person_id}>
                 {a.last_name}, {a.first_name}
                 {!trainedBefore.has(a.person_id) && " (Untrained)"}
-              </span>
+              </PersonName>
               {canEdit && (
                 <div className="flex gap-2">
                   {isOverstaffed && (
