@@ -1018,68 +1018,56 @@ async function exportShifts() {
       return sorted;
     }, [people, monthlyDefaults, roles, filterText, sortKey, sortDir]);
 
-    const needsSummary = useMemo(() => {
+    const weekdayTotals = useMemo(() => {
       const [y, m] = selectedMonth.split('-').map((n) => parseInt(n, 10));
       const daysInMonth = new Date(y, m, 0).getDate();
-      const days: Array<{
-        date: Date;
-        groups: Array<{
-          group: any;
-          req: Record<'AM' | 'Lunch' | 'PM', number>;
-          assigned: Record<'AM' | 'Lunch' | 'PM', number>;
-        }>;
-      }> = [];
+      const totals: Record<Weekday, { req: number; assigned: number }> = {
+        Monday: { req: 0, assigned: 0 },
+        Tuesday: { req: 0, assigned: 0 },
+        Wednesday: { req: 0, assigned: 0 },
+        Thursday: { req: 0, assigned: 0 },
+        Friday: { req: 0, assigned: 0 },
+      };
       for (let day = 1; day <= daysInMonth; day++) {
         const d = new Date(y, m - 1, day);
         const wd = weekdayName(d);
         if (wd === 'Weekend') continue;
-        const groupsData = groups.map((g: any) => {
-          const req: Record<'AM' | 'Lunch' | 'PM', number> = {
-            AM: 0,
-            Lunch: 0,
-            PM: 0,
-          };
-          const assigned: Record<'AM' | 'Lunch' | 'PM', number> = {
-            AM: 0,
-            Lunch: 0,
-            PM: 0,
-          };
+        // required totals across all groups and segments
+        for (const g of groups) {
           const rolesForGroup = roles.filter((r) => r.group_id === g.id);
           (['AM', 'Lunch', 'PM'] as const).forEach((seg) => {
-            req[seg] = rolesForGroup.reduce(
+            totals[wd].req += rolesForGroup.reduce(
               (sum, r) => sum + getRequiredFor(d, g.id, r.id, seg),
               0
             );
-            for (const def of monthlyDefaults) {
-              if (def.segment !== seg) continue;
-              const role = roles.find((r) => r.id === def.role_id);
-              if (!role || role.group_id !== g.id) continue;
-              const person = people.find((p) => p.id === def.person_id);
-              if (!person) continue;
-              const availField =
-                wd === 'Monday'
-                  ? 'avail_mon'
-                  : wd === 'Tuesday'
-                  ? 'avail_tue'
-                  : wd === 'Wednesday'
-                  ? 'avail_wed'
-                  : wd === 'Thursday'
-                  ? 'avail_thu'
-                  : 'avail_fri';
-              const avail = person[availField];
-              let ok = false;
-              if (seg === 'AM') ok = avail === 'AM' || avail === 'B';
-              else if (seg === 'PM') ok = avail === 'PM' || avail === 'B';
-              else if (seg === 'Lunch')
-                ok = avail === 'AM' || avail === 'PM' || avail === 'B';
-              if (ok) assigned[seg]++;
-            }
           });
-          return { group: g, req, assigned };
-        });
-        days.push({ date: d, groups: groupsData });
+        }
+        // assigned totals from monthly defaults respecting availability
+        for (const def of monthlyDefaults) {
+          const person = people.find((p) => p.id === def.person_id);
+          const role = roles.find((r) => r.id === def.role_id);
+          if (!person || !role) continue;
+          const availField =
+            wd === 'Monday'
+              ? 'avail_mon'
+              : wd === 'Tuesday'
+              ? 'avail_tue'
+              : wd === 'Wednesday'
+              ? 'avail_wed'
+              : wd === 'Thursday'
+              ? 'avail_thu'
+              : 'avail_fri';
+          const avail = person[availField];
+          const seg = def.segment as 'AM' | 'Lunch' | 'PM';
+          let ok = false;
+          if (seg === 'AM') ok = avail === 'AM' || avail === 'B';
+          else if (seg === 'PM') ok = avail === 'PM' || avail === 'B';
+          else if (seg === 'Lunch')
+            ok = avail === 'AM' || avail === 'PM' || avail === 'B';
+          if (ok) totals[wd].assigned++;
+        }
       }
-      return days;
+      return totals;
     }, [selectedMonth, groups, roles, monthlyDefaults, people]);
 
     return (
@@ -1153,43 +1141,17 @@ async function exportShifts() {
             </tbody>
           </table>
         </div>
-        <div className="mt-6 overflow-auto">
-          <div className="font-semibold mb-2">Needs Dashboard</div>
-          <table className="min-w-full text-xs">
-            <thead className="bg-slate-100">
-              <tr>
-                <th className="p-2 text-left">Date</th>
-                {groups.map((g:any) => (
-                  (['AM','Lunch','PM'] as const).map(seg => (
-                    <th key={`${g.id}-${seg}`} className="p-2 text-left">{g.name} {seg}</th>
-                  ))
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {needsSummary.map((day) => (
-                <tr key={ymd(day.date)} className="odd:bg-white even:bg-slate-50">
-                  <td className="p-2 whitespace-nowrap">{fmtDateMDY(day.date)}</td>
-                  {groups.map((g:any) => {
-                    const gd = day.groups.find((x) => x.group.id === g.id) || {
-                      req: { AM: 0, Lunch: 0, PM: 0 },
-                      assigned: { AM: 0, Lunch: 0, PM: 0 },
-                    };
-                    return (['AM','Lunch','PM'] as const).map((seg) => {
-                      const a = gd.assigned[seg];
-                      const r = gd.req[seg];
-                      const color = a >= r ? 'text-green-600' : 'text-red-600';
-                      return (
-                        <td key={`${g.id}-${seg}`} className="p-2 text-center">
-                          <span className={color}>{a}/{r}</span>
-                        </td>
-                      );
-                    });
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="fixed bottom-4 right-4 bg-white shadow rounded p-2 flex gap-4 z-10">
+          {WEEKDAYS.map((wd) => {
+            const t = weekdayTotals[wd];
+            const color = t.assigned >= t.req ? 'text-green-600' : 'text-red-600';
+            return (
+              <div key={wd} className="text-center">
+                <div className="font-semibold text-xs">{wd.slice(0,3)}</div>
+                <div className={color + ' text-sm'}>{t.assigned}/{t.req}</div>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
