@@ -1261,13 +1261,13 @@ async function exportShifts() {
           </div>
         </div>
         <div className="overflow-auto">
-          <table className="min-w-full text-sm">
+          <table className="min-w-full text-sm border border-slate-300 border-collapse">
             <thead className="bg-slate-100">
               <tr>
-                <th className="p-2 text-left">Name</th>
-                <th className="p-2 text-left">Segment</th>
+                <th className="p-2 text-left border border-slate-300">Name</th>
+                <th className="p-2 text-left border border-slate-300">Segment</th>
                 {months.map(m => (
-                  <th key={m} className="p-2 text-left">{m}</th>
+                  <th key={m} className="p-2 text-left border border-slate-300">{m}</th>
                 ))}
               </tr>
             </thead>
@@ -1279,13 +1279,13 @@ async function exportShifts() {
                     {segList.map((seg, idx) => (
                       <tr key={`${p.id}-${seg}`} className="odd:bg-white even:bg-slate-50">
                         {idx === 0 && (
-                          <td className="p-2" rowSpan={segList.length}>{p.last_name}, {p.first_name}</td>
+                          <td className="p-2 border border-slate-300" rowSpan={segList.length}>{p.last_name}, {p.first_name}</td>
                         )}
-                        <td className="p-2">{seg}</td>
+                        <td className="p-2 border border-slate-300">{seg}</td>
                         {months.map(m => {
                           const { content, color } = cellData(m, p.id, seg);
                           return (
-                            <td key={m} className="p-2" style={{ backgroundColor: color }}>
+                            <td key={m} className="p-2 border border-slate-300" style={{ backgroundColor: color }}>
                               {content}
                             </td>
                           );
