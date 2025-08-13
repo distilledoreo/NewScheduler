@@ -399,6 +399,18 @@ export default function App() {
     setStatus("Saved.");
   }
 
+  function syncTrainingFromAssignments(db = sqlDb) {
+    if (!db) return;
+    const pairs = all(`SELECT DISTINCT person_id, role_id FROM assignment`, [], db);
+    for (const row of pairs) {
+      run(
+        `INSERT INTO training (person_id, role_id, status) VALUES (?,?, 'Qualified') ON CONFLICT(person_id, role_id) DO NOTHING`,
+        [row.person_id, row.role_id],
+        db
+      );
+    }
+  }
+
   function refreshCaches(db = sqlDb) {
     if (!db) return;
     const g = all(`SELECT id,name,theme_color FROM grp ORDER BY name`, [], db);
@@ -407,6 +419,7 @@ export default function App() {
     setRoles(r.map(x => ({ ...x, segments: JSON.parse(x.segments) })));
     const p = all(`SELECT * FROM person WHERE active=1 ORDER BY last_name, first_name`, [], db);
     setPeople(p);
+    syncTrainingFromAssignments(db);
   }
 
   // People CRUD minimal
@@ -415,29 +428,56 @@ export default function App() {
       `INSERT INTO person (last_name, first_name, work_email, brother_sister, commuter, active, avail_mon, avail_tue, avail_wed, avail_thu, avail_fri)
        VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
       [
-        rec.last_name?.trim()||"",
-        rec.first_name?.trim()||"",
-        rec.work_email?.trim().toLowerCase()||"",
-        rec.brother_sister||null,
-        rec.commuter?1:0,
-        rec.active?1:1,
-        rec.avail_mon||'U', rec.avail_tue||'U', rec.avail_wed||'U', rec.avail_thu||'U', rec.avail_fri||'U'
+        rec.last_name?.trim() || "",
+        rec.first_name?.trim() || "",
+        rec.work_email?.trim().toLowerCase() || "",
+        rec.brother_sister || null,
+        rec.commuter ? 1 : 0,
+        rec.active ? 1 : 1,
+        rec.avail_mon || "U",
+        rec.avail_tue || "U",
+        rec.avail_wed || "U",
+        rec.avail_thu || "U",
+        rec.avail_fri || "U",
+      ]
+    );
+    const id = all(`SELECT last_insert_rowid() as id`)[0]?.id;
+    refreshCaches();
+    return id;
+  }
+
+  function updatePerson(rec: any) {
+    run(
+      `UPDATE person SET last_name=?, first_name=?, work_email=?, brother_sister=?, commuter=?, active=?, avail_mon=?, avail_tue=?, avail_wed=?, avail_thu=?, avail_fri=? WHERE id=?`,
+      [
+        rec.last_name,
+        rec.first_name,
+        rec.work_email?.trim().toLowerCase(),
+        rec.brother_sister,
+        rec.commuter ? 1 : 0,
+        rec.active ? 1 : 0,
+        rec.avail_mon,
+        rec.avail_tue,
+        rec.avail_wed,
+        rec.avail_thu,
+        rec.avail_fri,
+        rec.id,
       ]
     );
     refreshCaches();
   }
 
-  function updatePerson(rec:any){
-    run(
-      `UPDATE person SET last_name=?, first_name=?, work_email=?, brother_sister=?, commuter=?, active=?, avail_mon=?, avail_tue=?, avail_wed=?, avail_thu=?, avail_fri=? WHERE id=?`,
-      [rec.last_name, rec.first_name, rec.work_email?.trim().toLowerCase(), rec.brother_sister, rec.commuter?1:0, rec.active?1:0, rec.avail_mon, rec.avail_tue, rec.avail_wed, rec.avail_thu, rec.avail_fri, rec.id]
-    );
+  function deletePerson(id: number) {
+    run(`DELETE FROM training WHERE person_id=?`, [id]);
+    run(`DELETE FROM person WHERE id=?`, [id]);
     refreshCaches();
   }
 
-  function deletePerson(id:number){
-    run(`DELETE FROM person WHERE id=?`,[id]);
-    refreshCaches();
+  function saveTraining(personId: number, rolesSet: Set<number>) {
+    run(`DELETE FROM training WHERE person_id=?`, [personId]);
+    for (const rid of rolesSet) {
+      run(`INSERT INTO training (person_id, role_id, status) VALUES (?,?, 'Qualified')`, [personId, rid]);
+    }
   }
 
   // Assignments
@@ -468,6 +508,10 @@ export default function App() {
     }
 
     run(`INSERT INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`, [ymd(d), personId, roleId, segment]);
+    run(
+      `INSERT INTO training (person_id, role_id, status) VALUES (?,?, 'Qualified') ON CONFLICT(person_id, role_id) DO UPDATE SET status='Qualified'`,
+      [personId, roleId]
+    );
     refreshCaches();
   }
 
@@ -870,12 +914,15 @@ async function exportShifts() {
         : "avail_fri";
 
     const rows = all(`SELECT * FROM person WHERE active=1 ORDER BY last_name, first_name`);
-    const trained = new Set(
-      all(
+    const trained = new Set([
+      ...all(`SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`, [role.id]).map(
+        (r: any) => r.person_id
+      ),
+      ...all(
         `SELECT DISTINCT person_id FROM assignment WHERE role_id=? AND date < ?`,
         [role.id, ymd(date)]
-      ).map((r: any) => r.person_id)
-    );
+      ).map((r: any) => r.person_id),
+    ]);
 
     return rows
       .filter((p: any) => {
@@ -1447,6 +1494,15 @@ async function exportShifts() {
   function PeopleEditor(){
     const [form,setForm] = useState<any>({ active:true, commuter:false, brother_sister:'Brother', avail_mon:'U', avail_tue:'U', avail_wed:'U', avail_thu:'U', avail_fri:'U' });
     const [editing,setEditing] = useState<any|null>(null);
+    const [qualifications,setQualifications] = useState<Set<number>>(new Set());
+    useEffect(()=>{
+      if(editing){
+        const rows = all(`SELECT role_id FROM training WHERE person_id=? AND status='Qualified'`, [editing.id]);
+        setQualifications(new Set(rows.map((r:any)=>r.role_id)));
+      } else {
+        setQualifications(new Set());
+      }
+    },[editing]);
     return (
       <div className="p-4">
         <div className="w-full">
@@ -1478,13 +1534,28 @@ async function exportShifts() {
             ))}
           </div>
 
-          <div className="flex gap-2 mb-4">
-            {editing ? (
-              <button className="px-3 py-2 bg-blue-700 text-white rounded" onClick={()=>{ updatePerson({...editing, ...form}); setForm({ active:true, commuter:false, brother_sister:'Brother', avail_mon:'U', avail_tue:'U', avail_wed:'U', avail_thu:'U', avail_fri:'U' }); setEditing(null); }}>Save Changes</button>
-            ) : (
-              <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={()=>{ addPerson(form); setForm({ active:true, commuter:false, brother_sister:'Brother', avail_mon:'U', avail_tue:'U', avail_wed:'U', avail_thu:'U', avail_fri:'U' }); }}>Add Person</button>
-            )}
+          <div className="mb-4">
+            <div className="text-xs text-slate-500 mb-1">Qualified Roles</div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 max-h-40 overflow-auto border rounded p-2">
+              {roles.map((r:any)=>(
+                <label key={r.id} className="flex items-center gap-1 text-xs">
+                  <input type="checkbox" checked={qualifications.has(r.id)} onChange={e => {
+                    const next = new Set(qualifications);
+                    if(e.target.checked) next.add(r.id); else next.delete(r.id);
+                    setQualifications(next);
+                  }} />
+                  {r.name}
+                </label>
+              ))}
+            </div>
           </div>
+            <div className="flex gap-2 mb-4">
+              {editing ? (
+                <button className="px-3 py-2 bg-blue-700 text-white rounded" onClick={()=>{ updatePerson({...editing, ...form}); saveTraining(editing.id, qualifications); setForm({ active:true, commuter:false, brother_sister:'Brother', avail_mon:'U', avail_tue:'U', avail_wed:'U', avail_thu:'U', avail_fri:'U' }); setQualifications(new Set()); setEditing(null); }}>Save Changes</button>
+              ) : (
+                <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={()=>{ const id = addPerson(form); saveTraining(id, qualifications); setForm({ active:true, commuter:false, brother_sister:'Brother', avail_mon:'U', avail_tue:'U', avail_wed:'U', avail_thu:'U', avail_fri:'U' }); setQualifications(new Set()); }}>Add Person</button>
+              )}
+            </div>
 
           <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
             <table className="min-w-full text-sm divide-y divide-slate-200">
