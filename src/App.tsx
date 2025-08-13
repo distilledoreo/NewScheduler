@@ -12,7 +12,7 @@ MVP: Pure-browser scheduler for Microsoft Teams Shifts
 - Single-editor model (soft lock stored in DB). No multi-user concurrency.
 - Views: Daily Run Board, Needs vs Coverage, Export Preview
 - Features: Create/Open/Save DB, People editor, Needs baseline + date overrides,
-            Assignments with rules, Import Time-Off from Teams XLSX, Export to Shifts XLSX
+            Assignments with rules, Export to Shifts XLSX
 
 IMPORTANT: To avoid Rollup bundling Node-only modules (fs), we **do not import `xlsx` from NPM**.
 We dynamically load the browser ESM build from SheetJS CDN at runtime.
@@ -678,45 +678,8 @@ export default function App() {
     refreshCaches();
   }
 
-  // Time-Off Import (from Teams XLSX)
-  async function importTimeOffXlsx(file: File) {
-    try {
-      const XLSX = await loadXLSX();
-      const data = await file.arrayBuffer();
-      const wb = XLSX.read(data);
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
-      // Expected columns: Member, Work Email, Start Date, Start Time, End Date, End Time, Time Off Reason
-      let count = 0, skipped = 0;
-      for (const r of rows) {
-        const email = String(r["Work Email"] || "").trim().toLowerCase();
-        if (!email) { skipped++; continue; }
-        const p = all(`SELECT id FROM person WHERE LOWER(work_email)=?`, [email])[0];
-        if (!p) { skipped++; continue; }
-        const pid = p.id;
-        const sd = String(r["Start Date"]||"").trim();
-        const st = String(r["Start Time"]||"00:00").trim();
-        const ed = String(r["End Date"]||sd).trim();
-        const et = String(r["End Time"]||"23:59").trim();
-        const reason = String(r["Time Off Reason"]||"");
-        // Date = M/D/YYYY, Time = 24-hour HH:MM
-        const start = parseMDY(sd);
-        const [sh, sm] = st.split(":").map((x:string)=>parseInt(x,10));
-        start.setHours(sh||0, sm||0, 0, 0);
-        const end = parseMDY(ed);
-        const [eh, em] = et.split(":").map((x:string)=>parseInt(x,10));
-        end.setHours(eh||0, em||0, 0, 0);
-        run(`INSERT INTO timeoff (person_id, start_ts, end_ts, reason) VALUES (?,?,?,?)`, [pid, start.toISOString(), end.toISOString(), reason]);
-        count++;
-      }
-      setStatus(`Imported ${count} time-off rows. Skipped ${skipped} (no email match).`);
-    } catch (e:any) {
-      console.error(e); alert("Time-off import failed: " + (e?.message||e));
-    }
-  }
-
-  // Export to Shifts XLSX
-  async function exportShifts() {
+// Export to Shifts XLSX
+async function exportShifts() {
     if (!sqlDb) { alert("Open a DB first"); return; }
     const XLSX = await loadXLSX();
     const start = parseYMD(exportStart);
@@ -1445,13 +1408,6 @@ export default function App() {
           <label>End</label>
           <input type="date" className="border rounded px-2 py-1" value={exportEnd} onChange={(e)=>setExportEnd(e.target.value)} />
           <button className="ml-auto px-3 py-2 bg-emerald-700 text-white rounded" onClick={exportShifts}>Download XLSX</button>
-          <label className="ml-4 px-3 py-2 bg-slate-200 rounded cursor-pointer">
-            Import Time-Off XLSX
-            <input type="file" className="hidden" accept=".xlsx,.xls" onChange={(e)=>{
-              const f = e.target.files?.[0]; if (f) importTimeOffXlsx(f);
-              e.currentTarget.value = "";
-            }} />
-          </label>
         </div>
         <div className="overflow-auto max-h-[60vh] border rounded">
           <table className="min-w-full text-sm">
@@ -1640,7 +1596,7 @@ export default function App() {
             <li>Use <b>Save As</b> to write the <code>.db</code> file to a shared folder on your LAN. Only one editor at a time.</li>
             <li>Add <b>People</b> in the <b>People</b> tab and set <b>Baseline Needs</b>.</li>
             <li>Assign roles in the <b>Daily Run</b> board. The app will warn on availability and training; time-off blocks assignment.</li>
-            <li>Import <b>Time-Off</b> from Teams XLSX in the <b>Export</b> view (optional). Export date range with one row per segment, split for overlaps.</li>
+            <li>Export date range with one row per segment, split for overlaps.</li>
           </ol>
           <div className="mt-4 text-xs text-slate-500">If export fails to load XLSX, your network may block the SheetJS CDN. I can swap to a different CDN if needed.</div>
         </div>
