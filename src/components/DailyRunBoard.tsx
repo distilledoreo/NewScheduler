@@ -68,6 +68,11 @@ export default function DailyRunBoard({
   const seg: Exclude<Segment, "Early"> = activeRunSegment;
   const [layout, setLayout] = useState<any[]>([]);
   const [layoutLoaded, setLayoutLoaded] = useState(false);
+  const [moveContext, setMoveContext] = useState<{
+    assignment: any;
+    targets: Array<{ role: any; group: any }>;
+  } | null>(null);
+  const [moveTargetId, setMoveTargetId] = useState<number | null>(null);
 
   useEffect(() => {
     setLayoutLoaded(false);
@@ -130,35 +135,8 @@ export default function DailyRunBoard({
 
     function handleMove(a: any, targets: any[]) {
       if (!targets.length) return;
-      let chosen: any = targets[0];
-      if (targets.length > 1) {
-        const choice = prompt(
-          `Move ${a.last_name}, ${a.first_name} to:\n` +
-            targets
-              .map(
-                (t, i) => `${i + 1}. ${t.group.name} - ${t.role.name}`
-              )
-              .join("\n")
-        );
-        const idx = choice ? parseInt(choice) - 1 : -1;
-        if (idx < 0 || idx >= targets.length) return;
-        chosen = targets[idx];
-        if (
-          !confirm(
-            `Move ${a.last_name}, ${a.first_name} to ${chosen.group.name} - ${chosen.role.name}?`
-          )
-        )
-          return;
-      } else {
-        if (
-          !confirm(
-            `Move ${a.last_name}, ${a.first_name} to ${chosen.group.name} - ${chosen.role.name}?`
-          )
-        )
-          return;
-      }
-      deleteAssignment(a.id);
-      addAssignment(selectedDate, a.person_id, chosen.role.id, seg);
+      setMoveContext({ assignment: a, targets });
+      setMoveTargetId(null);
     }
 
     return (
@@ -253,6 +231,27 @@ export default function DailyRunBoard({
     })
     .filter(Boolean) as Array<{ role: any; group: any }>;
 
+  function confirmMove() {
+    if (!moveContext || moveTargetId == null) return;
+    const chosen = moveContext.targets.find((t) => t.role.id === moveTargetId);
+    if (!chosen) return;
+    if (
+      !confirm(
+        `Move ${moveContext.assignment.last_name}, ${moveContext.assignment.first_name} to ${chosen.group.name} - ${chosen.role.name}?`
+      )
+    )
+      return;
+    deleteAssignment(moveContext.assignment.id);
+    addAssignment(selectedDate, moveContext.assignment.person_id, chosen.role.id, seg);
+    setMoveContext(null);
+    setMoveTargetId(null);
+  }
+
+  function cancelMove() {
+    setMoveContext(null);
+    setMoveTargetId(null);
+  }
+
   return (
     <div className="p-4">
       <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 mb-4">
@@ -338,6 +337,45 @@ export default function DailyRunBoard({
               <li key={i}>{d}</li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {moveContext && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white p-4 rounded shadow-md w-72">
+            <div className="mb-2 font-medium">
+              Move {moveContext.assignment.last_name}, {moveContext.assignment.first_name} to:
+            </div>
+            <select
+              className="border rounded w-full px-2 py-1 mb-4"
+              value={moveTargetId ?? ""}
+              onChange={(e) =>
+                setMoveTargetId(e.target.value ? Number(e.target.value) : null)
+              }
+            >
+              <option value="">Select destination</option>
+              {moveContext.targets.map((t) => (
+                <option key={t.role.id} value={t.role.id}>
+                  {t.group.name} - {t.role.name}
+                </option>
+              ))}
+            </select>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-3 py-1 text-sm bg-slate-200 rounded"
+                onClick={cancelMove}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-3 py-1 text-sm bg-blue-600 text-white rounded disabled:opacity-50"
+                disabled={moveTargetId == null}
+                onClick={confirmMove}
+              >
+                Move
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
