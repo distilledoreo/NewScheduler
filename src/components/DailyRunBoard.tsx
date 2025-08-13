@@ -128,15 +128,37 @@ export default function DailyRunBoard({
         : 'bg-yellow-100 text-yellow-800';
     const isOverstaffed = assignedCount > req;
 
-    function handleMove(a: any, target: any) {
-      if (
-        confirm(
-          `Move ${a.last_name}, ${a.first_name} to ${target.group.name} - ${target.role.name}?`
+    function handleMove(a: any, targets: any[]) {
+      if (!targets.length) return;
+      let chosen: any = targets[0];
+      if (targets.length > 1) {
+        const choice = prompt(
+          `Move ${a.last_name}, ${a.first_name} to:\n` +
+            targets
+              .map(
+                (t, i) => `${i + 1}. ${t.group.name} - ${t.role.name}`
+              )
+              .join("\n")
+        );
+        const idx = choice ? parseInt(choice) - 1 : -1;
+        if (idx < 0 || idx >= targets.length) return;
+        chosen = targets[idx];
+        if (
+          !confirm(
+            `Move ${a.last_name}, ${a.first_name} to ${chosen.group.name} - ${chosen.role.name}?`
+          )
         )
-      ) {
-        deleteAssignment(a.id);
-        addAssignment(selectedDate, a.person_id, target.role.id, seg);
+          return;
+      } else {
+        if (
+          !confirm(
+            `Move ${a.last_name}, ${a.first_name} to ${chosen.group.name} - ${chosen.role.name}?`
+          )
+        )
+          return;
       }
+      deleteAssignment(a.id);
+      addAssignment(selectedDate, a.person_id, chosen.role.id, seg);
     }
 
     return (
@@ -183,16 +205,16 @@ export default function DailyRunBoard({
                 <div className="flex gap-2">
                   {isOverstaffed && (
                     (() => {
-                      const target = deficitRoles.find((d: any) => {
+                      const targets = deficitRoles.filter((d: any) => {
                         const opts = peopleOptionsForSegment(selectedDateObj, seg, d.role);
                         return opts.some(
                           (o) => o.id === a.person_id && !o.blocked
                         );
                       });
-                      return target ? (
+                      return targets.length ? (
                         <button
                           className="text-blue-600 text-sm"
-                          onClick={() => handleMove(a, target)}
+                          onClick={() => handleMove(a, targets)}
                         >
                           Move
                         </button>
