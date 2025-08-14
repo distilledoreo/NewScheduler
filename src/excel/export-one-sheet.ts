@@ -63,54 +63,85 @@ function all<T = any>(sql: string, params: any[] = []): T[] {
 export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   requireDb();
   const ExcelJS = await loadExcelJS();
-  const rows = all<Row>(
-    `WITH days(d) AS (VALUES (1),(2),(3),(4),(5))
-     SELECT d.d AS weekday, md.segment AS segment,
-            g.name AS group_name, r.name AS role_name,
+
+  const defaults = all<{
+    person_id: number;
+    segment: 'AM' | 'PM';
+    group_name: string;
+    role_name: string;
+    person: string;
+    commuter: number;
+  }>(
+    `SELECT md.person_id, md.segment, g.name AS group_name, r.name AS role_name,
             (p.last_name || ', ' || p.first_name) AS person,
             p.commuter AS commuter
-     FROM monthly_default md
-     JOIN days d ON 1=1
-     LEFT JOIN monthly_default_day mdd
-       ON mdd.month = md.month
-      AND mdd.person_id = md.person_id
-      AND mdd.segment = md.segment
-      AND mdd.weekday = d.d
-     JOIN role r ON r.id = COALESCE(mdd.role_id, md.role_id)
-     JOIN grp g  ON g.id = r.group_id
-     JOIN person p ON p.id = md.person_id
-     WHERE md.month = ? AND md.segment IN ('AM','PM')
-     UNION ALL
-     SELECT mdd.weekday AS weekday, mdd.segment AS segment,
-            g.name AS group_name, r.name AS role_name,
+       FROM monthly_default md
+       JOIN role r ON r.id = md.role_id
+       JOIN grp  g ON g.id = r.group_id
+       JOIN person p ON p.id = md.person_id
+      WHERE md.month = ? AND md.segment IN ('AM','PM')`,
+    [month]
+  );
+
+  const overrides = all<{
+    person_id: number;
+    weekday: number;
+    segment: 'AM' | 'PM';
+    group_name: string;
+    role_name: string;
+    person: string;
+    commuter: number;
+  }>(
+    `SELECT mdd.person_id, mdd.weekday, mdd.segment, g.name AS group_name, r.name AS role_name,
             (p.last_name || ', ' || p.first_name) AS person,
             p.commuter AS commuter
-     FROM monthly_default_day mdd
-     JOIN role r ON r.id = mdd.role_id
-     JOIN grp g  ON g.id = r.group_id
-     JOIN person p ON p.id = mdd.person_id
-     LEFT JOIN monthly_default md
-       ON md.month = mdd.month
-      AND md.person_id = mdd.person_id
-      AND md.segment = mdd.segment
-     WHERE mdd.month = ? AND md.person_id IS NULL
-     ORDER BY group_name, segment, person`,
-    [month, month],
+       FROM monthly_default_day mdd
+       JOIN role r ON r.id = mdd.role_id
+       JOIN grp  g ON g.id = r.group_id
+       JOIN person p ON p.id = mdd.person_id
+      WHERE mdd.month = ? AND mdd.segment IN ('AM','PM')`,
+    [month]
   );
 
   const buckets: Buckets = { regular: {}, commuter: {} };
+  const defaultRole = new Map<string, { kind:'regular'|'commuter'; code:string; role_name:string }>();
 
-  for (const row of rows) {
+  for (const row of defaults) {
     const code = GROUP_TO_CODE[row.group_name];
     if (!code) continue;
     const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
+    defaultRole.set(`${row.person_id}|${row.segment}`, { kind, code, role_name: row.role_name });
     const bucket = buckets[kind][code] || (buckets[kind][code] = {});
     const person = bucket[row.person] || (bucket[row.person] = {});
     const role = person[row.role_name] || (person[row.role_name] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>() });
+    for (const d of DAY_ORDER) {
+      if (row.segment === 'AM') role.AM.add(d); else role.PM.add(d);
+    }
+  }
+
+  for (const row of overrides) {
     const dayLetter = DAY_ORDER[row.weekday - 1];
     if (!dayLetter) continue;
-    if (row.segment === 'AM') role.AM.add(dayLetter);
-    else if (row.segment === 'PM') role.PM.add(dayLetter);
+    const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
+    const key = `${row.person_id}|${row.segment}`;
+    const def = defaultRole.get(key);
+    if (def) {
+      const bucket = buckets[def.kind][def.code];
+      const person = bucket && bucket[row.person];
+      const role = person && person[def.role_name];
+      if (role) {
+        const set = row.segment === 'AM' ? role.AM : role.PM;
+        set.delete(dayLetter);
+        if (role.AM.size===0 && role.PM.size===0) delete person[def.role_name];
+        if (person && Object.keys(person).length===0) delete bucket[row.person];
+      }
+    }
+    const code = GROUP_TO_CODE[row.group_name];
+    if (!code) continue;
+    const bucket = buckets[kind][code] || (buckets[kind][code] = {});
+    const person = bucket[row.person] || (bucket[row.person] = {});
+    const role = person[row.role_name] || (person[row.role_name] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>() });
+    if (row.segment === 'AM') role.AM.add(dayLetter); else role.PM.add(dayLetter);
   }
 
 
