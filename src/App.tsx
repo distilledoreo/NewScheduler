@@ -8,6 +8,7 @@ import { exportMonthOneSheetXlsx } from "./excel/export-one-sheet";
 import PersonName from "./components/PersonName";
 import PersonProfileModal from "./components/PersonProfileModal";
 import { ProfileContext } from "./components/ProfileContext";
+import { Button, Checkbox, Dropdown, Input, Option } from "@fluentui/react-components";
 
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
@@ -1024,31 +1025,36 @@ async function exportShifts() {
     const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc');
     const [filterText, setFilterText] = useState('');
     const [weekdayPerson, setWeekdayPerson] = useState<number|null>(null);
+    const [activeOnly, setActiveOnly] = useState(false);
+    const [commuterOnly, setCommuterOnly] = useState(false);
 
     const viewPeople = useMemo(()=>{
       const low = filterText.toLowerCase();
-      const filtered = people.filter((p:any)=>{
-        const roleNames = ['AM','Lunch','PM'].map(seg=>{
-          const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
-          const role = roles.find(r=>r.id===def?.role_id);
-          return role?.name || '';
+      const filtered = people
+        .filter((p:any)=>!activeOnly || p.active)
+        .filter((p:any)=>!commuterOnly || p.commuter)
+        .filter((p:any)=>{
+          const roleNames = ['AM','Lunch','PM'].map(seg=>{
+            const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
+            const role = roles.find(r=>r.id===def?.role_id);
+            return role?.name || '';
+          });
+          const text = [
+            p.last_name,
+            p.first_name,
+            p.work_email,
+            p.brother_sister || '',
+            p.commuter ? 'commuter' : '',
+            p.active ? 'active' : '',
+            p.avail_mon,
+            p.avail_tue,
+            p.avail_wed,
+            p.avail_thu,
+            p.avail_fri,
+            ...roleNames,
+          ].join(' ').toLowerCase();
+          return text.includes(low);
         });
-        const text = [
-          p.last_name,
-          p.first_name,
-          p.work_email,
-          p.brother_sister || '',
-          p.commuter ? 'commuter' : '',
-          p.active ? 'active' : '',
-          p.avail_mon,
-          p.avail_tue,
-          p.avail_wed,
-          p.avail_thu,
-          p.avail_fri,
-          ...roleNames,
-        ].join(' ').toLowerCase();
-        return text.includes(low);
-      });
 
       const sorted = filtered.slice().sort((a:any,b:any)=>{
         const field = sortKey;
@@ -1089,7 +1095,7 @@ async function exportShifts() {
         return 0;
       });
       return sorted;
-    }, [people, monthlyDefaults, roles, filterText, sortKey, sortDir]);
+    }, [people, monthlyDefaults, roles, filterText, sortKey, sortDir, activeOnly, commuterOnly]);
 
     function WeeklyOverrideModal({ personId, onClose }: { personId:number; onClose:()=>void }) {
       const person = people.find(p=>p.id===personId);
@@ -1159,23 +1165,25 @@ async function exportShifts() {
           >
             Export One Sheet (.xlsx)
           </button>
-          <input type="text" className="border rounded px-2 py-1" placeholder="Filter" value={filterText} onChange={(e)=>setFilterText(e.target.value)} />
-          <select className="border rounded px-2 py-1" value={sortKey} onChange={(e)=>setSortKey(e.target.value as any)}>
-            <option value="name">Name</option>
-            <option value="email">Email</option>
-            <option value="brother_sister">B/S</option>
-            <option value="commuter">Commute</option>
-            <option value="active">Active</option>
-            <option value="avail_mon">Mon</option>
-            <option value="avail_tue">Tue</option>
-            <option value="avail_wed">Wed</option>
-            <option value="avail_thu">Thu</option>
-            <option value="avail_fri">Fri</option>
-            <option value="AM">AM Role</option>
-            <option value="Lunch">Lunch Role</option>
-            <option value="PM">PM Role</option>
-          </select>
-          <button className="px-2 py-1 bg-slate-200 rounded text-sm" onClick={()=>setSortDir(sortDir==='asc'?'desc':'asc')}>{sortDir==='asc'?'Asc':'Desc'}</button>
+          <Input placeholder="Filter" value={filterText} onChange={(_, data)=>setFilterText(data.value)} />
+          <Dropdown selectedOptions={[sortKey]} onOptionSelect={(_, data)=>setSortKey(data.optionValue as any)}>
+            <Option value="name">Name</Option>
+            <Option value="email">Email</Option>
+            <Option value="brother_sister">B/S</Option>
+            <Option value="commuter">Commute</Option>
+            <Option value="active">Active</Option>
+            <Option value="avail_mon">Mon</Option>
+            <Option value="avail_tue">Tue</Option>
+            <Option value="avail_wed">Wed</Option>
+            <Option value="avail_thu">Thu</Option>
+            <Option value="avail_fri">Fri</Option>
+            <Option value="AM">AM Role</Option>
+            <Option value="Lunch">Lunch Role</Option>
+            <Option value="PM">PM Role</Option>
+          </Dropdown>
+          <Button onClick={()=>setSortDir(sortDir==='asc'?'desc':'asc')}>{sortDir==='asc'?'Asc':'Desc'}</Button>
+          <Checkbox label="Active" checked={activeOnly} onChange={(_, data)=>setActiveOnly(!!data.checked)} />
+          <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data)=>setCommuterOnly(!!data.checked)} />
         </div>
         <div className="overflow-auto">
           <table className="min-w-full text-sm">
@@ -1230,7 +1238,12 @@ async function exportShifts() {
     const [showSeg, setShowSeg] = useState({ AM: true, Lunch: true, PM: true });
     const [activeOnly, setActiveOnly] = useState(false);
     const [commuterOnly, setCommuterOnly] = useState(false);
-    const [sortField, setSortField] = useState<'last'|'first'>('last');
+    const [sortField, setSortField] = useState<
+      'last'|'first'|'brother_sister'|'commuter'|'active'|
+      'avail_mon'|'avail_tue'|'avail_wed'|'avail_thu'|'avail_fri'|
+      'AM'|'Lunch'|'PM'
+    >('last');
+    const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc');
     const [startMonth, setStartMonth] = useState<string>("");
     const [endMonth, setEndMonth] = useState<string>("");
     const [editPast, setEditPast] = useState(false);
@@ -1277,13 +1290,68 @@ async function exportShifts() {
     }, [startMonth, endMonth]);
 
     const filteredPeople = useMemo(() => {
-      const f = filter.toLowerCase();
+      const low = filter.toLowerCase();
       return people
-        .filter((p:any) => `${p.first_name} ${p.last_name}`.toLowerCase().includes(f))
         .filter((p:any) => !activeOnly || p.active)
         .filter((p:any) => !commuterOnly || p.commuter)
-        .sort((a:any,b:any)=>sortField==='last' ? a.last_name.localeCompare(b.last_name) : a.first_name.localeCompare(b.first_name));
-    }, [people, filter, activeOnly, commuterOnly, sortField]);
+        .filter((p:any) => {
+          const roleNames = months.flatMap(m => (
+            ['AM','Lunch','PM'] as const).map(seg => {
+              const def = defs.find(d=>d.month===m && d.person_id===p.id && d.segment===seg);
+              const role = roles.find(r=>r.id===def?.role_id);
+              return role?.name || '';
+            })
+          );
+          const text = [
+            p.first_name,
+            p.last_name,
+            p.brother_sister || '',
+            p.commuter ? 'commuter' : '',
+            p.active ? 'active' : '',
+            p.avail_mon,
+            p.avail_tue,
+            p.avail_wed,
+            p.avail_thu,
+            p.avail_fri,
+            ...roleNames,
+          ].join(' ').toLowerCase();
+          return text.includes(low);
+        })
+        .sort((a:any,b:any)=>{
+          let av:any; let bv:any;
+          switch(sortField){
+            case 'last':
+              av = a.last_name; bv = b.last_name; break;
+            case 'first':
+              av = a.first_name; bv = b.first_name; break;
+            case 'brother_sister':
+              av = a.brother_sister || ''; bv = b.brother_sister || ''; break;
+            case 'commuter':
+              av = a.commuter?1:0; bv = b.commuter?1:0; break;
+            case 'active':
+              av = a.active?1:0; bv = b.active?1:0; break;
+            case 'avail_mon': av = a.avail_mon; bv = b.avail_mon; break;
+            case 'avail_tue': av = a.avail_tue; bv = b.avail_tue; break;
+            case 'avail_wed': av = a.avail_wed; bv = b.avail_wed; break;
+            case 'avail_thu': av = a.avail_thu; bv = b.avail_thu; break;
+            case 'avail_fri': av = a.avail_fri; bv = b.avail_fri; break;
+            case 'AM':
+            case 'Lunch':
+            case 'PM':
+              const month = months[0];
+              const defA = defs.find(d=>d.month===month && d.person_id===a.id && d.segment===sortField);
+              const defB = defs.find(d=>d.month===month && d.person_id===b.id && d.segment===sortField);
+              const roleA = roles.find(r=>r.id===defA?.role_id)?.name || '';
+              const roleB = roles.find(r=>r.id===defB?.role_id)?.name || '';
+              av = roleA; bv = roleB; break;
+            default:
+              av = ''; bv = ''; break;
+          }
+          if(av < bv) return sortDir==='asc' ? -1 : 1;
+          if(av > bv) return sortDir==='asc' ? 1 : -1;
+          return 0;
+        });
+    }, [people, defs, roles, months, filter, activeOnly, commuterOnly, sortField, sortDir]);
 
     const segs = ([] as Exclude<Segment,'Early'>[]);
     if (showSeg.AM) segs.push('AM');
@@ -1346,34 +1414,29 @@ async function exportShifts() {
     return (
       <div className="p-4">
         <div className="flex flex-wrap items-center gap-2 mb-4">
-          <input
-            className="border rounded px-2 py-1"
-            placeholder="Filter people..."
-            value={filter}
-            onChange={(e)=>setFilter(e.target.value)}
-          />
-          <select className="border rounded px-2 py-1 text-sm" value={sortField} onChange={(e)=>setSortField(e.target.value as 'last'|'first')}>
-            <option value="last">Last Name</option>
-            <option value="first">First Name</option>
-          </select>
-          <label className="text-sm flex items-center gap-1">
-            <input type="checkbox" checked={activeOnly} onChange={(e)=>setActiveOnly(e.target.checked)} /> Active
-          </label>
-          <label className="text-sm flex items-center gap-1">
-            <input type="checkbox" checked={commuterOnly} onChange={(e)=>setCommuterOnly(e.target.checked)} /> Commuter
-          </label>
-          <label className="text-sm flex items-center gap-1">
-            <input type="checkbox" checked={showSeg.AM} onChange={(e)=>setShowSeg({...showSeg, AM:e.target.checked})} /> AM
-          </label>
-          <label className="text-sm flex items-center gap-1">
-            <input type="checkbox" checked={showSeg.Lunch} onChange={(e)=>setShowSeg({...showSeg, Lunch:e.target.checked})} /> Lunch
-          </label>
-          <label className="text-sm flex items-center gap-1">
-            <input type="checkbox" checked={showSeg.PM} onChange={(e)=>setShowSeg({...showSeg, PM:e.target.checked})} /> PM
-          </label>
-          <label className="text-sm flex items-center gap-1">
-            <input type="checkbox" checked={editPast} onChange={(e)=>setEditPast(e.target.checked)} /> Edit past months
-          </label>
+          <Input placeholder="Filter people..." value={filter} onChange={(_, data)=>setFilter(data.value)} />
+          <Dropdown selectedOptions={[sortField]} onOptionSelect={(_, data)=>setSortField(data.optionValue as any)}>
+            <Option value="last">Last Name</Option>
+            <Option value="first">First Name</Option>
+            <Option value="brother_sister">B/S</Option>
+            <Option value="commuter">Commute</Option>
+            <Option value="active">Active</Option>
+            <Option value="avail_mon">Mon</Option>
+            <Option value="avail_tue">Tue</Option>
+            <Option value="avail_wed">Wed</Option>
+            <Option value="avail_thu">Thu</Option>
+            <Option value="avail_fri">Fri</Option>
+            <Option value="AM">AM Role</Option>
+            <Option value="Lunch">Lunch Role</Option>
+            <Option value="PM">PM Role</Option>
+          </Dropdown>
+          <Button onClick={()=>setSortDir(sortDir==='asc'?'desc':'asc')}>{sortDir==='asc'?'Asc':'Desc'}</Button>
+          <Checkbox label="Active" checked={activeOnly} onChange={(_, data)=>setActiveOnly(!!data.checked)} />
+          <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data)=>setCommuterOnly(!!data.checked)} />
+          <Checkbox label="AM" checked={showSeg.AM} onChange={(_, data)=>setShowSeg({...showSeg, AM:!!data.checked})} />
+          <Checkbox label="Lunch" checked={showSeg.Lunch} onChange={(_, data)=>setShowSeg({...showSeg, Lunch:!!data.checked})} />
+          <Checkbox label="PM" checked={showSeg.PM} onChange={(_, data)=>setShowSeg({...showSeg, PM:!!data.checked})} />
+          <Checkbox label="Edit past months" checked={editPast} onChange={(_, data)=>setEditPast(!!data.checked)} />
           <div className="flex items-center gap-1">
             <label className="text-sm">From</label>
             <input
