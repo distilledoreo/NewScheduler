@@ -49,7 +49,7 @@ export default function PersonProfileModal({ personId, onClose, all }: PersonPro
   const s = useStyles();
   const person = all(`SELECT * FROM person WHERE id=?`, [personId])[0];
   const trainings = all(
-    \`SELECT r.name, t.status FROM training t JOIN role r ON r.id=t.role_id WHERE t.person_id=? ORDER BY r.name\`,
+    \'SELECT r.name, t.status FROM training t JOIN role r ON r.id=t.role_id WHERE t.person_id=? ORDER BY r.name\',
     [personId]
   );
 
