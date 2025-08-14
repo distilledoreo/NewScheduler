@@ -72,7 +72,11 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
             (p.last_name || ', ' || p.first_name) AS person,
             p.commuter AS commuter,
             p.avail_mon, p.avail_tue, p.avail_wed, p.avail_thu, p.avail_fri
-     FROM monthly_default md
+     FROM (
+       SELECT month, person_id, segment, role_id FROM monthly_default
+       UNION ALL
+       SELECT month, person_id, segment, role_id FROM monthly_default_day
+     ) md
      JOIN role r ON r.id = md.role_id
      JOIN grp g  ON g.id = r.group_id
      JOIN person p ON p.id = md.person_id
