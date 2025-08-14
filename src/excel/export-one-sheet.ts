@@ -32,16 +32,20 @@ const DAY_ORDER = ['M','T','W','TH','F'] as const;
 type DayLetter = typeof DAY_ORDER[number];
 
 type Row = {
-  weekday:number;
   segment:'AM'|'PM';
   group_name:string;
-  role_name:string;
   person:string;
+  role_name:string;
   commuter:number;
+  avail_mon:string;
+  avail_tue:string;
+  avail_wed:string;
+  avail_thu:string;
+  avail_fri:string;
 };
 
 type Buckets = Record<'regular'|'commuter',
-  Record<string, Record<string, Record<string, { AM: Set<DayLetter>; PM: Set<DayLetter> }>>>
+  Record<string, Record<string, { AM: Set<DayLetter>; PM: Set<DayLetter>; roles: Set<string> }>>
 >;
 
 function requireDb() {
@@ -63,83 +67,42 @@ function all<T = any>(sql: string, params: any[] = []): T[] {
 export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   requireDb();
   const ExcelJS = await loadExcelJS();
-
-  const defaults = all<{
-    person_id: number;
-    segment: 'AM' | 'PM';
-    group_name: string;
-    role_name: string;
-    person: string;
-    commuter: number;
-  }>(
-    `SELECT md.person_id, md.segment, g.name AS group_name, r.name AS role_name,
+  const rows = all<Row>(
+    `SELECT md.segment, g.name AS group_name, r.name AS role_name,
             (p.last_name || ', ' || p.first_name) AS person,
-            p.commuter AS commuter
-       FROM monthly_default md
-       JOIN role r ON r.id = md.role_id
-       JOIN grp  g ON g.id = r.group_id
-       JOIN person p ON p.id = md.person_id
-      WHERE md.month = ? AND md.segment IN ('AM','PM')`,
-    [month]
-  );
-
-  const overrides = all<{
-    person_id: number;
-    weekday: number;
-    segment: 'AM' | 'PM';
-    group_name: string;
-    role_name: string;
-    person: string;
-    commuter: number;
-  }>(
-    `SELECT mdd.person_id, mdd.weekday, mdd.segment, g.name AS group_name, r.name AS role_name,
-            (p.last_name || ', ' || p.first_name) AS person,
-            p.commuter AS commuter
-       FROM monthly_default_day mdd
-       JOIN role r ON r.id = mdd.role_id
-       JOIN grp  g ON g.id = r.group_id
-       JOIN person p ON p.id = mdd.person_id
-      WHERE mdd.month = ? AND mdd.segment IN ('AM','PM')`,
+            p.commuter AS commuter,
+            p.avail_mon, p.avail_tue, p.avail_wed, p.avail_thu, p.avail_fri
+     FROM monthly_default md
+     JOIN role r ON r.id = md.role_id
+     JOIN grp g  ON g.id = r.group_id
+     JOIN person p ON p.id = md.person_id
+     WHERE md.month = ? AND md.segment IN ('AM','PM')
+     ORDER BY g.name, md.segment, person`,
     [month]
   );
 
   const buckets: Buckets = { regular: {}, commuter: {} };
-  const personScheduledDays = new Map<string, Set<DayLetter>>();
 
-  for (const row of overrides) {
-    const dayLetter = DAY_ORDER[row.weekday - 1];
-    if (!dayLetter) continue;
-    const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
-    const code = GROUP_TO_CODE[row.group_name];
-    if (!code) continue;
-    const bucket = buckets[kind][code] || (buckets[kind][code] = {});
-    const person = bucket[row.person] || (bucket[row.person] = {});
-    const role = person[row.role_name] || (person[row.role_name] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>() });
-    if (row.segment === 'AM') role.AM.add(dayLetter); else role.PM.add(dayLetter);
-
-    const key = `${row.person_id}|${row.segment}`;
-    const scheduledDays = personScheduledDays.get(key) || new Set<DayLetter>();
-    scheduledDays.add(dayLetter);
-    personScheduledDays.set(key, scheduledDays);
-  }
-
-  for (const row of defaults) {
+  for (const row of rows) {
     const code = GROUP_TO_CODE[row.group_name];
     if (!code) continue;
     const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
-    const key = `${row.person_id}|${row.segment}`;
-    const scheduledDays = personScheduledDays.get(key);
-
     const bucket = buckets[kind][code] || (buckets[kind][code] = {});
-    const person = bucket[row.person] || (bucket[row.person] = {});
-    const role = person[row.role_name] || (person[row.role_name] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>() });
-    for (const d of DAY_ORDER) {
-        if (!scheduledDays || !scheduledDays.has(d)) {
-            if (row.segment === 'AM') role.AM.add(d); else role.PM.add(d);
-        }
+    const person = bucket[row.person] || (bucket[row.person] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>(), roles: new Set<string>() });
+    person.roles.add(row.role_name);
+    const availMap: Record<DayLetter,string> = {
+      M: row.avail_mon,
+      T: row.avail_tue,
+      W: row.avail_wed,
+      TH: row.avail_thu,
+      F: row.avail_fri,
+    };
+    for (const day of DAY_ORDER) {
+      const avail = availMap[day];
+      if (row.segment === 'AM' && (avail === 'AM' || avail === 'B')) person.AM.add(day);
+      else if (row.segment === 'PM' && (avail === 'PM' || avail === 'B')) person.PM.add(day);
     }
   }
-
 
   const [y, m] = month.split('-').map(n => parseInt(n, 10));
   const monthDate = new Date(y, m - 1, 1);
@@ -175,62 +138,61 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     }
   }
 
-    function renderBlock(
-      pane: 'kitchen1'|'kitchen2'|'dining',
-      group: string,
-      people: Record<string, Record<string, { AM: Set<DayLetter>; PM: Set<DayLetter> }>>)
-    {
-      const startCol = pane==='kitchen1'?1:pane==='kitchen2'?6:11;
-      if (!people || !Object.keys(people).length) return;
-      const rowIndex = paneState[pane];
-      ws.mergeCells(rowIndex, startCol, rowIndex, startCol+3);
-      const hcell = ws.getCell(rowIndex,startCol);
-      hcell.value = group;
-      hcell.font = { bold:true, size:18 };
-      hcell.alignment = { horizontal:'left' };
-      const fill = GROUP_COLORS[group] || 'FFEFEFEF';
-      hcell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:fill} };
-      setRowBorders(ws.getRow(rowIndex), startCol, startCol+3);
+  function renderBlock(
+    pane: 'kitchen1'|'kitchen2'|'dining',
+    group: string,
+    people: Record<string,{AM:Set<DayLetter>;PM:Set<DayLetter>;roles:Set<string>}>)
+  {
+    const startCol = pane==='kitchen1'?1:pane==='kitchen2'?6:11;
+    if (!people || !Object.keys(people).length) return;
+    const rowIndex = paneState[pane];
+    ws.mergeCells(rowIndex, startCol, rowIndex, startCol+3);
+    const hcell = ws.getCell(rowIndex,startCol);
+    hcell.value = group;
+    hcell.font = { bold:true, size:18 };
+    hcell.alignment = { horizontal:'left' };
+    const fill = GROUP_COLORS[group] || 'FFEFEFEF';
+    hcell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:fill} };
+    setRowBorders(ws.getRow(rowIndex), startCol, startCol+3);
 
-      function simplifyRole(role: string): string | null {
-        if (role === group) return null;
-        const prefix = group + ' ';
-        if (role.startsWith(prefix)) {
-          return role.slice(prefix.length);
-        }
-        return role;
+    function simplifyRole(role: string): string | null {
+      if (role === group) return null;
+      const prefix = group + ' ';
+      if (role.startsWith(prefix)) {
+        return role.slice(prefix.length);
       }
-
-      let r = rowIndex + 1;
-      const names = Object.keys(people).sort((a,b)=>a.localeCompare(b));
-      for (const name of names) {
-        const roleMap = people[name];
-        const roleNames = Object.keys(roleMap).sort((a,b)=>a.localeCompare(b));
-        for (const roleName of roleNames) {
-          const info = roleMap[roleName];
-          const daySet = new Set<DayLetter>([...info.AM, ...info.PM]);
-          const dayList = DAY_ORDER.filter(d=>daySet.has(d));
-          const days = dayList.length === DAY_ORDER.length ? 'Full-Time' : dayList.join('/');
-          const hasAM = info.AM.size > 0;
-          const hasPM = info.PM.size > 0;
-          ws.getCell(r, startCol).value = name;
-          const roleText = simplifyRole(roleName) || '';
-          ws.getCell(r, startCol + 1).value = roleText;
-          if (hasAM && hasPM) {
-            // leave shift column blank
-          } else if (hasAM) {
-            ws.getCell(r, startCol + 2).value = 'AM';
-          } else if (hasPM) {
-            ws.getCell(r, startCol + 2).value = 'PM';
-          }
-          ws.getCell(r, startCol + 3).value = days;
-          ws.getRow(r).font = { size:16 };
-          setRowBorders(ws.getRow(r), startCol, startCol + 3);
-          r++;
-        }
-      }
-      paneState[pane] = r;
+      return role;
     }
+
+    let r = rowIndex + 1;
+    const names = Object.keys(people).sort((a,b)=>a.localeCompare(b));
+    for (const name of names) {
+      const info = people[name];
+      const daySet = new Set<DayLetter>([...info.AM, ...info.PM]);
+      const dayList = DAY_ORDER.filter(d=>daySet.has(d));
+      const days = dayList.length === DAY_ORDER.length ? 'Full-Time' : dayList.join('/');
+      const hasAM = info.AM.size > 0;
+      const hasPM = info.PM.size > 0;
+      ws.getCell(r, startCol).value = name;
+      const roleNames = Array.from(info.roles)
+        .map(simplifyRole)
+        .filter((v): v is string => Boolean(v));
+      const roleText = Array.from(new Set(roleNames)).sort().join('/');
+      ws.getCell(r, startCol + 1).value = roleText;
+      if (hasAM && hasPM) {
+        // leave shift column blank
+      } else if (hasAM) {
+        ws.getCell(r, startCol + 2).value = 'AM';
+      } else if (hasPM) {
+        ws.getCell(r, startCol + 2).value = 'PM';
+      }
+      ws.getCell(r, startCol + 3).value = days;
+      ws.getRow(r).font = { size:16 };
+      setRowBorders(ws.getRow(r), startCol, startCol + 3);
+      r++;
+    }
+    paneState[pane] = r;
+  }
 
   function renderSection(kind: 'regular'|'commuter') {
     for (const g of KITCHEN_COL1_GROUPS) {
