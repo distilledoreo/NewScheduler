@@ -1238,6 +1238,8 @@ async function exportShifts() {
     const [showSeg, setShowSeg] = useState({ AM: true, Lunch: true, PM: true });
     const [activeOnly, setActiveOnly] = useState(false);
     const [commuterOnly, setCommuterOnly] = useState(false);
+    const [bsFilter, setBsFilter] = useState("");
+    const [groupFilter, setGroupFilter] = useState("");
     const [sortField, setSortField] = useState<
       'last'|'first'|'brother_sister'|'commuter'|'active'|
       'avail_mon'|'avail_tue'|'avail_wed'|'avail_thu'|'avail_fri'|
@@ -1294,6 +1296,17 @@ async function exportShifts() {
       return people
         .filter((p:any) => !activeOnly || p.active)
         .filter((p:any) => !commuterOnly || p.commuter)
+        .filter((p:any) => !bsFilter || p.brother_sister === bsFilter)
+        .filter((p:any) => {
+          if (!groupFilter) return true;
+          return months.some(m => (
+            ['AM','Lunch','PM'] as const).some(seg => {
+              const def = defs.find(d=>d.month===m && d.person_id===p.id && d.segment===seg);
+              const role = roles.find(r=>r.id===def?.role_id);
+              return role?.group_name === groupFilter;
+            })
+          );
+        })
         .filter((p:any) => {
           const roleNames = months.flatMap(m => (
             ['AM','Lunch','PM'] as const).map(seg => {
@@ -1351,7 +1364,7 @@ async function exportShifts() {
           if(av > bv) return sortDir==='asc' ? 1 : -1;
           return 0;
         });
-    }, [people, defs, roles, months, filter, activeOnly, commuterOnly, sortField, sortDir]);
+    }, [people, defs, roles, months, filter, activeOnly, commuterOnly, bsFilter, groupFilter, sortField, sortDir]);
 
     const segs = ([] as Exclude<Segment,'Early'>[]);
     if (showSeg.AM) segs.push('AM');
@@ -1431,6 +1444,17 @@ async function exportShifts() {
             <Option value="PM">PM Role</Option>
           </Dropdown>
           <Button onClick={()=>setSortDir(sortDir==='asc'?'desc':'asc')}>{sortDir==='asc'?'Asc':'Desc'}</Button>
+          <Dropdown selectedOptions={[bsFilter]} onOptionSelect={(_, data)=>setBsFilter(data.optionValue as string)}>
+            <Option value="">All B/S</Option>
+            <Option value="Brother">Brother</Option>
+            <Option value="Sister">Sister</Option>
+          </Dropdown>
+          <Dropdown selectedOptions={[groupFilter]} onOptionSelect={(_, data)=>setGroupFilter(data.optionValue as string)}>
+            <Option value="">All Groups</Option>
+            {Object.keys(GROUPS).map(g => (
+              <Option key={g} value={g}>{g}</Option>
+            ))}
+          </Dropdown>
           <Checkbox label="Active" checked={activeOnly} onChange={(_, data)=>setActiveOnly(!!data.checked)} />
           <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data)=>setCommuterOnly(!!data.checked)} />
           <Checkbox label="AM" checked={showSeg.AM} onChange={(_, data)=>setShowSeg({...showSeg, AM:!!data.checked})} />
