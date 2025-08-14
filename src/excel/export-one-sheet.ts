@@ -93,7 +93,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
        ON md.month = mdd.month
       AND md.person_id = mdd.person_id
       AND md.segment = mdd.segment
-     WHERE mdd.month = ? AND md.id IS NULL
+     WHERE mdd.month = ? AND md.person_id IS NULL
      ORDER BY group_name, segment, person`,
     [month, month],
   );
