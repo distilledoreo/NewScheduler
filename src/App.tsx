@@ -719,7 +719,7 @@ export default function App() {
               <div className="grid grid-cols-2 gap-0">
                 {/* Deficits table */}
                 <div className="border-r max-h-[55vh] overflow-auto">
-                  <div className="sticky top-0 z-10 bg-slate-100 border-b px-3 py-2 text-sm font-semibold">Gaps (Required > Planned)</div>
+                  <div className="sticky top-0 z-10 bg-slate-100 border-b px-3 py-2 text-sm font-semibold">Gaps (More Required Than Planned)</div>
                   <table className="min-w-full text-sm">
                     <thead className="sticky top-[32px] bg-white shadow">
                       <tr className="text-left border-b">
