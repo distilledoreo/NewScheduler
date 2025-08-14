@@ -1,11 +1,6 @@
-import React, { useEffect, useState } from "react";
-import GridLayout, { WidthProvider } from "react-grid-layout";
-import "react-grid-layout/css/styles.css";
-import "react-resizable/css/styles.css";
+import React, { useState } from "react";
 import type { Segment } from "../config/domain";
 import PersonName from "./PersonName";
-
-const Grid = WidthProvider(GridLayout);
 
 interface DailyRunBoardProps {
   activeRunSegment: Exclude<Segment, "Early">;
@@ -67,43 +62,11 @@ export default function DailyRunBoard({
   deleteAssignment,
 }: DailyRunBoardProps) {
   const seg: Exclude<Segment, "Early"> = activeRunSegment;
-  const [layout, setLayout] = useState<any[]>([]);
-  const [layoutLoaded, setLayoutLoaded] = useState(false);
   const [moveContext, setMoveContext] = useState<{
     assignment: any;
     targets: Array<{ role: any; group: any }>;
   } | null>(null);
   const [moveTargetId, setMoveTargetId] = useState<number | null>(null);
-
-  useEffect(() => {
-    setLayoutLoaded(false);
-    const key = `layout:${seg}:${lockEmail || 'default'}`;
-    let saved: any[] = [];
-    try {
-      const rows = all(`SELECT value FROM meta WHERE key=?`, [key]);
-      if (rows[0] && rows[0].value) saved = JSON.parse(String(rows[0].value));
-    } catch {}
-    const byId = new Map(saved.map((l: any) => [l.i, l]));
-    const merged = groups.map((g: any, idx: number) => {
-      const roleCount = roleListForSegment(seg).filter((r) => r.group_id === g.id).length;
-      const h = Math.max(2, roleCount + 1);
-      return byId.get(String(g.id)) || { i: String(g.id), x: (idx % 4) * 3, y: Math.floor(idx / 4) * h, w: 3, h };
-    });
-    setLayout(merged);
-    setLayoutLoaded(true);
-  }, [groups, lockEmail, seg, roleListForSegment]);
-
-  function handleLayoutChange(l: any[]) {
-    setLayout(l);
-    if (!layoutLoaded) return;
-    const key = `layout:${seg}:${lockEmail || 'default'}`;
-    try {
-      const stmt = sqlDb.prepare(`INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)`);
-      stmt.bind([key, JSON.stringify(l)]);
-      stmt.step();
-      stmt.free();
-    } catch {}
-  }
 
   function RoleCard({ group, role }: { group: any; role: any }) {
     const assigns = all(
@@ -294,14 +257,7 @@ export default function DailyRunBoard({
         </div>
       </div>
 
-      <Grid
-        className="layout"
-        layout={layout}
-        cols={12}
-        rowHeight={80}
-        onLayoutChange={handleLayoutChange}
-        draggableHandle=".drag-handle"
-      >
+      <div className="grid grid-cols-4 gap-4">
         {groups.map((g: any) => {
           const rolesForGroup = roles.filter((r) => r.group_id === g.id);
           const groupNeedsMet = rolesForGroup.every((r: any) => {
@@ -315,7 +271,7 @@ export default function DailyRunBoard({
               key={String(g.id)}
               className={`border rounded-lg shadow-sm flex flex-col h-full ${groupColor}`}
             >
-              <div className="font-semibold flex items-center justify-between mb-2 drag-handle px-3 pt-3">
+              <div className="font-semibold flex items-center justify-between mb-2 px-3 pt-3">
                 <span>{g.name}</span>
                 <span className="text-xs text-slate-500">Theme: {g.theme_color || '-'}</span>
               </div>
@@ -330,7 +286,7 @@ export default function DailyRunBoard({
             </div>
           );
         })}
-      </Grid>
+      </div>
 
       {diag && (
         <div className="mt-6 border rounded bg-white p-3">
