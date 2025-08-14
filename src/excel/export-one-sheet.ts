@@ -65,7 +65,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   const ExcelJS = await loadExcelJS();
   const rows = all<Row>(
     `WITH days(d) AS (VALUES (1),(2),(3),(4),(5))
-     SELECT d.d AS weekday, md.segment,
+     SELECT d.d AS weekday, md.segment AS segment,
             g.name AS group_name, r.name AS role_name,
             (p.last_name || ', ' || p.first_name) AS person,
             p.commuter AS commuter
@@ -81,10 +81,10 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
      JOIN person p ON p.id = md.person_id
      WHERE md.month = ? AND md.segment IN ('AM','PM')
      UNION ALL
-     SELECT mdd.weekday, mdd.segment,
-            g.name, r.name,
-            (p.last_name || ', ' || p.first_name),
-            p.commuter
+     SELECT mdd.weekday AS weekday, mdd.segment AS segment,
+            g.name AS group_name, r.name AS role_name,
+            (p.last_name || ', ' || p.first_name) AS person,
+            p.commuter AS commuter
      FROM monthly_default_day mdd
      JOIN role r ON r.id = mdd.role_id
      JOIN grp g  ON g.id = r.group_id
