@@ -52,6 +52,7 @@ type DayRow = {
   commuter: number;
 };
 
+// Buckets: regular/commuter -> groupCode -> personName -> { AM days, PM days, roles list (for display) }
 type Buckets = Record<'regular'|'commuter',
   Record<string, Record<string, { AM: Set<DayLetter>; PM: Set<DayLetter>; roles: Set<string> }>>
 >;
@@ -91,7 +92,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     [month]
   );
 
-  // Per-day assignments override the implicit full-time behavior
+  // Per-day assignments (override / adjustments)
   const perDays = all<DayRow>(
     `SELECT mdd.person_id, mdd.weekday, mdd.segment,
             g.name AS group_name, r.id AS role_id, r.name AS role_name,
@@ -107,46 +108,69 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
 
   const buckets: Buckets = { regular: {}, commuter: {} };
 
-  // Tracks which (person, role, segment) have explicit per-day rows
-  const hasPerDay = new Set<string>();
-  const perDayKey = (pid:number, rid:number, seg:'AM'|'PM') => `${pid}|${rid}|${seg}`;
+  // Map (person_id|segment) -> Map<weekday, role_id> for quick subtraction
+  const psKey = (pid:number, seg:'AM'|'PM') => `${pid}|${seg}`;
+  const perDayMap = new Map<string, Map<number, number>>();
 
-  // 1) Populate buckets from explicit per-day assignments
+  // 1) Add explicit per-day assignments and build the perDayMap
   for (const row of perDays) {
     const code = GROUP_TO_CODE[row.group_name];
     if (!code) continue;
+
     const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
-    const bucket = buckets[kind][code] || (buckets[kind][code] = {});
-    const person = bucket[row.person] || (bucket[row.person] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>(), roles: new Set<string>() });
-    person.roles.add(row.role_name);
+    const groupBucket = buckets[kind][code] || (buckets[kind][code] = {});
+    const personBucket = groupBucket[row.person] || (groupBucket[row.person] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>(), roles: new Set<string>() });
+    personBucket.roles.add(row.role_name);
 
     const dayLetter = DAY_ORDER[row.weekday - 1];
-    if (!dayLetter) continue;
+    if (dayLetter) {
+      if (row.segment === 'AM') personBucket.AM.add(dayLetter);
+      else personBucket.PM.add(dayLetter);
+    }
 
-    if (row.segment === 'AM') person.AM.add(dayLetter);
-    else person.PM.add(dayLetter);
-
-    hasPerDay.add(perDayKey(row.person_id, row.role_id, row.segment));
+    let dayMap = perDayMap.get(psKey(row.person_id, row.segment));
+    if (!dayMap) {
+      dayMap = new Map<number, number>();
+      perDayMap.set(psKey(row.person_id, row.segment), dayMap);
+    }
+    dayMap.set(row.weekday, row.role_id);
   }
 
-  // 2) For defaults *without* any per-day rows: treat as full-time (Mon–Fri)
+  // 2) Apply defaults, but SUBTRACT days that have per-day rows with a DIFFERENT role
   for (const row of defaults) {
     const code = GROUP_TO_CODE[row.group_name];
     if (!code) continue;
-    const key = perDayKey(row.person_id, row.role_id, row.segment);
-    if (hasPerDay.has(key)) continue; // per-day rows define the truth for this role+segment
+
+    const dayMap = perDayMap.get(psKey(row.person_id, row.segment));
+
+    // Figure out which weekdays to keep for the default role
+    const keepWeekdays: number[] = [];
+    for (let d = 1; d <= 5; d++) {
+      const overriddenRoleId = dayMap?.get(d);
+      if (overriddenRoleId == null || overriddenRoleId === row.role_id) {
+        // No override that day, or override keeps the same role -> keep
+        keepWeekdays.push(d);
+      } else {
+        // Overridden to a different role -> subtract from default
+      }
+    }
+
+    if (keepWeekdays.length === 0) continue; // nothing left of the default after subtraction
 
     const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
-    const bucket = buckets[kind][code] || (buckets[kind][code] = {});
-    const person = bucket[row.person] || (bucket[row.person] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>(), roles: new Set<string>() });
-    person.roles.add(row.role_name);
+    const groupBucket = buckets[kind][code] || (buckets[kind][code] = {});
+    const personBucket = groupBucket[row.person] || (groupBucket[row.person] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>(), roles: new Set<string>() });
+    personBucket.roles.add(row.role_name);
 
-    for (const d of DAY_ORDER) {
-      if (row.segment === 'AM') person.AM.add(d);
-      else person.PM.add(d);
+    for (const d of keepWeekdays) {
+      const dayLetter = DAY_ORDER[d - 1];
+      if (!dayLetter) continue;
+      if (row.segment === 'AM') personBucket.AM.add(dayLetter);
+      else personBucket.PM.add(dayLetter);
     }
   }
 
+  // ---------- Sheet rendering ----------
   const [y, m] = month.split('-').map(n => parseInt(n, 10));
   const monthDate = new Date(y, m - 1, 1);
   const titleText = monthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
@@ -165,11 +189,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   titleCell.font = { bold: true, size: 18, name: 'Calibri' };
   titleCell.alignment = { horizontal: 'center' };
 
-  const paneState = {
-    kitchen1: 2,
-    kitchen2: 2,
-    dining: 2,
-  } as Record<'kitchen1'|'kitchen2'|'dining', number>;
+  const paneState = { kitchen1: 2, kitchen2: 2, dining: 2 } as Record<'kitchen1'|'kitchen2'|'dining', number>;
 
   function setRowBorders(row: any, startCol: number, endCol: number) {
     for (let c = startCol; c <= endCol; c++) {
@@ -213,10 +233,13 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     const names = Object.keys(people).sort((a,b)=>a.localeCompare(b));
     for (const name of names) {
       const info = people[name];
+
+      // Days string is union across AM/PM for this group
       const daySet = new Set<DayLetter>([...info.AM, ...info.PM]);
       const dayList = DAY_ORDER.filter(d=>daySet.has(d));
       const days = dayList.length === DAY_ORDER.length ? 'Full-Time' : dayList.join('/');
 
+      // Shift column: blank if both AM & PM somewhere in the week
       const hasAM = info.AM.size > 0;
       const hasPM = info.PM.size > 0;
 
@@ -229,7 +252,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
       ws.getCell(r, startCol + 1).value = roleText;
 
       if (hasAM && hasPM) {
-        // both shifts in the week -> leave blank per original behavior
+        // both -> blank
       } else if (hasAM) {
         ws.getCell(r, startCol + 2).value = 'AM';
       } else if (hasPM) {
@@ -248,20 +271,17 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     for (const g of KITCHEN_COL1_GROUPS) {
       const code = GROUP_TO_CODE[g];
       const people = buckets[kind][code];
-      if (people && Object.keys(people).length)
-        renderBlock('kitchen1', g, people);
+      if (people && Object.keys(people).length) renderBlock('kitchen1', g, people);
     }
     for (const g of KITCHEN_COL2_GROUPS) {
       const code = GROUP_TO_CODE[g];
       const people = buckets[kind][code];
-      if (people && Object.keys(people).length)
-        renderBlock('kitchen2', g, people);
+      if (people && Object.keys(people).length) renderBlock('kitchen2', g, people);
     }
     for (const g of DINING_GROUPS) {
       const code = GROUP_TO_CODE[g];
       const people = buckets[kind][code];
-      if (people && Object.keys(people).length)
-        renderBlock('dining', g, people);
+      if (people && Object.keys(people).length) renderBlock('dining', g, people);
     }
   }
 
