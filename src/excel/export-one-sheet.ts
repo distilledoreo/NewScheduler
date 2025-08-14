@@ -52,7 +52,6 @@ type DayRow = {
   commuter: number;
 };
 
-// Buckets: regular/commuter -> groupCode -> personName -> { AM days, PM days, roles list (for display) }
 type Buckets = Record<'regular'|'commuter',
   Record<string, Record<string, { AM: Set<DayLetter>; PM: Set<DayLetter>; roles: Set<string> }>>
 >;
@@ -73,9 +72,24 @@ function all<T = any>(sql: string, params: any[] = []): T[] {
   return rows;
 }
 
+/** Normalize any incoming month string to "YYYY-MM". Accepts "YYYY-M", "YYYY-MM", "YYYY-MM-DD". */
+function normalizeMonthKey(value: string): string {
+  const v = (value || '').trim();
+  const m = v.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$/);
+  if (m) {
+    const y = m[1];
+    const mm = String(parseInt(m[2], 10)).padStart(2, '0');
+    return `${y}-${mm}`;
+  }
+  // Last resort: take first 7 chars (covers already-normalized strings)
+  return v.slice(0, 7);
+}
+
 export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   requireDb();
   const ExcelJS = await loadExcelJS();
+
+  const monthKey = normalizeMonthKey(month); // "YYYY-MM"
 
   // Base monthly defaults (role-level assignment exists)
   const defaults = all<DefaultRow>(
@@ -87,9 +101,9 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
        JOIN role r ON r.id = md.role_id
        JOIN grp  g ON g.id = r.group_id
        JOIN person p ON p.id = md.person_id
-      WHERE md.month = ? AND md.segment IN ('AM','PM')
+      WHERE substr(md.month, 1, 7) = ? AND md.segment IN ('AM','PM')
       ORDER BY g.name, md.segment, person`,
-    [month]
+    [monthKey]
   );
 
   // Per-day assignments (override / adjustments)
@@ -102,8 +116,8 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
        JOIN role r ON r.id = mdd.role_id
        JOIN grp  g ON g.id = r.group_id
        JOIN person p ON p.id = mdd.person_id
-      WHERE mdd.month = ? AND mdd.segment IN ('AM','PM')`,
-    [month]
+      WHERE substr(mdd.month, 1, 7) = ? AND mdd.segment IN ('AM','PM')`,
+    [monthKey]
   );
 
   const buckets: Buckets = { regular: {}, commuter: {} };
@@ -171,7 +185,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   }
 
   // ---------- Sheet rendering ----------
-  const [y, m] = month.split('-').map(n => parseInt(n, 10));
+  const [y, m] = monthKey.split('-').map(n => parseInt(n, 10));
   const monthDate = new Date(y, m - 1, 1);
   const titleText = monthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
