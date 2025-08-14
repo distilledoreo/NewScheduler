@@ -110,12 +110,15 @@ export default function DailyRunBoard({
       `SELECT a.id, p.first_name, p.last_name, p.id as person_id FROM assignment a JOIN person p ON p.id=a.person_id WHERE a.date=? AND a.role_id=? AND a.segment=? ORDER BY p.last_name,p.first_name`,
       [ymd(selectedDateObj), role.id, seg]
     );
-    const trainedBefore = new Set(
-      all(
+    const trainedBefore = new Set([
+      ...all(`SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`, [role.id]).map(
+        (r: any) => r.person_id
+      ),
+      ...all(
         `SELECT DISTINCT person_id FROM assignment WHERE role_id=? AND date < ?`,
         [role.id, ymd(selectedDateObj)]
-      ).map((r: any) => r.person_id)
-    );
+      ).map((r: any) => r.person_id),
+    ]);
     const opts = peopleOptionsForSegment(selectedDateObj, seg, role);
 
     const req = getRequiredFor(selectedDateObj, group.id, role.id, seg);
