@@ -1,6 +1,7 @@
 import React from "react";
+import { Button, Tab, TabList, Tooltip, Spinner, Text, makeStyles, tokens } from "@fluentui/react-components";
 
-type Tab = "RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY";
+type TabKey = "RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY";
 
 interface ToolbarProps {
   ready: boolean;
@@ -11,10 +12,46 @@ interface ToolbarProps {
   saveDb: () => void;
   saveDbAs: () => void;
   status: string;
-  activeTab: Tab;
-  setActiveTab: (tab: Tab) => void;
+  activeTab: TabKey;
+  setActiveTab: (tab: TabKey) => void;
   runDiagnostics: () => void;
 }
+
+const useStyles = makeStyles({
+  root: {
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    padding: "12px 16px",
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    backgroundColor: tokens.colorNeutralBackground1,
+  },
+  left: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  },
+  status: {
+    color: tokens.colorNeutralForeground2,
+    minWidth: 0,
+    flex: 1,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  actions: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    marginLeft: "auto",
+  },
+  tabList: {
+    marginLeft: "8px",
+  }
+});
 
 export default function Toolbar({
   ready,
@@ -29,25 +66,40 @@ export default function Toolbar({
   setActiveTab,
   runDiagnostics,
 }: ToolbarProps) {
+  const s = useStyles();
+
   return (
-    <div className="flex flex-wrap items-center gap-2 p-3 border-b bg-white sticky top-0 z-20">
-      <div className="flex flex-wrap items-center gap-2">
-        <button className="px-3 py-2 bg-slate-900 text-white rounded text-sm" onClick={createNewDb} disabled={!ready}>New DB</button>
-        <button className="px-3 py-2 bg-slate-800 text-white rounded text-sm" onClick={openDbFromFile} disabled={!ready}>Open DB</button>
-        <button className="px-3 py-2 bg-emerald-700 text-white rounded text-sm" onClick={saveDb} disabled={!canSave}>Save</button>
-        <button className="px-3 py-2 bg-emerald-800 text-white rounded text-sm" onClick={saveDbAs} disabled={!sqlDb}>Save As</button>
+    <div className={s.root}>
+      <div className={s.left}>
+        <Text weight="semibold">Scheduler</Text>
+        {!sqlDb && <Tooltip content="No database loaded" relationship="label"><Spinner size="tiny" /></Tooltip>}
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button appearance="primary" onClick={createNewDb}>New DB</Button>
+          <Button onClick={openDbFromFile}>Open DB</Button>
+          <Button onClick={saveDb} disabled={!canSave}>Save</Button>
+          <Button onClick={saveDbAs} disabled={!sqlDb}>Save As</Button>
+        </div>
       </div>
-      <div className="mx-2 text-sm text-slate-600 flex-1 min-w-0 truncate">{status}</div>
-      <div className="flex flex-wrap items-center gap-2">
-        <button className={`px-3 py-2 rounded text-sm ${activeTab==='RUN'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('RUN')}>Daily Run</button>
-        <button className={`px-3 py-2 rounded text-sm ${activeTab==='PEOPLE'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('PEOPLE')}>People</button>
-        <button className={`px-3 py-2 rounded text-sm ${activeTab==='NEEDS'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('NEEDS')}>Baseline Needs</button>
-        <button className={`px-3 py-2 rounded text-sm ${activeTab==='EXPORT'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('EXPORT')}>Export Preview</button>
-        <button className={`px-3 py-2 rounded text-sm ${activeTab==='MONTHLY'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('MONTHLY')}>Monthly Defaults</button>
-        <button className={`px-3 py-2 rounded text-sm ${activeTab==='HISTORY'?'bg-blue-600 text-white':'bg-slate-200'}`} onClick={()=>setActiveTab('HISTORY')}>Crew History</button>
-        <button className="px-3 py-2 rounded bg-slate-200 text-sm" onClick={runDiagnostics}>Run Diagnostics</button>
+
+      <div className={s.tabList}>
+        <TabList
+          selectedValue={activeTab}
+          onTabSelect={(_, data) => setActiveTab(data.value as TabKey)}
+        >
+          <Tab value="RUN">Daily Run</Tab>
+          <Tab value="PEOPLE">People</Tab>
+          <Tab value="NEEDS">Baseline Needs</Tab>
+          <Tab value="EXPORT">Export Preview</Tab>
+          <Tab value="MONTHLY">Monthly Defaults</Tab>
+          <Tab value="HISTORY">Crew History</Tab>
+        </TabList>
       </div>
+
+      <div className={s.actions}>
+        <Button onClick={runDiagnostics}>Run Diagnostics</Button>
+      </div>
+
+      <Text size={200} className={s.status}>{status}</Text>
     </div>
   );
 }
-

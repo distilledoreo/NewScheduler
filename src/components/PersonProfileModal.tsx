@@ -1,10 +1,35 @@
 import React from "react";
+import {
+  Dialog,
+  DialogSurface,
+  DialogTitle,
+  DialogBody,
+  DialogActions,
+  Button,
+  makeStyles,
+  tokens,
+} from "@fluentui/react-components";
 
 interface PersonProfileModalProps {
   personId: number;
   onClose: () => void;
   all: (sql: string, params?: any[]) => any[];
 }
+
+const useStyles = makeStyles({
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "12px",
+    marginTop: "8px",
+  },
+  sectionTitle: {
+    color: tokens.colorNeutralForeground2,
+    fontWeight: 600,
+    marginBottom: "4px",
+  },
+  cell: { fontSize: "0.9rem" },
+});
 
 function fmtAvail(v: string) {
   switch (v) {
@@ -14,67 +39,75 @@ function fmtAvail(v: string) {
       return "PM";
     case "B":
       return "Both";
+    case "U":
     default:
-      return "Unavailable";
+      return "Unknown";
   }
 }
 
 export default function PersonProfileModal({ personId, onClose, all }: PersonProfileModalProps) {
-  const person = all(`SELECT * FROM person WHERE id=?`, [personId])[0];
-  if (!person) return null;
-  const assignments = all(
-    `SELECT a.date, a.segment, r.name as role_name FROM assignment a JOIN role r ON r.id=a.role_id WHERE a.person_id=? ORDER BY a.date DESC LIMIT 20`,
+  const s = useStyles();
+
+  const person = all('SELECT * FROM person WHERE id=?', [personId])[0];
+
+  const trainings = all(
+    'SELECT r.name, t.status FROM training t JOIN role r ON r.id=t.role_id WHERE t.person_id=? ORDER BY r.name',
     [personId]
   );
 
-  const availability = [
-    { day: "Mon", value: person.avail_mon },
-    { day: "Tue", value: person.avail_tue },
-    { day: "Wed", value: person.avail_wed },
-    { day: "Thu", value: person.avail_thu },
-    { day: "Fri", value: person.avail_fri },
-  ];
+  const historySql =
+    'SELECT a.date, a.segment, r.name as role_name, g.name as group_name ' +
+    'FROM assignment a ' +
+    'JOIN role r ON r.id=a.role_id ' +
+    'JOIN grp g ON g.id=r.group_id ' +
+    'WHERE a.person_id=? ORDER BY a.date DESC LIMIT 30';
+
+  const history = all(historySql, [personId]);
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-white rounded shadow-lg p-4 w-96 max-h-[80vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-lg font-semibold">
-            {person.first_name} {person.last_name}
+    <Dialog open onOpenChange={(_, d) => { if (!d.open) onClose(); }}>
+      <DialogSurface aria-describedby={undefined}>
+        <DialogTitle>{person.first_name} {person.last_name}</DialogTitle>
+        <DialogBody>
+          <div className={s.sectionTitle}>Info</div>
+          <div className={s.grid}>
+            <div className={s.cell}><b>Email:</b> {person.work_email}</div>
+            <div className={s.cell}><b>Status:</b> {person.active ? "Active" : "Inactive"}</div>
+            <div className={s.cell}><b>Brother/Sister:</b> {person.brother_sister || "-"}</div>
+            <div className={s.cell}><b>Commuter:</b> {person.commuter ? "Yes" : "No"}</div>
           </div>
-          <button className="text-slate-600 hover:text-slate-800" onClick={onClose}>
-            Close
-          </button>
-        </div>
-        <div className="mb-4 text-sm">
-          <div className="font-medium mb-1">Info</div>
-          <div>Email: {person.work_email}</div>
-          <div>Status: {person.active ? "Active" : "Inactive"}</div>
-          <div>Brother/Sister: {person.brother_sister || "-"}</div>
-          <div>Commuter: {person.commuter ? "Yes" : "No"}</div>
-        </div>
-        <div className="mb-4 text-sm">
-          <div className="font-medium mb-1">Availability</div>
-          <ul className="list-disc ml-4">
-            {availability.map((a) => (
-              <li key={a.day}>
-                {a.day}: {fmtAvail(a.value)}
+
+          <div className={s.sectionTitle} style={{ marginTop: 16 }}>Availability</div>
+          <div className={s.grid}>
+            <div className={s.cell}><b>Mon:</b> {fmtAvail(person.avail_mon)}</div>
+            <div className={s.cell}><b>Tue:</b> {fmtAvail(person.avail_tue)}</div>
+            <div className={s.cell}><b>Wed:</b> {fmtAvail(person.avail_wed)}</div>
+            <div className={s.cell}><b>Thu:</b> {fmtAvail(person.avail_thu)}</div>
+            <div className={s.cell}><b>Fri:</b> {fmtAvail(person.avail_fri)}</div>
+          </div>
+
+          <div className={s.sectionTitle} style={{ marginTop: 16 }}>Training</div>
+          <ul style={{ marginTop: 4, paddingLeft: 18 }}>
+            {trainings.map((t: any, idx: number) => (
+              <li key={idx} className={s.cell}>{t.name} — {t.status}</li>
+            ))}
+            {trainings.length === 0 && <div className={s.cell}>No training records.</div>}
+          </ul>
+
+          <div className={s.sectionTitle} style={{ marginTop: 16 }}>Recent Assignments</div>
+          <ul style={{ marginTop: 4, paddingLeft: 18 }}>
+            {history.map((h: any, idx: number) => (
+              <li key={idx} className={s.cell}>
+                {new Date(h.date).toLocaleDateString()} — {h.segment} — {h.group_name} / {h.role_name}
               </li>
             ))}
+            {history.length === 0 && <div className={s.cell}>No recent assignments.</div>}
           </ul>
-        </div>
-        <div className="text-sm">
-          <div className="font-medium mb-1">Assignment History</div>
-          <ul className="list-disc ml-4">
-            {assignments.map((a: any, idx: number) => (
-              <li key={idx}>
-                {a.date} {a.segment} - {a.role_name}
-              </li>
-            ))}
-            {assignments.length === 0 && <li>None</li>}
-          </ul>
-        </div>
-      </div>
-    </div>
+        </DialogBody>
+        <DialogActions>
+          <Button appearance="primary" onClick={onClose}>Close</Button>
+        </DialogActions>
+      </DialogSurface>
+    </Dialog>
   );
 }

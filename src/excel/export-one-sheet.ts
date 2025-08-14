@@ -31,25 +31,38 @@ const DINING_GROUPS = ['Dining Room','Machine Room'] as const;
 const DAY_ORDER = ['M','T','W','TH','F'] as const;
 type DayLetter = typeof DAY_ORDER[number];
 
-type DefaultRow = {
-  person_id: number;
-  segment: 'AM'|'PM';
-  group_name: string;
-  role_id: number;
-  role_name: string;
-  person: string;
-  commuter: number;
+type Seg = 'AM'|'PM';
+
+// ---------- Types ----------
+type WithAvail = {
+  avail_mon: string | null;
+  avail_tue: string | null;
+  avail_wed: string | null;
+  avail_thu: string | null;
+  avail_fri: string | null;
 };
 
-type DayRow = {
+type DefaultRow = WithAvail & {
   person_id: number;
-  weekday: number; // 1..5 => M..F
-  segment: 'AM'|'PM';
+  segment: string | null; // tolerate variants
   group_name: string;
   role_id: number;
   role_name: string;
   person: string;
   commuter: number;
+  month: string;
+};
+
+type DayRow = WithAvail & {
+  person_id: number;
+  weekday: number; // tolerate 0..4 or 1..5; we’ll normalize to DayLetter
+  segment: string | null;
+  group_name: string;
+  role_id: number;
+  role_name: string;
+  person: string;
+  commuter: number;
+  month: string;
 };
 
 // Buckets: regular/commuter -> groupCode -> personName -> { AM days, PM days, roles list (for display) }
@@ -57,6 +70,7 @@ type Buckets = Record<'regular'|'commuter',
   Record<string, Record<string, { AM: Set<DayLetter>; PM: Set<DayLetter>; roles: Set<string> }>>
 >;
 
+// ---------- DB helpers ----------
 function requireDb() {
   const db = (globalThis as any).sqlDb;
   if (!db) throw new Error('No database loaded');
@@ -73,105 +87,193 @@ function all<T = any>(sql: string, params: any[] = []): T[] {
   return rows;
 }
 
+// ---------- Month / segment / weekday normalization ----------
+/** Normalize any incoming month string to "YYYY-MM". Accepts "YYYY-M", "YYYY-MM", "YYYY-MM-DD", "YYYYMM", "YYYYMMDD". */
+function normalizeMonthKey(value: string): string {
+  const v = (value || '').trim();
+  // ISO-ish
+  let m = v.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?/);
+  if (m) {
+    const y = m[1];
+    const mm = String(parseInt(m[2], 10)).padStart(2, '0');
+    return `${y}-${mm}`;
+  }
+  // Compact
+  m = v.match(/^(\d{4})(\d{2})(\d{2})?$/);
+  if (m) return `${m[1]}-${m[2]}`;
+  // Fallback
+  return v.slice(0, 7);
+}
+
+/** Return SQL WHERE clause and params that match many month formats for the given column. */
+function monthWhere(column: string, monthKey: string): { where: string; params: string[] } {
+  const ym = monthKey;                  // "YYYY-MM"
+  const likeYm = `${ym}%`;              // "YYYY-MM%"
+  const ymCompact = ym.replace('-', '');      // "YYYYMM"
+  const ymdCompact = `${ymCompact}01`;        // "YYYYMM01"
+  const ymd = `${ym}-01`;               // "YYYY-MM-01"
+  const where = `(
+    substr(${column}, 1, 7) = ? OR
+    ${column} LIKE ? OR
+    replace(${column}, '-', '') = ? OR
+    replace(substr(${column}, 1, 10), '-', '') = ? OR
+    ${column} = ?
+  )`;
+  const params = [ym, likeYm, ymCompact, ymdCompact, ymd];
+  return { where, params };
+}
+
+function expandSegments(seg: string | null | undefined): Seg[] {
+  const s = (seg || '').toString().trim().toUpperCase();
+  if (s === 'AM') return ['AM'];
+  if (s === 'PM') return ['PM'];
+  // Treat '', null, 'B', 'BOTH', 'ALL', '*' as both shifts
+  return ['AM','PM'];
+}
+
+/** Convert various stored weekday numbers to our DayLetter (Mon–Fri only). */
+function weekdayToLetter(weekday: number): DayLetter | undefined {
+  // 1..5 => Mon..Fri
+  if (weekday >= 1 && weekday <= 5) return DAY_ORDER[weekday - 1];
+  // 0..4 => Mon..Fri (0-based Mon)
+  if (weekday >= 0 && weekday <= 4) return DAY_ORDER[weekday];
+  // Unknown encodings are ignored
+  return undefined;
+}
+
+/** Get availability code for a given day letter. Returns uppercased 'AM' | 'PM' | 'B' | '' */
+function availCodeFor(day: DayLetter, row: WithAvail): string {
+  const raw =
+    day === 'M'  ? row.avail_mon :
+    day === 'T'  ? row.avail_tue :
+    day === 'W'  ? row.avail_wed :
+    day === 'TH' ? row.avail_thu :
+                   row.avail_fri;
+  return (raw || '').toString().trim().toUpperCase();
+}
+
+/** Whether this segment is allowed by availability for the given day. */
+function isAllowedByAvail(day: DayLetter, seg: Seg, row: WithAvail): boolean {
+  const ac = availCodeFor(day, row);
+  if (!ac) return false;
+  if (ac === 'B') return true;
+  return ac === seg;
+}
+
 export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   requireDb();
+
+  // Load ExcelJS ONCE
   const ExcelJS = await loadExcelJS();
 
-  // Base monthly defaults (role-level assignment exists)
+  const monthKey = normalizeMonthKey(month); // "YYYY-MM"
+  const mdMonth = monthWhere('md.month', monthKey);
+  const mddMonth = monthWhere('mdd.month', monthKey);
+
+  // NOTE: Accept all segments in SQL; normalize/expand in code.
   const defaults = all<DefaultRow>(
     `SELECT md.person_id, md.segment,
             g.name AS group_name, r.id AS role_id, r.name AS role_name,
             (p.last_name || ', ' || p.first_name) AS person,
-            p.commuter AS commuter
+            p.commuter AS commuter,
+            p.avail_mon, p.avail_tue, p.avail_wed, p.avail_thu, p.avail_fri,
+            md.month as month
        FROM monthly_default md
        JOIN role r ON r.id = md.role_id
        JOIN grp  g ON g.id = r.group_id
        JOIN person p ON p.id = md.person_id
-      WHERE md.month = ? AND md.segment IN ('AM','PM')
-      ORDER BY g.name, md.segment, person`,
-    [month]
+      WHERE ${mdMonth.where}
+      ORDER BY g.name, person`,
+    mdMonth.params
   );
 
-  // Per-day assignments (override / adjustments)
   const perDays = all<DayRow>(
     `SELECT mdd.person_id, mdd.weekday, mdd.segment,
             g.name AS group_name, r.id AS role_id, r.name AS role_name,
             (p.last_name || ', ' || p.first_name) AS person,
-            p.commuter AS commuter
+            p.commuter AS commuter,
+            p.avail_mon, p.avail_tue, p.avail_wed, p.avail_thu, p.avail_fri,
+            mdd.month as month
        FROM monthly_default_day mdd
        JOIN role r ON r.id = mdd.role_id
        JOIN grp  g ON g.id = r.group_id
        JOIN person p ON p.id = mdd.person_id
-      WHERE mdd.month = ? AND mdd.segment IN ('AM','PM')`,
-    [month]
+      WHERE ${mddMonth.where}`,
+    mddMonth.params
   );
 
   const buckets: Buckets = { regular: {}, commuter: {} };
 
-  // Map (person_id|segment) -> Map<weekday, role_id> for quick subtraction
-  const psKey = (pid:number, seg:'AM'|'PM') => `${pid}|${seg}`;
-  const perDayMap = new Map<string, Map<number, number>>();
+  // Map (person_id|segment) -> Map<DayLetter, role_id> for precise subtraction
+  const psKey = (pid:number, seg:Seg) => `${pid}|${seg}`;
+  const perDayMap = new Map<string, Map<DayLetter, number>>();
 
-  // 1) Add explicit per-day assignments and build the perDayMap
+  // 1) Add explicit per-day assignments (respect AVAILABILITY) and build the perDayMap (by DAY LETTER)
   for (const row of perDays) {
-    const code = GROUP_TO_CODE[row.group_name];
-    if (!code) continue;
+    const dayLetter = weekdayToLetter(row.weekday);
+    if (!dayLetter) continue;
 
-    const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
-    const groupBucket = buckets[kind][code] || (buckets[kind][code] = {});
-    const personBucket = groupBucket[row.person] || (groupBucket[row.person] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>(), roles: new Set<string>() });
-    personBucket.roles.add(row.role_name);
+    const segs = expandSegments(row.segment);
+    for (const s of segs) {
+      if (!isAllowedByAvail(dayLetter, s, row)) continue; // skip days not allowed by availability
 
-    const dayLetter = DAY_ORDER[row.weekday - 1];
-    if (dayLetter) {
-      if (row.segment === 'AM') personBucket.AM.add(dayLetter);
+      const code = GROUP_TO_CODE[row.group_name];
+      if (!code) continue;
+
+      const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
+      const groupBucket = buckets[kind][code] || (buckets[kind][code] = {});
+      const personBucket = groupBucket[row.person] || (groupBucket[row.person] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>(), roles: new Set<string>() });
+      personBucket.roles.add(row.role_name);
+
+      if (s === 'AM') personBucket.AM.add(dayLetter);
       else personBucket.PM.add(dayLetter);
-    }
 
-    let dayMap = perDayMap.get(psKey(row.person_id, row.segment));
-    if (!dayMap) {
-      dayMap = new Map<number, number>();
-      perDayMap.set(psKey(row.person_id, row.segment), dayMap);
+      let dayMap = perDayMap.get(psKey(row.person_id, s));
+      if (!dayMap) {
+        dayMap = new Map<DayLetter, number>();
+        perDayMap.set(psKey(row.person_id, s), dayMap);
+      }
+      dayMap.set(dayLetter, row.role_id);
     }
-    dayMap.set(row.weekday, row.role_id);
   }
 
-  // 2) Apply defaults, but SUBTRACT days that have per-day rows with a DIFFERENT role
+  // 2) Apply defaults, but:
+  //    - Respect AVAILABILITY
+  //    - SUBTRACT days that have per-day rows with a DIFFERENT role (by DAY LETTER)
   for (const row of defaults) {
     const code = GROUP_TO_CODE[row.group_name];
     if (!code) continue;
 
-    const dayMap = perDayMap.get(psKey(row.person_id, row.segment));
+    const segs = expandSegments(row.segment);
+    for (const s of segs) {
+      const dayMap = perDayMap.get(psKey(row.person_id, s));
 
-    // Figure out which weekdays to keep for the default role
-    const keepWeekdays: number[] = [];
-    for (let d = 1; d <= 5; d++) {
-      const overriddenRoleId = dayMap?.get(d);
-      if (overriddenRoleId == null || overriddenRoleId === row.role_id) {
-        // No override that day, or override keeps the same role -> keep
-        keepWeekdays.push(d);
-      } else {
-        // Overridden to a different role -> subtract from default
+      const keepLetters: DayLetter[] = [];
+      for (const d of DAY_ORDER) {
+        if (!isAllowedByAvail(d, s, row)) continue; // default not effective when unavailable
+
+        const overriddenRoleId = dayMap?.get(d);
+        if (overriddenRoleId == null || overriddenRoleId === row.role_id) {
+          keepLetters.push(d);
+        }
       }
-    }
 
-    if (keepWeekdays.length === 0) continue; // nothing left of the default after subtraction
+      if (keepLetters.length === 0) continue;
 
-    const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
-    const groupBucket = buckets[kind][code] || (buckets[kind][code] = {});
-    const personBucket = groupBucket[row.person] || (groupBucket[row.person] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>(), roles: new Set<string>() });
-    personBucket.roles.add(row.role_name);
+      const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
+      const groupBucket = buckets[kind][code] || (buckets[kind][code] = {});
+      const personBucket = groupBucket[row.person] || (groupBucket[row.person] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>(), roles: new Set<string>() });
+      personBucket.roles.add(row.role_name);
 
-    for (const d of keepWeekdays) {
-      const dayLetter = DAY_ORDER[d - 1];
-      if (!dayLetter) continue;
-      if (row.segment === 'AM') personBucket.AM.add(dayLetter);
-      else personBucket.PM.add(dayLetter);
+      for (const d of keepLetters) {
+        if (s === 'AM') personBucket.AM.add(d);
+        else personBucket.PM.add(d);
+      }
     }
   }
 
   // ---------- Sheet rendering ----------
-  const [y, m] = month.split('-').map(n => parseInt(n, 10));
+  const [y, m] = monthKey.split('-').map(n => parseInt(n, 10));
   const monthDate = new Date(y, m - 1, 1);
   const titleText = monthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
