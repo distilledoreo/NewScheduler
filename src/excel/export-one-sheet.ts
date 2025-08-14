@@ -31,6 +31,13 @@ const DINING_GROUPS = ['Dining Room','Machine Room'] as const;
 const DAY_ORDER = ['M','T','W','TH','F'] as const;
 type DayLetter = typeof DAY_ORDER[number];
 
+function normalizeSegment(seg: string): 'AM' | 'PM' {
+  if (seg === 'Early' || seg === 'AM') return 'AM';
+  if (seg === 'Lunch' || seg === 'PM') return 'PM';
+  return seg === 'AM' ? 'AM' : 'PM';
+}
+
+
 type DefaultRow = {
   person_id: number;
   segment: 'AM'|'PM';
@@ -87,7 +94,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
        JOIN role r ON r.id = md.role_id
        JOIN grp  g ON g.id = r.group_id
        JOIN person p ON p.id = md.person_id
-      WHERE md.month = ? AND md.segment IN ('AM','PM')
+      WHERE md.month = ? AND md.segment IN ('Early','AM','Lunch','PM')
       ORDER BY g.name, md.segment, person`,
     [month]
   );
@@ -102,7 +109,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
        JOIN role r ON r.id = mdd.role_id
        JOIN grp  g ON g.id = r.group_id
        JOIN person p ON p.id = mdd.person_id
-      WHERE mdd.month = ? AND mdd.segment IN ('AM','PM')`,
+      WHERE mdd.month = ? AND mdd.segment IN ('Early','AM','Lunch','PM')`,
     [month]
   );
 
@@ -124,14 +131,14 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
 
     const dayLetter = DAY_ORDER[row.weekday - 1];
     if (dayLetter) {
-      if (row.segment === 'AM') personBucket.AM.add(dayLetter);
+      if (normalizeSegment(row.segment) === 'AM') personBucket.AM.add(dayLetter);
       else personBucket.PM.add(dayLetter);
     }
 
-    let dayMap = perDayMap.get(psKey(row.person_id, row.segment));
+    let dayMap = perDayMap.get(psKey(row.person_id, normalizeSegment(row.segment)));
     if (!dayMap) {
       dayMap = new Map<number, number>();
-      perDayMap.set(psKey(row.person_id, row.segment), dayMap);
+      perDayMap.set(psKey(row.person_id, normalizeSegment(row.segment)), dayMap);
     }
     dayMap.set(row.weekday, row.role_id);
   }
@@ -141,7 +148,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     const code = GROUP_TO_CODE[row.group_name];
     if (!code) continue;
 
-    const dayMap = perDayMap.get(psKey(row.person_id, row.segment));
+    const dayMap = perDayMap.get(psKey(row.person_id, normalizeSegment(row.segment)));
 
     // Figure out which weekdays to keep for the default role
     const keepWeekdays: number[] = [];
@@ -165,7 +172,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     for (const d of keepWeekdays) {
       const dayLetter = DAY_ORDER[d - 1];
       if (!dayLetter) continue;
-      if (row.segment === 'AM') personBucket.AM.add(dayLetter);
+      if (normalizeSegment(row.segment) === 'AM') personBucket.AM.add(dayLetter);
       else personBucket.PM.add(dayLetter);
     }
   }
