@@ -31,17 +31,25 @@ const DINING_GROUPS = ['Dining Room','Machine Room'] as const;
 const DAY_ORDER = ['M','T','W','TH','F'] as const;
 type DayLetter = typeof DAY_ORDER[number];
 
-type Row = {
-  segment:'AM'|'PM';
-  group_name:string;
-  person:string;
-  role_name:string;
-  commuter:number;
-  avail_mon:string;
-  avail_tue:string;
-  avail_wed:string;
-  avail_thu:string;
-  avail_fri:string;
+type DefaultRow = {
+  person_id: number;
+  segment: 'AM'|'PM';
+  group_name: string;
+  role_id: number;
+  role_name: string;
+  person: string;
+  commuter: number;
+};
+
+type DayRow = {
+  person_id: number;
+  weekday: number; // 1..5 => M..F
+  segment: 'AM'|'PM';
+  group_name: string;
+  role_id: number;
+  role_name: string;
+  person: string;
+  commuter: number;
 };
 
 type Buckets = Record<'regular'|'commuter',
@@ -67,40 +75,75 @@ function all<T = any>(sql: string, params: any[] = []): T[] {
 export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   requireDb();
   const ExcelJS = await loadExcelJS();
-  const rows = all<Row>(
-    `SELECT md.segment, g.name AS group_name, r.name AS role_name,
+
+  // Base monthly defaults (role-level assignment exists)
+  const defaults = all<DefaultRow>(
+    `SELECT md.person_id, md.segment,
+            g.name AS group_name, r.id AS role_id, r.name AS role_name,
             (p.last_name || ', ' || p.first_name) AS person,
-            p.commuter AS commuter,
-            p.avail_mon, p.avail_tue, p.avail_wed, p.avail_thu, p.avail_fri
-     FROM monthly_default md
-     JOIN role r ON r.id = md.role_id
-     JOIN grp g  ON g.id = r.group_id
-     JOIN person p ON p.id = md.person_id
-     WHERE md.month = ? AND md.segment IN ('AM','PM')
-     ORDER BY g.name, md.segment, person`,
+            p.commuter AS commuter
+       FROM monthly_default md
+       JOIN role r ON r.id = md.role_id
+       JOIN grp  g ON g.id = r.group_id
+       JOIN person p ON p.id = md.person_id
+      WHERE md.month = ? AND md.segment IN ('AM','PM')
+      ORDER BY g.name, md.segment, person`,
+    [month]
+  );
+
+  // Per-day assignments override the implicit full-time behavior
+  const perDays = all<DayRow>(
+    `SELECT mdd.person_id, mdd.weekday, mdd.segment,
+            g.name AS group_name, r.id AS role_id, r.name AS role_name,
+            (p.last_name || ', ' || p.first_name) AS person,
+            p.commuter AS commuter
+       FROM monthly_default_day mdd
+       JOIN role r ON r.id = mdd.role_id
+       JOIN grp  g ON g.id = r.group_id
+       JOIN person p ON p.id = mdd.person_id
+      WHERE mdd.month = ? AND mdd.segment IN ('AM','PM')`,
     [month]
   );
 
   const buckets: Buckets = { regular: {}, commuter: {} };
 
-  for (const row of rows) {
+  // Tracks which (person, role, segment) have explicit per-day rows
+  const hasPerDay = new Set<string>();
+  const perDayKey = (pid:number, rid:number, seg:'AM'|'PM') => `${pid}|${rid}|${seg}`;
+
+  // 1) Populate buckets from explicit per-day assignments
+  for (const row of perDays) {
     const code = GROUP_TO_CODE[row.group_name];
     if (!code) continue;
     const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
     const bucket = buckets[kind][code] || (buckets[kind][code] = {});
     const person = bucket[row.person] || (bucket[row.person] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>(), roles: new Set<string>() });
     person.roles.add(row.role_name);
-    const availMap: Record<DayLetter,string> = {
-      M: row.avail_mon,
-      T: row.avail_tue,
-      W: row.avail_wed,
-      TH: row.avail_thu,
-      F: row.avail_fri,
-    };
-    for (const day of DAY_ORDER) {
-      const avail = availMap[day];
-      if (row.segment === 'AM' && (avail === 'AM' || avail === 'B')) person.AM.add(day);
-      else if (row.segment === 'PM' && (avail === 'PM' || avail === 'B')) person.PM.add(day);
+
+    const dayLetter = DAY_ORDER[row.weekday - 1];
+    if (!dayLetter) continue;
+
+    if (row.segment === 'AM') person.AM.add(dayLetter);
+    else person.PM.add(dayLetter);
+
+    hasPerDay.add(perDayKey(row.person_id, row.role_id, row.segment));
+  }
+
+  // 2) For defaults *without* any per-day rows: treat as full-time (Mon–Fri)
+  for (const row of defaults) {
+    const code = GROUP_TO_CODE[row.group_name];
+    if (!code) continue;
+    const key = perDayKey(row.person_id, row.role_id, row.segment);
+    if (hasPerDay.has(key)) continue; // per-day rows define the truth for this role+segment
+
+    const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
+    const bucket = buckets[kind][code] || (buckets[kind][code] = {});
+    const person = bucket[row.person] || (bucket[row.person] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>(), roles: new Set<string>() });
+    person.roles.add(row.role_name);
+
+    for (const d of DAY_ORDER) {
+      if (row.segment === 'AM') person.AM.add(d);
+      else person.PM.add(d);
     }
   }
 
@@ -146,6 +189,8 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     const startCol = pane==='kitchen1'?1:pane==='kitchen2'?6:11;
     if (!people || !Object.keys(people).length) return;
     const rowIndex = paneState[pane];
+
+    // Group header
     ws.mergeCells(rowIndex, startCol, rowIndex, startCol+3);
     const hcell = ws.getCell(rowIndex,startCol);
     hcell.value = group;
@@ -171,21 +216,26 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
       const daySet = new Set<DayLetter>([...info.AM, ...info.PM]);
       const dayList = DAY_ORDER.filter(d=>daySet.has(d));
       const days = dayList.length === DAY_ORDER.length ? 'Full-Time' : dayList.join('/');
+
       const hasAM = info.AM.size > 0;
       const hasPM = info.PM.size > 0;
+
       ws.getCell(r, startCol).value = name;
+
       const roleNames = Array.from(info.roles)
         .map(simplifyRole)
         .filter((v): v is string => Boolean(v));
       const roleText = Array.from(new Set(roleNames)).sort().join('/');
       ws.getCell(r, startCol + 1).value = roleText;
+
       if (hasAM && hasPM) {
-        // leave shift column blank
+        // both shifts in the week -> leave blank per original behavior
       } else if (hasAM) {
         ws.getCell(r, startCol + 2).value = 'AM';
       } else if (hasPM) {
         ws.getCell(r, startCol + 2).value = 'PM';
       }
+
       ws.getCell(r, startCol + 3).value = days;
       ws.getRow(r).font = { size:16 };
       setRowBorders(ws.getRow(r), startCol, startCol + 3);
@@ -215,14 +265,12 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     }
   }
 
+  // Regulars first
   renderSection('regular');
 
-  function hasAny(kind:'regular'|'commuter'): boolean {
-    for (const code of Object.keys(buckets[kind])) {
-      if (Object.keys(buckets[kind][code]).length) return true;
-    }
-    return false;
-  }
+  // Insert COMMUTERS divider if needed, then render commuters
+  const hasAny = (kind:'regular'|'commuter') =>
+    Object.values(buckets[kind]).some(groupMap => groupMap && Object.keys(groupMap).length);
 
   if (hasAny('commuter')) {
     const afterRegular = Math.max(paneState.kitchen1, paneState.kitchen2, paneState.dining);
