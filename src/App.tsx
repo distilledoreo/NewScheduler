@@ -109,9 +109,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY">("RUN");
   const [activeRunSegment, setActiveRunSegment] = useState<Exclude<Segment, "Early">>("AM");
 
-  // Diagnostics
-  const [diag, setDiag] = useState<{passed:number;failed:number;details:string[]}|null>(null);
-
   // People cache for quick UI (id -> record)
   const [people, setPeople] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
@@ -920,42 +917,6 @@ async function exportShifts() {
       notes,
       shared,
     };
-  }
-
-  // === Diagnostics (Self-tests) ===
-  function runDiagnostics(){
-    const details: string[] = [];
-    let passed = 0, failed = 0;
-    function assert(cond:boolean, msg:string){ if(cond){ passed++; details.push(`✅ ${msg}`);} else { failed++; details.push(`❌ ${msg}`);} }
-
-    // Test 1: base times (no lunch, no early)
-    const d1 = new Date(2025,0,6); // Mon
-    const t1 = baseSegmentTimes(d1,false,false);
-    assert(t1.AM.start.getHours()===8 && t1.AM.end.getHours()===12, "AM 08:00–12:00 without Lunch");
-    assert(t1.PM.start.getHours()===13 && t1.PM.end.getHours()===17, "PM 13:00–17:00 without Lunch");
-
-    // Test 2: with Lunch
-    const t2 = baseSegmentTimes(d1,true,false);
-    assert(t2.AM.end.getHours()===11 && t2.Lunch.end.getHours()===13, "Lunch day AM=11:00 end, Lunch ends 13:00");
-    assert(t2.PM.start.getHours()===14 && t2.PM.end.getHours()===17, "Lunch day PM 14:00–17:00");
-
-    // Test 3: Lunch + Early shortens PM to 16:00
-    const t3 = baseSegmentTimes(d1,true,true);
-    assert(t3.PM.end.getHours()===16, "Early+Lunch → PM ends 16:00");
-
-    // Test 4: subtractIntervals simple split
-    const s = new Date(2025,0,6,8,0); const e = new Date(2025,0,6,12,0);
-    const off1s = new Date(2025,0,6,9,30); const off1e = new Date(2025,0,6,10,30);
-    const split = subtractIntervals(s,e,[{start:off1s,end:off1e}]);
-    assert(split.length===2, "Subtract creates two segments when TO splits the window");
-    assert(split[0].end.getHours()===9 && split[0].end.getMinutes()===30, "First segment ends at 09:30");
-    assert(split[1].start.getHours()===10 && split[1].start.getMinutes()===30, "Second segment starts at 10:30");
-
-    // Test 5: Early times
-    const et = earlyTimes(d1);
-    assert(et.start.getHours()===6 && et.start.getMinutes()===20 && et.end.getHours()===7 && et.end.getMinutes()===20, "Early 06:20–07:20");
-
-    setDiag({passed,failed,details});
   }
 
   // UI helpers
@@ -1824,7 +1785,6 @@ function PeopleEditor(){
         status={status}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        runDiagnostics={runDiagnostics}
         canSave={canSave}
       />
 
@@ -1860,7 +1820,6 @@ function PeopleEditor(){
                 parseYMD={parseYMD}
                 ymd={ymd}
                 setShowNeedsEditor={setShowNeedsEditor}
-                diag={diag}
                 canEdit={canEdit}
                 peopleOptionsForSegment={peopleOptionsForSegment}
                 getRequiredFor={getRequiredFor}

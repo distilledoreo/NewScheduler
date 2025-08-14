@@ -22,7 +22,6 @@ interface DailyRunBoardProps {
   parseYMD: (s: string) => Date;
   ymd: (d: Date) => string;
   setShowNeedsEditor: (v: boolean) => void;
-  diag: { passed: number; failed: number; details: string[] } | null;
   canEdit: boolean;
   peopleOptionsForSegment: (
     date: Date,
@@ -59,7 +58,6 @@ export default function DailyRunBoard({
   parseYMD,
   ymd,
   setShowNeedsEditor,
-  diag,
   canEdit,
   peopleOptionsForSegment,
   getRequiredFor,
@@ -331,18 +329,6 @@ export default function DailyRunBoard({
           );
         })}
       </Grid>
-
-      {diag && (
-        <div className="mt-6 border rounded bg-white p-3">
-          <div className="font-semibold mb-2">Diagnostics</div>
-          <div className="text-sm mb-2">Passed: {diag.passed} | Failed: {diag.failed}</div>
-          <ul className="text-sm list-disc ml-5 space-y-1">
-            {diag.details.map((d, i) => (
-              <li key={i}>{d}</li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {moveContext && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
