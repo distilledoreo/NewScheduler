@@ -128,6 +128,7 @@ export default function App() {
   });
   const [monthlyDefaults, setMonthlyDefaults] = useState<any[]>([]);
   const [monthlyEditing, setMonthlyEditing] = useState(false);
+  const [monthlyOverrides, setMonthlyOverrides] = useState<any[]>([]);
 
   // UI: simple dialogs
   const [showNeedsEditor, setShowNeedsEditor] = useState(false);
@@ -250,6 +251,18 @@ export default function App() {
       FOREIGN KEY (role_id) REFERENCES role(id)
     );`);
 
+    db.run(`CREATE TABLE IF NOT EXISTS monthly_default_day (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL,
+      person_id INTEGER NOT NULL,
+      weekday INTEGER NOT NULL,
+      segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
+      role_id INTEGER NOT NULL,
+      UNIQUE(month, person_id, weekday, segment),
+      FOREIGN KEY (person_id) REFERENCES person(id),
+      FOREIGN KEY (role_id) REFERENCES role(id)
+    );`);
+
     db.run(`CREATE TABLE IF NOT EXISTS needs_baseline (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       group_id INTEGER NOT NULL,
@@ -325,6 +338,18 @@ export default function App() {
         segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
         role_id INTEGER NOT NULL,
         UNIQUE(month, person_id, segment),
+        FOREIGN KEY (person_id) REFERENCES person(id),
+        FOREIGN KEY (role_id) REFERENCES role(id)
+      );`);
+
+      db.run(`CREATE TABLE IF NOT EXISTS monthly_default_day (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        month TEXT NOT NULL,
+        person_id INTEGER NOT NULL,
+        weekday INTEGER NOT NULL,
+        segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
+        role_id INTEGER NOT NULL,
+        UNIQUE(month, person_id, weekday, segment),
         FOREIGN KEY (person_id) REFERENCES person(id),
         FOREIGN KEY (role_id) REFERENCES role(id)
       );`);
@@ -547,6 +572,8 @@ export default function App() {
     if (!sqlDb) return;
     const rows = all(`SELECT * FROM monthly_default WHERE month=?`, [month]);
     setMonthlyDefaults(rows);
+    const ov = all(`SELECT * FROM monthly_default_day WHERE month=?`, [month]);
+    setMonthlyOverrides(ov);
   }
 
   function setMonthlyDefault(personId: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
@@ -558,6 +585,19 @@ export default function App() {
     } else {
       run(`DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=?`,
           [selectedMonth, personId, segment]);
+    }
+    loadMonthlyDefaults(selectedMonth);
+  }
+
+  function setWeeklyOverride(personId: number, weekday: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
+    if (!sqlDb) return;
+    if (roleId) {
+      run(`INSERT INTO monthly_default_day (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)
+           ON CONFLICT(month, person_id, weekday, segment) DO UPDATE SET role_id=excluded.role_id`,
+          [selectedMonth, personId, weekday, segment, roleId]);
+    } else {
+      run(`DELETE FROM monthly_default_day WHERE month=? AND person_id=? AND weekday=? AND segment=?`,
+          [selectedMonth, personId, weekday, segment]);
     }
     loadMonthlyDefaults(selectedMonth);
   }
@@ -584,6 +624,14 @@ export default function App() {
         [toMonth, row.person_id, row.segment, row.role_id]
       );
     }
+    const orows = all(`SELECT person_id, weekday, segment, role_id FROM monthly_default_day WHERE month=?`, [fromMonth]);
+    for (const row of orows) {
+      run(
+        `INSERT INTO monthly_default_day (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)
+         ON CONFLICT(month, person_id, weekday, segment) DO UPDATE SET role_id=excluded.role_id`,
+        [toMonth, row.person_id, row.weekday, row.segment, row.role_id]
+      );
+    }
     loadMonthlyDefaults(toMonth);
     setStatus(`Copied monthly defaults from ${fromMonth}.`);
   }
@@ -592,23 +640,35 @@ export default function App() {
     if (!sqlDb) return;
     const [y,m] = month.split('-').map(n=>parseInt(n,10));
     const days = new Date(y, m, 0).getDate();
+    const defaultMap = new Map<string, number>();
     for (const def of monthlyDefaults) {
-      const person = people.find(p=>p.id===def.person_id);
-      if (!person) continue;
+      defaultMap.set(`${def.person_id}|${def.segment}`, def.role_id);
+    }
+    const overrideMap = new Map<string, number>();
+    for (const ov of monthlyOverrides) {
+      overrideMap.set(`${ov.person_id}|${ov.weekday}|${ov.segment}`, ov.role_id);
+    }
+    for (const person of people) {
       for (let day=1; day<=days; day++) {
         const d = new Date(y, m-1, day);
-        const wd = weekdayName(d);
-        if (wd === 'Weekend') continue;
-        const availField = wd === 'Monday'? 'avail_mon' : wd === 'Tuesday'? 'avail_tue' : wd === 'Wednesday'? 'avail_wed' : wd === 'Thursday'? 'avail_thu' : 'avail_fri';
+        const wdName = weekdayName(d);
+        if (wdName === 'Weekend') continue;
+        const wdNum = d.getDay(); // 1=Mon..5=Fri
+        const availField = wdName === 'Monday'? 'avail_mon' : wdName === 'Tuesday'? 'avail_tue' : wdName === 'Wednesday'? 'avail_wed' : wdName === 'Thursday'? 'avail_thu' : 'avail_fri';
         const avail = person[availField];
-        let ok = false;
-        if (def.segment === 'AM') ok = avail === 'AM' || avail === 'B';
-        else if (def.segment === 'PM') ok = avail === 'PM' || avail === 'B';
-        else if (def.segment === 'Lunch') ok = avail === 'AM' || avail === 'PM' || avail === 'B';
-        if (!ok) continue;
-        if (isSegmentBlockedByTimeOff(person.id, d, def.segment)) continue;
-        run(`INSERT OR REPLACE INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`,
-            [ymd(d), def.person_id, def.role_id, def.segment]);
+        for (const seg of ['AM','Lunch','PM'] as const) {
+          let roleId = overrideMap.get(`${person.id}|${wdNum}|${seg}`);
+          if (roleId === undefined) roleId = defaultMap.get(`${person.id}|${seg}`);
+          if (!roleId) continue;
+          let ok = false;
+          if (seg === 'AM') ok = avail === 'AM' || avail === 'B';
+          else if (seg === 'PM') ok = avail === 'PM' || avail === 'B';
+          else if (seg === 'Lunch') ok = avail === 'AM' || avail === 'PM' || avail === 'B';
+          if (!ok) continue;
+          if (isSegmentBlockedByTimeOff(person.id, d, seg)) continue;
+          run(`INSERT OR REPLACE INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`,
+              [ymd(d), person.id, roleId, seg]);
+        }
       }
     }
     refreshCaches();
@@ -1002,6 +1062,7 @@ async function exportShifts() {
     >('name');
     const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc');
     const [filterText, setFilterText] = useState('');
+    const [weekdayPerson, setWeekdayPerson] = useState<number|null>(null);
 
     const viewPeople = useMemo(()=>{
       const low = filterText.toLowerCase();
@@ -1069,6 +1130,54 @@ async function exportShifts() {
       return sorted;
     }, [people, monthlyDefaults, roles, filterText, sortKey, sortDir]);
 
+    function WeeklyOverrideModal({ personId, onClose }: { personId:number; onClose:()=>void }) {
+      const person = people.find(p=>p.id===personId);
+      if (!person) return null;
+      const weekdays = [1,2,3,4,5];
+      const segments = ['AM','Lunch','PM'] as const;
+      return (
+        <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center" onClick={onClose}>
+          <div className="bg-white rounded shadow-lg p-4" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-semibold">Weekly Overrides - {person.first_name} {person.last_name}</div>
+              <button className="text-slate-600 hover:text-slate-800" onClick={onClose}>Close</button>
+            </div>
+            <table className="text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th className="p-1"></th>
+                  {weekdays.map(w=> (
+                    <th key={w} className="p-1">{WEEKDAYS[w-1].slice(0,3)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {segments.map(seg=> (
+                  <tr key={seg}>
+                    <td className="p-1 font-medium">{seg}</td>
+                    {weekdays.map(w => {
+                      const ov = monthlyOverrides.find(o=>o.person_id===personId && o.weekday===w && o.segment===seg);
+                      return (
+                        <td key={w} className="p-1">
+                          <select className="border rounded px-2 py-1" value={ov?.role_id || ''} onChange={(e)=>{
+                            const rid = Number(e.target.value);
+                            setWeeklyOverride(personId, w, seg, rid||null);
+                          }}>
+                            <option value="">(default)</option>
+                            {roleListForSegment(seg).map((r:any)=>(<option key={r.id} value={r.id}>{r.name}</option>))}
+                          </select>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="p-4">
         <div className="flex items-center gap-2 mb-4">
@@ -1120,7 +1229,14 @@ async function exportShifts() {
             <tbody>
               {viewPeople.map((p:any) => (
                 <tr key={p.id} className="odd:bg-white even:bg-slate-50">
-                  <td className="p-2"><PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName></td>
+                  <td className="p-2">
+                    <PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName>
+                    {monthlyEditing && (
+                      <button className="ml-2 text-xs text-slate-600 underline" onClick={()=>setWeekdayPerson(p.id)}>
+                        Days{monthlyOverrides.some(o=>o.person_id===p.id)?'*':''}
+                      </button>
+                    )}
+                  </td>
                   {(['AM','Lunch','PM'] as const).map(seg => {
                     const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
                     return (
@@ -1140,6 +1256,9 @@ async function exportShifts() {
             </tbody>
           </table>
         </div>
+        {weekdayPerson !== null && (
+          <WeeklyOverrideModal personId={weekdayPerson} onClose={()=>setWeekdayPerson(null)} />
+        )}
       </div>
     );
   }

@@ -96,6 +96,20 @@ const migrations: Record<number, Migration> = {
       FOREIGN KEY (person_id) REFERENCES person(id)
     );`);
   }
+,
+  2: (db) => {
+    db.run(`CREATE TABLE IF NOT EXISTS monthly_default_day (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL,
+      person_id INTEGER NOT NULL,
+      weekday INTEGER NOT NULL,
+      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      role_id INTEGER NOT NULL,
+      UNIQUE(month, person_id, weekday, segment),
+      FOREIGN KEY (person_id) REFERENCES person(id),
+      FOREIGN KEY (role_id) REFERENCES role(id)
+    );`);
+  }
 };
 
 export function addMigration(version: number, fn: Migration) {

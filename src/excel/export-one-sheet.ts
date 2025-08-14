@@ -31,19 +31,28 @@ const DINING_GROUPS = ['Dining Room','Machine Room'] as const;
 const DAY_ORDER = ['M','T','W','TH','F'] as const;
 type DayLetter = typeof DAY_ORDER[number];
 
-type Row = {
-  segment:'AM'|'PM';
-  group_name:string;
-  person:string;
-  role_name:string;
-  commuter:number;
-  avail_mon:string;
-  avail_tue:string;
-  avail_wed:string;
-  avail_thu:string;
-  avail_fri:string;
+type DefaultRow = {
+  person_id: number;
+  segment: 'AM'|'PM';
+  group_name: string;
+  role_id: number;
+  role_name: string;
+  person: string;
+  commuter: number;
 };
 
+type DayRow = {
+  person_id: number;
+  weekday: number; // 1..5 => M..F
+  segment: 'AM'|'PM';
+  group_name: string;
+  role_id: number;
+  role_name: string;
+  person: string;
+  commuter: number;
+};
+
+// Buckets: regular/commuter -> groupCode -> personName -> { AM days, PM days, roles list (for display) }
 type Buckets = Record<'regular'|'commuter',
   Record<string, Record<string, { AM: Set<DayLetter>; PM: Set<DayLetter>; roles: Set<string> }>>
 >;
@@ -67,43 +76,101 @@ function all<T = any>(sql: string, params: any[] = []): T[] {
 export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   requireDb();
   const ExcelJS = await loadExcelJS();
-  const rows = all<Row>(
-    `SELECT md.segment, g.name AS group_name, r.name AS role_name,
+
+  // Base monthly defaults (role-level assignment exists)
+  const defaults = all<DefaultRow>(
+    `SELECT md.person_id, md.segment,
+            g.name AS group_name, r.id AS role_id, r.name AS role_name,
             (p.last_name || ', ' || p.first_name) AS person,
-            p.commuter AS commuter,
-            p.avail_mon, p.avail_tue, p.avail_wed, p.avail_thu, p.avail_fri
-     FROM monthly_default md
-     JOIN role r ON r.id = md.role_id
-     JOIN grp g  ON g.id = r.group_id
-     JOIN person p ON p.id = md.person_id
-     WHERE md.month = ? AND md.segment IN ('AM','PM')
-     ORDER BY g.name, md.segment, person`,
+            p.commuter AS commuter
+       FROM monthly_default md
+       JOIN role r ON r.id = md.role_id
+       JOIN grp  g ON g.id = r.group_id
+       JOIN person p ON p.id = md.person_id
+      WHERE md.month = ? AND md.segment IN ('AM','PM')
+      ORDER BY g.name, md.segment, person`,
+    [month]
+  );
+
+  // Per-day assignments (override / adjustments)
+  const perDays = all<DayRow>(
+    `SELECT mdd.person_id, mdd.weekday, mdd.segment,
+            g.name AS group_name, r.id AS role_id, r.name AS role_name,
+            (p.last_name || ', ' || p.first_name) AS person,
+            p.commuter AS commuter
+       FROM monthly_default_day mdd
+       JOIN role r ON r.id = mdd.role_id
+       JOIN grp  g ON g.id = r.group_id
+       JOIN person p ON p.id = mdd.person_id
+      WHERE mdd.month = ? AND mdd.segment IN ('AM','PM')`,
     [month]
   );
 
   const buckets: Buckets = { regular: {}, commuter: {} };
 
-  for (const row of rows) {
+  // Map (person_id|segment) -> Map<weekday, role_id> for quick subtraction
+  const psKey = (pid:number, seg:'AM'|'PM') => `${pid}|${seg}`;
+  const perDayMap = new Map<string, Map<number, number>>();
+
+  // 1) Add explicit per-day assignments and build the perDayMap
+  for (const row of perDays) {
     const code = GROUP_TO_CODE[row.group_name];
     if (!code) continue;
+
     const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
-    const bucket = buckets[kind][code] || (buckets[kind][code] = {});
-    const person = bucket[row.person] || (bucket[row.person] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>(), roles: new Set<string>() });
-    person.roles.add(row.role_name);
-    const availMap: Record<DayLetter,string> = {
-      M: row.avail_mon,
-      T: row.avail_tue,
-      W: row.avail_wed,
-      TH: row.avail_thu,
-      F: row.avail_fri,
-    };
-    for (const day of DAY_ORDER) {
-      const avail = availMap[day];
-      if (row.segment === 'AM' && (avail === 'AM' || avail === 'B')) person.AM.add(day);
-      else if (row.segment === 'PM' && (avail === 'PM' || avail === 'B')) person.PM.add(day);
+    const groupBucket = buckets[kind][code] || (buckets[kind][code] = {});
+    const personBucket = groupBucket[row.person] || (groupBucket[row.person] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>(), roles: new Set<string>() });
+    personBucket.roles.add(row.role_name);
+
+    const dayLetter = DAY_ORDER[row.weekday - 1];
+    if (dayLetter) {
+      if (row.segment === 'AM') personBucket.AM.add(dayLetter);
+      else personBucket.PM.add(dayLetter);
+    }
+
+    let dayMap = perDayMap.get(psKey(row.person_id, row.segment));
+    if (!dayMap) {
+      dayMap = new Map<number, number>();
+      perDayMap.set(psKey(row.person_id, row.segment), dayMap);
+    }
+    dayMap.set(row.weekday, row.role_id);
+  }
+
+  // 2) Apply defaults, but SUBTRACT days that have per-day rows with a DIFFERENT role
+  for (const row of defaults) {
+    const code = GROUP_TO_CODE[row.group_name];
+    if (!code) continue;
+
+    const dayMap = perDayMap.get(psKey(row.person_id, row.segment));
+
+    // Figure out which weekdays to keep for the default role
+    const keepWeekdays: number[] = [];
+    for (let d = 1; d <= 5; d++) {
+      const overriddenRoleId = dayMap?.get(d);
+      if (overriddenRoleId == null || overriddenRoleId === row.role_id) {
+        // No override that day, or override keeps the same role -> keep
+        keepWeekdays.push(d);
+      } else {
+        // Overridden to a different role -> subtract from default
+      }
+    }
+
+    if (keepWeekdays.length === 0) continue; // nothing left of the default after subtraction
+
+    const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
+    const groupBucket = buckets[kind][code] || (buckets[kind][code] = {});
+    const personBucket = groupBucket[row.person] || (groupBucket[row.person] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>(), roles: new Set<string>() });
+    personBucket.roles.add(row.role_name);
+
+    for (const d of keepWeekdays) {
+      const dayLetter = DAY_ORDER[d - 1];
+      if (!dayLetter) continue;
+      if (row.segment === 'AM') personBucket.AM.add(dayLetter);
+      else personBucket.PM.add(dayLetter);
     }
   }
 
+  // ---------- Sheet rendering ----------
   const [y, m] = month.split('-').map(n => parseInt(n, 10));
   const monthDate = new Date(y, m - 1, 1);
   const titleText = monthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
@@ -122,11 +189,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   titleCell.font = { bold: true, size: 18, name: 'Calibri' };
   titleCell.alignment = { horizontal: 'center' };
 
-  const paneState = {
-    kitchen1: 2,
-    kitchen2: 2,
-    dining: 2,
-  } as Record<'kitchen1'|'kitchen2'|'dining', number>;
+  const paneState = { kitchen1: 2, kitchen2: 2, dining: 2 } as Record<'kitchen1'|'kitchen2'|'dining', number>;
 
   function setRowBorders(row: any, startCol: number, endCol: number) {
     for (let c = startCol; c <= endCol; c++) {
@@ -146,6 +209,8 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     const startCol = pane==='kitchen1'?1:pane==='kitchen2'?6:11;
     if (!people || !Object.keys(people).length) return;
     const rowIndex = paneState[pane];
+
+    // Group header
     ws.mergeCells(rowIndex, startCol, rowIndex, startCol+3);
     const hcell = ws.getCell(rowIndex,startCol);
     hcell.value = group;
@@ -168,24 +233,32 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     const names = Object.keys(people).sort((a,b)=>a.localeCompare(b));
     for (const name of names) {
       const info = people[name];
+
+      // Days string is union across AM/PM for this group
       const daySet = new Set<DayLetter>([...info.AM, ...info.PM]);
       const dayList = DAY_ORDER.filter(d=>daySet.has(d));
       const days = dayList.length === DAY_ORDER.length ? 'Full-Time' : dayList.join('/');
+
+      // Shift column: blank if both AM & PM somewhere in the week
       const hasAM = info.AM.size > 0;
       const hasPM = info.PM.size > 0;
+
       ws.getCell(r, startCol).value = name;
+
       const roleNames = Array.from(info.roles)
         .map(simplifyRole)
         .filter((v): v is string => Boolean(v));
       const roleText = Array.from(new Set(roleNames)).sort().join('/');
       ws.getCell(r, startCol + 1).value = roleText;
+
       if (hasAM && hasPM) {
-        // leave shift column blank
+        // both -> blank
       } else if (hasAM) {
         ws.getCell(r, startCol + 2).value = 'AM';
       } else if (hasPM) {
         ws.getCell(r, startCol + 2).value = 'PM';
       }
+
       ws.getCell(r, startCol + 3).value = days;
       ws.getRow(r).font = { size:16 };
       setRowBorders(ws.getRow(r), startCol, startCol + 3);
@@ -198,31 +271,26 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     for (const g of KITCHEN_COL1_GROUPS) {
       const code = GROUP_TO_CODE[g];
       const people = buckets[kind][code];
-      if (people && Object.keys(people).length)
-        renderBlock('kitchen1', g, people);
+      if (people && Object.keys(people).length) renderBlock('kitchen1', g, people);
     }
     for (const g of KITCHEN_COL2_GROUPS) {
       const code = GROUP_TO_CODE[g];
       const people = buckets[kind][code];
-      if (people && Object.keys(people).length)
-        renderBlock('kitchen2', g, people);
+      if (people && Object.keys(people).length) renderBlock('kitchen2', g, people);
     }
     for (const g of DINING_GROUPS) {
       const code = GROUP_TO_CODE[g];
       const people = buckets[kind][code];
-      if (people && Object.keys(people).length)
-        renderBlock('dining', g, people);
+      if (people && Object.keys(people).length) renderBlock('dining', g, people);
     }
   }
 
+  // Regulars first
   renderSection('regular');
 
-  function hasAny(kind:'regular'|'commuter'): boolean {
-    for (const code of Object.keys(buckets[kind])) {
-      if (Object.keys(buckets[kind][code]).length) return true;
-    }
-    return false;
-  }
+  // Insert COMMUTERS divider if needed, then render commuters
+  const hasAny = (kind:'regular'|'commuter') =>
+    Object.values(buckets[kind]).some(groupMap => groupMap && Object.keys(groupMap).length);
 
   if (hasAny('commuter')) {
     const afterRegular = Math.max(paneState.kitchen1, paneState.kitchen2, paneState.dining);
