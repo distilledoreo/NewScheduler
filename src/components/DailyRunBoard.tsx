@@ -3,6 +3,7 @@ import GridLayout, { WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import type { Segment } from "../config/domain";
+import PersonName from "./PersonName";
 
 const Grid = WidthProvider(GridLayout);
 
@@ -109,12 +110,15 @@ export default function DailyRunBoard({
       `SELECT a.id, p.first_name, p.last_name, p.id as person_id FROM assignment a JOIN person p ON p.id=a.person_id WHERE a.date=? AND a.role_id=? AND a.segment=? ORDER BY p.last_name,p.first_name`,
       [ymd(selectedDateObj), role.id, seg]
     );
-    const trainedBefore = new Set(
-      all(
+    const trainedBefore = new Set([
+      ...all(`SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`, [role.id]).map(
+        (r: any) => r.person_id
+      ),
+      ...all(
         `SELECT DISTINCT person_id FROM assignment WHERE role_id=? AND date < ?`,
         [role.id, ymd(selectedDateObj)]
-      ).map((r: any) => r.person_id)
-    );
+      ).map((r: any) => r.person_id),
+    ]);
     const opts = peopleOptionsForSegment(selectedDateObj, seg, role);
 
     const req = getRequiredFor(selectedDateObj, group.id, role.id, seg);
@@ -175,10 +179,10 @@ export default function DailyRunBoard({
         <ul className="space-y-1">
           {assigns.map((a: any) => (
             <li key={a.id} className="flex items-center justify-between bg-slate-50 rounded px-2 py-1">
-              <span>
+              <PersonName personId={a.person_id}>
                 {a.last_name}, {a.first_name}
                 {!trainedBefore.has(a.person_id) && " (Untrained)"}
-              </span>
+              </PersonName>
               {canEdit && (
                 <div className="flex gap-2">
                   {isOverstaffed && (
