@@ -104,44 +104,40 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   );
 
   const buckets: Buckets = { regular: {}, commuter: {} };
-  const defaultRole = new Map<string, { kind:'regular'|'commuter'; code:string; role_name:string }>();
-
-  for (const row of defaults) {
-    const code = GROUP_TO_CODE[row.group_name];
-    if (!code) continue;
-    const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
-    defaultRole.set(`${row.person_id}|${row.segment}`, { kind, code, role_name: row.role_name });
-    const bucket = buckets[kind][code] || (buckets[kind][code] = {});
-    const person = bucket[row.person] || (bucket[row.person] = {});
-    const role = person[row.role_name] || (person[row.role_name] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>() });
-    for (const d of DAY_ORDER) {
-      if (row.segment === 'AM') role.AM.add(d); else role.PM.add(d);
-    }
-  }
+  const personScheduledDays = new Map<string, Set<DayLetter>>();
 
   for (const row of overrides) {
     const dayLetter = DAY_ORDER[row.weekday - 1];
     if (!dayLetter) continue;
     const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
-    const key = `${row.person_id}|${row.segment}`;
-    const def = defaultRole.get(key);
-    if (def) {
-      const bucket = buckets[def.kind][def.code];
-      const person = bucket && bucket[row.person];
-      const role = person && person[def.role_name];
-      if (role) {
-        const set = row.segment === 'AM' ? role.AM : role.PM;
-        set.delete(dayLetter);
-        if (role.AM.size===0 && role.PM.size===0) delete person[def.role_name];
-        if (person && Object.keys(person).length===0) delete bucket[row.person];
-      }
-    }
     const code = GROUP_TO_CODE[row.group_name];
     if (!code) continue;
     const bucket = buckets[kind][code] || (buckets[kind][code] = {});
     const person = bucket[row.person] || (bucket[row.person] = {});
     const role = person[row.role_name] || (person[row.role_name] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>() });
     if (row.segment === 'AM') role.AM.add(dayLetter); else role.PM.add(dayLetter);
+
+    const key = `${row.person_id}|${row.segment}`;
+    const scheduledDays = personScheduledDays.get(key) || new Set<DayLetter>();
+    scheduledDays.add(dayLetter);
+    personScheduledDays.set(key, scheduledDays);
+  }
+
+  for (const row of defaults) {
+    const code = GROUP_TO_CODE[row.group_name];
+    if (!code) continue;
+    const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
+    const key = `${row.person_id}|${row.segment}`;
+    const scheduledDays = personScheduledDays.get(key);
+
+    const bucket = buckets[kind][code] || (buckets[kind][code] = {});
+    const person = bucket[row.person] || (bucket[row.person] = {});
+    const role = person[row.role_name] || (person[row.role_name] = { AM: new Set<DayLetter>(), PM: new Set<DayLetter>() });
+    for (const d of DAY_ORDER) {
+        if (!scheduledDays || !scheduledDays.has(d)) {
+            if (row.segment === 'AM') role.AM.add(d); else role.PM.add(d);
+        }
+    }
   }
 
 
