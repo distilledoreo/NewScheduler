@@ -14,7 +14,6 @@ interface ToolbarProps {
   status: string;
   activeTab: TabKey;
   setActiveTab: (tab: TabKey) => void;
-  runDiagnostics: () => void;
 }
 
 const useStyles = makeStyles({
@@ -42,12 +41,6 @@ const useStyles = makeStyles({
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-  actions: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    marginLeft: "auto",
-  },
   tabList: {
     marginLeft: "8px",
   }
@@ -64,7 +57,6 @@ export default function Toolbar({
   status,
   activeTab,
   setActiveTab,
-  runDiagnostics,
 }: ToolbarProps) {
   const s = useStyles();
 
@@ -93,10 +85,6 @@ export default function Toolbar({
           <Tab value="MONTHLY">Monthly Defaults</Tab>
           <Tab value="HISTORY">Crew History</Tab>
         </TabList>
-      </div>
-
-      <div className={s.actions}>
-        <Button onClick={runDiagnostics}>Run Diagnostics</Button>
       </div>
 
       <Text size={200} className={s.status}>{status}</Text>
