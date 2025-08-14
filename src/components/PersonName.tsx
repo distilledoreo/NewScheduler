@@ -1,4 +1,5 @@
 import React, { useContext } from "react";
+import { Link } from "@fluentui/react-components";
 import { ProfileContext } from "./ProfileContext";
 
 interface PersonNameProps {
@@ -9,11 +10,8 @@ interface PersonNameProps {
 export default function PersonName({ personId, children }: PersonNameProps) {
   const ctx = useContext(ProfileContext);
   return (
-    <span
-      className="cursor-pointer text-blue-600 hover:underline"
-      onClick={() => ctx?.showProfile(personId)}
-    >
+    <Link onClick={() => ctx?.showProfile(personId)} appearance="subtle">
       {children}
-    </span>
+    </Link>
   );
 }
