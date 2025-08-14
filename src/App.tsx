@@ -1141,7 +1141,7 @@ async function exportShifts() {
             </tbody>
           </table>
         </div>
-        <div className="fixed bottom-4 right-4 bg-white shadow rounded p-2 flex gap-4 z-10">
+        <div className="fixed top-4 right-4 bg-white shadow rounded p-2 flex gap-4 z-50">
           {WEEKDAYS.map((wd) => {
             const t = weekdayTotals[wd];
             const color = t.assigned >= t.req ? 'text-green-600' : 'text-red-600';
