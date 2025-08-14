@@ -61,8 +61,9 @@ const migrations: Record<number, Migration> = {
       month TEXT NOT NULL, -- YYYY-MM
       person_id INTEGER NOT NULL,
       segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      weekday TEXT CHECK(weekday IN ('Monday','Tuesday','Wednesday','Thursday','Friday')),
       role_id INTEGER NOT NULL,
-      UNIQUE(month, person_id, segment),
+      UNIQUE(month, person_id, segment, weekday),
       FOREIGN KEY (person_id) REFERENCES person(id),
       FOREIGN KEY (role_id) REFERENCES role(id)
     );`);
@@ -95,6 +96,23 @@ const migrations: Record<number, Migration> = {
       source TEXT DEFAULT 'TeamsImport',
       FOREIGN KEY (person_id) REFERENCES person(id)
     );`);
+  },
+  2: (db) => {
+    db.run(`CREATE TABLE monthly_default_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL,
+      person_id INTEGER NOT NULL,
+      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      weekday TEXT CHECK(weekday IN ('Monday','Tuesday','Wednesday','Thursday','Friday')),
+      role_id INTEGER NOT NULL,
+      UNIQUE(month, person_id, segment, weekday),
+      FOREIGN KEY (person_id) REFERENCES person(id),
+      FOREIGN KEY (role_id) REFERENCES role(id)
+    );`);
+    db.run(`INSERT INTO monthly_default_new (id, month, person_id, segment, role_id)
+            SELECT id, month, person_id, segment, role_id FROM monthly_default;`);
+    db.run(`DROP TABLE monthly_default;`);
+    db.run(`ALTER TABLE monthly_default_new RENAME TO monthly_default;`);
   }
 };
 

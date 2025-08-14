@@ -240,8 +240,9 @@ export default function App() {
       month TEXT NOT NULL, -- YYYY-MM
       person_id INTEGER NOT NULL,
       segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
+      weekday TEXT CHECK(weekday IN ('Monday','Tuesday','Wednesday','Thursday','Friday')),
       role_id INTEGER NOT NULL,
-      UNIQUE(month, person_id, segment),
+      UNIQUE(month, person_id, segment, weekday),
       FOREIGN KEY (person_id) REFERENCES person(id),
       FOREIGN KEY (role_id) REFERENCES role(id)
     );`);
@@ -319,8 +320,9 @@ export default function App() {
         month TEXT NOT NULL,
         person_id INTEGER NOT NULL,
         segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
+        weekday TEXT CHECK(weekday IN ('Monday','Tuesday','Wednesday','Thursday','Friday')),
         role_id INTEGER NOT NULL,
-        UNIQUE(month, person_id, segment),
+        UNIQUE(month, person_id, segment, weekday),
         FOREIGN KEY (person_id) REFERENCES person(id),
         FOREIGN KEY (role_id) REFERENCES role(id)
       );`);
@@ -504,12 +506,25 @@ export default function App() {
   function setMonthlyDefault(personId: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
     if (!sqlDb) return;
     if (roleId) {
-      run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
-           ON CONFLICT(month, person_id, segment) DO UPDATE SET role_id=excluded.role_id`,
-          [selectedMonth, personId, segment, roleId]);
+      run(`INSERT INTO monthly_default (month, person_id, segment, weekday, role_id) VALUES (?,?,?,?,?)
+           ON CONFLICT(month, person_id, segment, weekday) DO UPDATE SET role_id=excluded.role_id`,
+          [selectedMonth, personId, segment, null, roleId]);
     } else {
-      run(`DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=?`,
+      run(`DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=? AND weekday IS NULL`,
           [selectedMonth, personId, segment]);
+    }
+    loadMonthlyDefaults(selectedMonth);
+  }
+
+  function setMonthlyDefaultWeekday(personId: number, segment: Exclude<Segment,'Early'>, weekday: Weekday, roleId: number | null) {
+    if (!sqlDb) return;
+    if (roleId) {
+      run(`INSERT INTO monthly_default (month, person_id, segment, weekday, role_id) VALUES (?,?,?,?,?)
+           ON CONFLICT(month, person_id, segment, weekday) DO UPDATE SET role_id=excluded.role_id`,
+          [selectedMonth, personId, segment, weekday, roleId]);
+    } else {
+      run(`DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=? AND weekday=?`,
+          [selectedMonth, personId, segment, weekday]);
     }
     loadMonthlyDefaults(selectedMonth);
   }
@@ -517,23 +532,23 @@ export default function App() {
   function setMonthlyDefaultForMonth(month: string, personId: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
     if (!sqlDb) return;
     if (roleId) {
-      run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
-           ON CONFLICT(month, person_id, segment) DO UPDATE SET role_id=excluded.role_id`,
-          [month, personId, segment, roleId]);
+      run(`INSERT INTO monthly_default (month, person_id, segment, weekday, role_id) VALUES (?,?,?,?,?)
+           ON CONFLICT(month, person_id, segment, weekday) DO UPDATE SET role_id=excluded.role_id`,
+          [month, personId, segment, null, roleId]);
     } else {
-      run(`DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=?`,
+      run(`DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=? AND weekday IS NULL`,
           [month, personId, segment]);
     }
   }
 
   function copyMonthlyDefaults(fromMonth: string, toMonth: string) {
     if (!sqlDb) return;
-    const rows = all(`SELECT person_id, segment, role_id FROM monthly_default WHERE month=?`, [fromMonth]);
+    const rows = all(`SELECT person_id, segment, role_id, weekday FROM monthly_default WHERE month=?`, [fromMonth]);
     for (const row of rows) {
       run(
-        `INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
-         ON CONFLICT(month, person_id, segment) DO UPDATE SET role_id=excluded.role_id`,
-        [toMonth, row.person_id, row.segment, row.role_id]
+        `INSERT INTO monthly_default (month, person_id, segment, weekday, role_id) VALUES (?,?,?,?,?)
+         ON CONFLICT(month, person_id, segment, weekday) DO UPDATE SET role_id=excluded.role_id`,
+        [toMonth, row.person_id, row.segment, row.weekday, row.role_id]
       );
     }
     loadMonthlyDefaults(toMonth);
@@ -544,23 +559,26 @@ export default function App() {
     if (!sqlDb) return;
     const [y,m] = month.split('-').map(n=>parseInt(n,10));
     const days = new Date(y, m, 0).getDate();
-    for (const def of monthlyDefaults) {
-      const person = people.find(p=>p.id===def.person_id);
-      if (!person) continue;
-      for (let day=1; day<=days; day++) {
-        const d = new Date(y, m-1, day);
-        const wd = weekdayName(d);
-        if (wd === 'Weekend') continue;
+    for (let day=1; day<=days; day++) {
+      const d = new Date(y, m-1, day);
+      const wd = weekdayName(d);
+      if (wd === 'Weekend') continue;
+      for (const person of people) {
         const availField = wd === 'Monday'? 'avail_mon' : wd === 'Tuesday'? 'avail_tue' : wd === 'Wednesday'? 'avail_wed' : wd === 'Thursday'? 'avail_thu' : 'avail_fri';
         const avail = person[availField];
-        let ok = false;
-        if (def.segment === 'AM') ok = avail === 'AM' || avail === 'B';
-        else if (def.segment === 'PM') ok = avail === 'PM' || avail === 'B';
-        else if (def.segment === 'Lunch') ok = avail === 'AM' || avail === 'PM' || avail === 'B';
-        if (!ok) continue;
-        if (isSegmentBlockedByTimeOff(person.id, d, def.segment)) continue;
-        run(`INSERT OR REPLACE INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`,
-            [ymd(d), def.person_id, def.role_id, def.segment]);
+        for (const seg of ['AM','Lunch','PM'] as const) {
+          const def = monthlyDefaults.find(d=>d.person_id===person.id && d.segment===seg && d.weekday===wd)
+                     || monthlyDefaults.find(d=>d.person_id===person.id && d.segment===seg && !d.weekday);
+          if (!def) continue;
+          let ok = false;
+          if (seg === 'AM') ok = avail === 'AM' || avail === 'B';
+          else if (seg === 'PM') ok = avail === 'PM' || avail === 'B';
+          else if (seg === 'Lunch') ok = avail === 'AM' || avail === 'PM' || avail === 'B';
+          if (!ok) continue;
+          if (isSegmentBlockedByTimeOff(person.id, d, seg)) continue;
+          run(`INSERT OR REPLACE INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`,
+              [ymd(d), person.id, def.role_id, seg]);
+        }
       }
     }
     refreshCaches();
@@ -595,7 +613,7 @@ export default function App() {
     const headerHtml = headers.map(h => `<th>${escapeHtml(h)}</th>`).join('');
     const bodyHtml = people.map((p:any) => {
       const roleTds = ['AM','Lunch','PM'].map(seg => {
-        const def = monthlyDefaults.find(d => d.person_id===p.id && d.segment===seg);
+        const def = monthlyDefaults.find(d => d.person_id===p.id && d.segment===seg && !d.weekday);
         const role = roles.find(r => r.id===def?.role_id);
         const group = groups.find(g => g.id === role?.group_id);
         const bg = group?.theme_color || '';
@@ -951,12 +969,13 @@ async function exportShifts() {
     >('name');
     const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc');
     const [filterText, setFilterText] = useState('');
+    const [weekdayEditPerson, setWeekdayEditPerson] = useState<any|null>(null);
 
     const viewPeople = useMemo(()=>{
       const low = filterText.toLowerCase();
       const filtered = people.filter((p:any)=>{
         const roleNames = ['AM','Lunch','PM'].map(seg=>{
-          const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
+          const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg && !d.weekday);
           const role = roles.find(r=>r.id===def?.role_id);
           return role?.name || '';
         });
@@ -1003,8 +1022,8 @@ async function exportShifts() {
           case 'AM':
           case 'Lunch':
           case 'PM':
-            const defA = monthlyDefaults.find(d=>d.person_id===a.id && d.segment===field);
-            const defB = monthlyDefaults.find(d=>d.person_id===b.id && d.segment===field);
+            const defA = monthlyDefaults.find(d=>d.person_id===a.id && d.segment===field && !d.weekday);
+            const defB = monthlyDefaults.find(d=>d.person_id===b.id && d.segment===field && !d.weekday);
             const roleA = roles.find(r=>r.id===defA?.role_id)?.name || '';
             const roleB = roles.find(r=>r.id===defB?.role_id)?.name || '';
             av = roleA; bv = roleB; break;
@@ -1017,6 +1036,54 @@ async function exportShifts() {
       });
       return sorted;
     }, [people, monthlyDefaults, roles, filterText, sortKey, sortDir]);
+
+    function WeekdayRolesEditor({ person }: { person: any }) {
+      return (
+        <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center">
+          <div className="bg-white p-4 rounded shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <div className="font-semibold">Weekday Roles for {person.first_name} {person.last_name}</div>
+              <button className="text-sm" onClick={() => setWeekdayEditPerson(null)}>Close</button>
+            </div>
+            <table className="text-sm">
+              <thead>
+                <tr>
+                  <th className="p-2 text-left">Segment</th>
+                  {WEEKDAYS.map(w => (
+                    <th key={w} className="p-2 text-left">{w.slice(0,3)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(['AM','Lunch','PM'] as const).map(seg => (
+                  <tr key={seg}>
+                    <td className="p-2">{seg}</td>
+                    {WEEKDAYS.map(wd => {
+                      const def = monthlyDefaults.find(d => d.person_id===person.id && d.segment===seg && d.weekday===wd);
+                      return (
+                        <td key={wd} className="p-1">
+                          <select
+                            className="border rounded px-1 py-0.5"
+                            value={def?.role_id || ""}
+                            onChange={(e) => {
+                              const rid = Number(e.target.value);
+                              setMonthlyDefaultWeekday(person.id, seg, wd, rid || null);
+                            }}
+                          >
+                            <option value="">--</option>
+                            {roleListForSegment(seg).map((r:any)=>(<option key={r.id} value={r.id}>{r.name}</option>))}
+                          </select>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="p-4">
@@ -1069,9 +1136,19 @@ async function exportShifts() {
             <tbody>
               {viewPeople.map((p:any) => (
                 <tr key={p.id} className="odd:bg-white even:bg-slate-50">
-                  <td className="p-2">{p.last_name}, {p.first_name}</td>
+                  <td className="p-2">
+                    {p.last_name}, {p.first_name}
+                    {monthlyEditing && (
+                      <button
+                        className="ml-2 text-xs text-blue-600 underline"
+                        onClick={() => setWeekdayEditPerson(p)}
+                      >
+                        Weekdays
+                      </button>
+                    )}
+                  </td>
                   {(['AM','Lunch','PM'] as const).map(seg => {
-                    const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
+                    const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg && !d.weekday);
                     return (
                       <td key={seg} className="p-2">
                         <select className="border rounded px-2 py-1 w-full" value={def?.role_id||""} disabled={!monthlyEditing} onChange={(e)=>{
@@ -1089,6 +1166,7 @@ async function exportShifts() {
             </tbody>
           </table>
         </div>
+        {weekdayEditPerson && <WeekdayRolesEditor person={weekdayEditPerson} />}
       </div>
     );
   }
@@ -1106,7 +1184,7 @@ async function exportShifts() {
 
     useEffect(() => {
       if (sqlDb) {
-        setDefs(all(`SELECT * FROM monthly_default`));
+        setDefs(all(`SELECT * FROM monthly_default WHERE weekday IS NULL`));
       }
     }, [sqlDb, monthlyDefaults]);
 
@@ -1192,7 +1270,7 @@ async function exportShifts() {
           onChange={(e)=>{
             const rid = Number(e.target.value);
             setMonthlyDefaultForMonth(month, personId, seg, rid||null);
-            setDefs(all(`SELECT * FROM monthly_default`));
+            setDefs(all(`SELECT * FROM monthly_default WHERE weekday IS NULL`));
             showCode();
           }}
         >

@@ -76,7 +76,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
      JOIN role r ON r.id = md.role_id
      JOIN grp g  ON g.id = r.group_id
      JOIN person p ON p.id = md.person_id
-     WHERE md.month = ? AND md.segment IN ('AM','PM')
+     WHERE md.month = ? AND md.segment IN ('AM','PM') AND md.weekday IS NULL
      ORDER BY g.name, md.segment, person`,
     [month]
   );
