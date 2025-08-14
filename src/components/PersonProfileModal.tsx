@@ -47,20 +47,22 @@ function fmtAvail(v: string) {
 
 export default function PersonProfileModal({ personId, onClose, all }: PersonProfileModalProps) {
   const s = useStyles();
-  const person = all(`SELECT * FROM person WHERE id=?`, [personId])[0];
+
+  const person = all('SELECT * FROM person WHERE id=?', [personId])[0];
+
   const trainings = all(
-    \'SELECT r.name, t.status FROM training t JOIN role r ON r.id=t.role_id WHERE t.person_id=? ORDER BY r.name\',
+    'SELECT r.name, t.status FROM training t JOIN role r ON r.id=t.role_id WHERE t.person_id=? ORDER BY r.name',
     [personId]
   );
 
-  const history = all(
-    \`SELECT a.date, a.segment, r.name as role_name, g.name as group_name
-       FROM assignment a
-       JOIN role r ON r.id=a.role_id
-       JOIN grp g ON g.id=r.group_id
-       WHERE a.person_id=? ORDER BY a.date DESC LIMIT 30\`,
-    [personId]
-  );
+  const historySql =
+    'SELECT a.date, a.segment, r.name as role_name, g.name as group_name ' +
+    'FROM assignment a ' +
+    'JOIN role r ON r.id=a.role_id ' +
+    'JOIN grp g ON g.id=r.group_id ' +
+    'WHERE a.person_id=? ORDER BY a.date DESC LIMIT 30';
+
+  const history = all(historySql, [personId]);
 
   return (
     <Dialog open onOpenChange={(_, d) => { if (!d.open) onClose(); }}>
