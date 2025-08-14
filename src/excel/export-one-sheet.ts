@@ -45,7 +45,7 @@ type DefaultRow = {
 
 type DayRow = {
   person_id: number;
-  weekday: number; // tolerate 0..6 or 1..7; we’ll normalize
+  weekday: number; // tolerate 0..4 or 1..5; we’ll normalize
   segment: string | null;
   group_name: string;
   role_id: number;
@@ -90,10 +90,8 @@ function normalizeMonthKey(value: string): string {
   }
   // Try compact forms YYYYMM or YYYYMMDD
   m = v.match(/^(\d{4})(\d{2})(\d{2})?$/);
-  if (m) {
-    return `${m[1]}-${m[2]}`;
-  }
-  // Fallback: first 7 chars (already normalized upstream)
+  if (m) return `${m[1]}-${m[2]}`;
+  // Fallback: first 7 chars
   return v.slice(0, 7);
 }
 
@@ -105,7 +103,6 @@ function monthWhere(column: string, monthKey: string): { where: string; params: 
   const ymdCompact = `${ymCompact}01`;        // "YYYYMM01"
   const ymd = `${ym}-01`;               // "YYYY-MM-01"
 
-  // Matches: exact "YYYY-MM", starts with "YYYY-MM-", compact "YYYYMM" or "YYYYMMDD", or exact "YYYY-MM-01"
   const where = `(
     substr(${column}, 1, 7) = ? OR
     ${column} LIKE ? OR
@@ -128,18 +125,17 @@ function expandSegments(seg: string | null | undefined): Seg[] {
 
 /** Convert various stored weekday formats to our DayLetter (Mon–Fri only). */
 function weekdayToLetter(weekday: number): DayLetter | undefined {
-  // Common cases:
-  // 1..5 => Mon..Fri (ISO-like)
+  // 1..5 => Mon..Fri
   if (weekday >= 1 && weekday <= 5) return DAY_ORDER[weekday - 1];
   // 0..4 => Mon..Fri (0-based Mon)
   if (weekday >= 0 && weekday <= 4) return DAY_ORDER[weekday];
-  // 2..6 => Mon..Fri if 0=Sun,1=Mon (SQLite strftime('%w')) would be 1..5 for Mon..Fri, so this branch is unlikely.
-  // Anything else -> ignore.
   return undefined;
 }
 
 export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   requireDb();
+
+  // Load ExcelJS ONCE
   const ExcelJS = await loadExcelJS();
 
   const monthKey = normalizeMonthKey(month); // "YYYY-MM"
@@ -222,8 +218,8 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
       // Compute which weekdays to keep for this default role on this segment
       const keepWeekdays: number[] = [];
       for (let d = 1; d <= 5; d++) {
-        // Check overrides resiliently: check both normalized representations (1..5 and 0..4)
-        const overriddenRoleId = dayMap?.get(d) ?? dayMap?.get(d - 1); // tolerate 0-based storage
+        // Check overrides resiliently: allow 1..5 or 0..4 storage
+        const overriddenRoleId = dayMap?.get(d) ?? dayMap?.get(d - 1);
         if (overriddenRoleId == null || overriddenRoleId === row.role_id) {
           keepWeekdays.push(d);
         }
@@ -250,7 +246,6 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   const monthDate = new Date(y, m - 1, 1);
   const titleText = monthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
-  const ExcelJS = await loadExcelJS();
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Schedule');
   ws.columns = [
