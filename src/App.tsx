@@ -1995,7 +1995,8 @@ function PeopleEditor(){
           {activeTab === 'PEOPLE' && <PeopleEditor />}
           {activeTab === 'NEEDS' && <BaselineView />}
           {activeTab === 'EXPORT' && <ExportView />}
-          {activeTab === 'MONTHLY' && <MonthlyView />}
+          {activeTab === 'MONTHLY' && <FloatingWeeklyDashboard visible />}
+
           {activeTab === 'HISTORY' && <CrewHistoryView />}
         </>
       )}
@@ -2008,7 +2009,6 @@ function PeopleEditor(){
           all={all}
         />
       )}
-      <FloatingWeeklyDashboard visible={activeTab === 'MONTHLY'} />
     </div>
     </ProfileContext.Provider>
   );
