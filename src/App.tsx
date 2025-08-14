@@ -541,7 +541,250 @@ export default function App() {
       .filter((r) => r.end >= startDay && r.start <= endDay)
       .map((r) => ({ start: r.start < startDay ? startDay : r.start, end: r.end > endDay ? endDay : r.end, reason: r.reason }));
   }
+  /** ------------------------------
+   * NEW FEATURE: Floating Weekly Coverage Dashboard (Monthly View)
+   * ------------------------------ */
+  function weeksForMonth(month: string): { start: Date; end: Date; label: string }[] {
+    const [y, m] = month.split('-').map(n => parseInt(n, 10));
+    const first = new Date(y, m - 1, 1);
+    const last = new Date(y, m, 0);
+    // gather all weekdays in month and bucket by Monday start
+    const keys = new Map<string, Date>();
+    for (let d = new Date(first); d <= last; d.setDate(d.getDate() + 1)) {
+      if (weekdayName(d) === 'Weekend') continue;
+      const mon = new Date(d);
+      // backtrack to Monday
+      const delta = (mon.getDay() + 6) % 7; // Mon=1 => 0; Tue=2 => 1 .. Sun=0 => 6
+      mon.setDate(mon.getDate() - delta);
+      const k = ymd(mon);
+      if (!keys.has(k)) keys.set(k, new Date(mon));
+    }
+    const arr = Array.from(keys.values()).sort((a,b)=>a.getTime()-b.getTime());
+    return arr.map(start => {
+      const end = new Date(start); end.setDate(end.getDate() + 4);
+      const label = `Week of ${start.toLocaleDateString(undefined,{month:'short',day:'numeric'})} – ${end.toLocaleDateString(undefined,{month:'short',day:'numeric'})}`;
+      return { start, end, label };
+    });
+  }
 
+  function FloatingWeeklyDashboard({ visible }: { visible: boolean }) {
+    const [open, setOpen] = useState(false);
+    const [segAM, setSegAM] = useState(true);
+    const [segLunch, setSegLunch] = useState(true);
+    const [segPM, setSegPM] = useState(true);
+
+    const weekOptions = useMemo(() => weeksForMonth(selectedMonth), [selectedMonth]);
+    const [weekStart, setWeekStart] = useState<Date>(() => weekOptions[0]?.start || new Date(selectedMonth + '-01'));
+    useEffect(() => { setWeekStart(weekOptions[0]?.start || new Date(selectedMonth + '-01')); }, [weekOptions]);
+
+    const activeSegments = useMemo(() => {
+      const s: (Exclude<Segment,'Early'>)[] = [];
+      if (segAM) s.push('AM');
+      if (segLunch) s.push('Lunch');
+      if (segPM) s.push('PM');
+      return s;
+    }, [segAM, segLunch, segPM]);
+
+    const peopleById = useMemo(() => {
+      const m: Record<number, any> = {};
+      for (const p of people) m[p.id] = p;
+      return m;
+    }, [people]);
+
+    // core math
+    type DeficitRow = { day: Date; segment: Exclude<Segment,'Early'>; groupName: string; roleName: string; required: number; planned: number; delta: number };
+    type ConflictRow = { day: Date; personId: number; personName: string; segment: Exclude<Segment,'Early'>; roleName: string; reason: 'Unavailable'|'Time off' };
+
+    const compute = useMemo(() => {
+      if (!weekStart) return { deficits: [] as DeficitRow[], conflicts: [] as ConflictRow[], summary: {} as any };
+      const days: Date[] = [0,1,2,3,4].map(i => { const d = new Date(weekStart); d.setDate(d.getDate()+i); return d; });
+      const deficits: DeficitRow[] = [];
+      const conflicts: ConflictRow[] = [];
+
+      for (const day of days) {
+        if (weekdayName(day) === 'Weekend') continue;
+        for (const role of roles) {
+          const group = groups.find(g=>g.id===role.group_id);
+          if (!group) continue;
+          for (const seg of activeSegments) {
+            if (!(role.segments as Segment[]).includes(seg)) continue;
+            const required = getRequiredFor(day, role.group_id, role.id, seg as Segment);
+
+            // planned = #monthly defaults that pass availability & not blocked by timeoff on this weekday
+            const planned = monthlyDefaults.filter(md => md.segment === seg && md.role_id === role.id).reduce((acc, md) => {
+              const person = peopleById[md.person_id];
+              if (!person) return acc;
+              const wd = weekdayName(day) as Weekday | 'Weekend';
+              if (wd === 'Weekend') return acc;
+              const availField = wd === 'Monday' ? 'avail_mon' : wd === 'Tuesday' ? 'avail_tue' : wd === 'Wednesday' ? 'avail_wed' : wd === 'Thursday' ? 'avail_thu' : 'avail_fri';
+              const avail = person[availField];
+              let ok = false;
+              if (seg === 'AM') ok = (avail === 'AM' || avail === 'B');
+              else if (seg === 'PM') ok = (avail === 'PM' || avail === 'B');
+              else if (seg === 'Lunch') ok = (avail === 'AM' || avail === 'PM' || avail === 'B');
+              if (!ok) {
+                conflicts.push({ day, personId: person.id, personName: `${person.last_name}, ${person.first_name}` , segment: seg, roleName: role.name, reason: 'Unavailable' });
+                return acc;
+              }
+              // timeoff check
+              if (isSegmentBlockedByTimeOff(person.id, day, seg)) {
+                conflicts.push({ day, personId: person.id, personName: `${person.last_name}, ${person.first_name}` , segment: seg, roleName: role.name, reason: 'Time off' });
+                return acc;
+              }
+              return acc + 1;
+            }, 0);
+            const delta = planned - required;
+            if (required > 0 && delta < 0) {
+              deficits.push({ day, segment: seg, groupName: group.name, roleName: role.name, required, planned, delta });
+            }
+          }
+        }
+      }
+
+      // summary by day
+      const summary: Record<string, { deficits: number; unavail: number; timeoff: number }> = {};
+      for (const d of [0,1,2,3,4].map(i => { const dt = new Date(weekStart); dt.setDate(dt.getDate()+i); return dt; })) {
+        const key = ymd(d);
+        summary[key] = { deficits: 0, unavail: 0, timeoff: 0 };
+      }
+      for (const row of deficits) summary[ymd(row.day)].deficits += 1;
+      for (const c of conflicts) {
+        if (c.reason === 'Unavailable') summary[ymd(c.day)].unavail += 1;
+        else summary[ymd(c.day)].timeoff += 1;
+      }
+
+      return { deficits, conflicts, summary };
+    }, [weekStart, selectedMonth, monthlyDefaults, peopleById, roles, groups, activeSegments]);
+
+    if (!visible) return null;
+
+    return (
+      <>
+        {/* Floating trigger button */}
+        <button
+          className="fixed bottom-4 right-4 z-40 rounded-full shadow-lg bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2"
+          onClick={() => setOpen(true)}
+        >
+          Week Dashboard
+        </button>
+
+        {/* Modal */}
+        {open && (
+          <div className="fixed inset-0 z-50">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
+            <div className="absolute bottom-6 right-6 w-[min(92vw,1000px)] max-h-[80vh] overflow-hidden rounded-2xl shadow-2xl bg-white">
+              <div className="flex items-center justify-between p-4 border-b bg-slate-50">
+                <div className="flex items-center gap-3">
+                  <div className="font-semibold">Weekly Coverage ({new Date(selectedMonth+'-01').toLocaleString(undefined,{month:'long',year:'numeric'})})</div>
+                  <select
+                    className="border rounded px-2 py-1 text-sm"
+                    value={weekStart ? ymd(weekStart) : ''}
+                    onChange={(e)=> setWeekStart(new Date(e.target.value))}
+                  >
+                    {weekOptions.map(w => (
+                      <option key={ymd(w.start)} value={ymd(w.start)}>{w.label}</option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-2 pl-3 border-l">
+                    <label className="flex items-center gap-1 text-sm"><input type="checkbox" checked={segAM} onChange={(e)=>setSegAM(e.target.checked)} /> AM</label>
+                    <label className="flex items-center gap-1 text-sm"><input type="checkbox" checked={segLunch} onChange={(e)=>setSegLunch(e.target.checked)} /> Lunch</label>
+                    <label className="flex items-center gap-1 text-sm"><input type="checkbox" checked={segPM} onChange={(e)=>setSegPM(e.target.checked)} /> PM</label>
+                  </div>
+                </div>
+                <button className="rounded p-1.5 hover:bg-slate-200" onClick={()=>setOpen(false)} aria-label="Close">✕</button>
+              </div>
+
+              {/* Summary chips by day */}
+              <div className="p-3 border-b bg-white">
+                <div className="grid grid-cols-5 gap-3">
+                  {[0,1,2,3,4].map(i => {
+                    const d = new Date(weekStart); d.setDate(d.getDate()+i);
+                    const key = ymd(d);
+                    const s = compute.summary[key] || { deficits:0, unavail:0, timeoff:0 };
+                    const dayLabel = d.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
+                    return (
+                      <div key={key} className="rounded-xl border p-3">
+                        <div className="text-sm font-medium">{dayLabel}</div>
+                        <div className="mt-1 text-xs">
+                          <div className={s.deficits>0?"text-red-600":"text-slate-500"}>Deficits: {s.deficits}</div>
+                          <div className={s.unavail>0?"text-amber-600":"text-slate-500"}>Unavailable: {s.unavail}</div>
+                          <div className={s.timeoff>0?"text-rose-600":"text-slate-500"}>Time off: {s.timeoff}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-0">
+                {/* Deficits table */}
+                <div className="border-r max-h-[55vh] overflow-auto">
+                  <div className="sticky top-0 z-10 bg-slate-100 border-b px-3 py-2 text-sm font-semibold">Gaps (Required > Planned)</div>
+                  <table className="min-w-full text-sm">
+                    <thead className="sticky top-[32px] bg-white shadow">
+                      <tr className="text-left border-b">
+                        <th className="p-2">Day</th>
+                        <th className="p-2">Segment</th>
+                        <th className="p-2">Group / Role</th>
+                        <th className="p-2">Req</th>
+                        <th className="p-2">Planned</th>
+                        <th className="p-2">Δ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {compute.deficits.length === 0 && (
+                        <tr><td className="p-3 text-slate-500" colSpan={6}>No gaps in selected filters.</td></tr>
+                      )}
+                      {compute.deficits.map((r, idx) => (
+                        <tr key={idx} className="border-b">
+                          <td className="p-2 whitespace-nowrap">{r.day.toLocaleDateString(undefined,{weekday:'short'})}</td>
+                          <td className="p-2">{r.segment}</td>
+                          <td className="p-2"><span className="font-medium">{r.groupName}</span> — {r.roleName}</td>
+                          <td className="p-2">{r.required}</td>
+                          <td className="p-2">{r.planned}</td>
+                          <td className={"p-2 font-semibold " + (r.delta<0?"text-red-600":"text-slate-600")}>{r.delta}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Conflicts table */}
+                <div className="max-h-[55vh] overflow-auto">
+                  <div className="sticky top-0 z-10 bg-slate-100 border-b px-3 py-2 text-sm font-semibold">Conflicts (Defaults that won’t apply)</div>
+                  <table className="min-w-full text-sm">
+                    <thead className="sticky top-[32px] bg-white shadow">
+                      <tr className="text-left border-b">
+                        <th className="p-2">Day</th>
+                        <th className="p-2">Person</th>
+                        <th className="p-2">Segment</th>
+                        <th className="p-2">Role</th>
+                        <th className="p-2">Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {compute.conflicts.length === 0 && (
+                        <tr><td className="p-3 text-slate-500" colSpan={5}>No conflicts in selected filters.</td></tr>
+                      )}
+                      {compute.conflicts.map((c, idx) => (
+                        <tr key={idx} className="border-b">
+                          <td className="p-2 whitespace-nowrap">{c.day.toLocaleDateString(undefined,{weekday:'short'})}</td>
+                          <td className="p-2"><PersonName person={peopleById[c.personId]} /></td>
+                          <td className="p-2">{c.segment}</td>
+                          <td className="p-2">{c.roleName}</td>
+                          <td className={"p-2 " + (c.reason==='Unavailable'?"text-amber-700":"text-rose-700")}>{c.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
   // Monthly default assignments
   function loadMonthlyDefaults(month: string) {
     if (!sqlDb) return;
@@ -1765,6 +2008,7 @@ function PeopleEditor(){
           all={all}
         />
       )}
+      <FloatingWeeklyDashboard visible={activeTab === 'MONTHLY'} />
     </div>
     </ProfileContext.Provider>
   );
