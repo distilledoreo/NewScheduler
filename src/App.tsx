@@ -1187,20 +1187,7 @@ async function exportShifts() {
             <tbody>
               {viewPeople.map((p:any) => (
                 <tr key={p.id} className="odd:bg-white even:bg-slate-50">
-                  <td className="p-2">
-                    <PersonName personId={p.id}>
-                      {p.last_name}, {p.first_name}
-                    </PersonName>
-                    {monthlyEditing && (
-                      <button
-                        type="button"
-                        className="ml-2 text-xs text-blue-600 underline"
-                        onClick={() => setWeekdayEditPerson(p)}
-                      >
-                        Weekdays
-                      </button>
-                    )}
-                  </td>
+                  <td className="p-2"> {p.last_name}, {p.first_name} {monthlyEditing && ( <button className="ml-2 text-xs text-blue-600 underline" onClick={() => setWeekdayEditPerson(p)} > Weekdays </button> )} </td>
                   {(['AM','Lunch','PM'] as const).map(seg => {
                     const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg && !d.weekday);
                     return (
