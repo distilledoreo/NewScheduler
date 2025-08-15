@@ -116,11 +116,10 @@ const migrations: Record<number, Migration> = {
       FOREIGN KEY (person_id) REFERENCES person(id),
       FOREIGN KEY (role_id) REFERENCES role(id)
     );`);
-      },
-  3: migrate3RenameBuffetToDiningRoom,
+
   }
  ,
-  4: (db) => {
+  3: (db) => {
     const segmentCheck = "'Early','AM','Lunch','PM'";
     function recreate(name: string, createSql: string, columns: string) {
       db.run(`ALTER TABLE ${name} RENAME TO ${name}_old;`);
