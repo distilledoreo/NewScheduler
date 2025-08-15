@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { applyMigrations } from "./services/migrations";
-import { GROUPS, ROLE_SEED } from "./config/domain";
 import { listSegments, type Segment, type SegmentRow } from "./services/segments";
 import Toolbar from "./components/Toolbar";
 import DailyRunBoard from "./components/DailyRunBoard";
+import GroupEditor from "./components/GroupEditor";
+import RoleEditor from "./components/RoleEditor";
 import { exportMonthOneSheetXlsx } from "./excel/export-one-sheet";
 import PersonName from "./components/PersonName";
 import PersonProfileModal from "./components/PersonProfileModal";
@@ -107,7 +108,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState<string>(() => fmtDateMDY(new Date()));
   const [exportStart, setExportStart] = useState<string>(() => ymd(new Date()));
   const [exportEnd, setExportEnd] = useState<string>(() => ymd(new Date()));
-  const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY">("RUN");
+  const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "SETUP">("RUN");
   const [activeRunSegment, setActiveRunSegment] = useState<Segment>("AM");
 
   // People cache for quick UI (id -> record)
@@ -215,7 +216,8 @@ export default function App() {
     db.run(`CREATE TABLE IF NOT EXISTS grp (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
-      theme_color TEXT
+      theme TEXT,
+      custom_color TEXT
     );`);
 
     db.run(`CREATE TABLE IF NOT EXISTS role (
@@ -298,24 +300,6 @@ export default function App() {
       source TEXT DEFAULT 'TeamsImport',
       FOREIGN KEY (person_id) REFERENCES person(id)
     );`);
-
-    // Seed groups
-    Object.entries(GROUPS).forEach(([name, cfg]) => {
-      const stmt = db.prepare(`INSERT INTO grp (name, theme_color) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET theme_color=excluded.theme_color;`);
-      stmt.bind([name, cfg.theme]);
-      stmt.step();
-      stmt.free();
-    });
-
-    // Seed roles
-    ROLE_SEED.forEach((r) => {
-      const gid = db.exec(`SELECT id FROM grp WHERE name=$name`, { $name: r.group })[0]?.values?.[0]?.[0];
-      if (!gid) return;
-      const stmt = db.prepare(`INSERT OR IGNORE INTO role (code, name, group_id, segments) VALUES (?,?,?,?)`);
-      stmt.bind([r.code, r.name, gid, JSON.stringify(r.segments)]);
-      stmt.step();
-      stmt.free();
-    });
 
     // Soft lock cleared
     db.run(`INSERT OR REPLACE INTO meta (key,value) VALUES ('lock','{}')`);
@@ -449,9 +433,9 @@ export default function App() {
 
   function refreshCaches(db = sqlDb) {
     if (!db) return;
-    const g = all(`SELECT id,name,theme_color FROM grp ORDER BY name`, [], db);
+    const g = all(`SELECT id,name,theme,custom_color FROM grp ORDER BY name`, [], db);
     setGroups(g);
-    const r = all(`SELECT r.id, r.code, r.name, r.group_id, r.segments, g.name as group_name FROM role r JOIN grp g ON g.id=r.group_id ORDER BY g.name, r.name`, [], db);
+    const r = all(`SELECT r.id, r.code, r.name, r.group_id, r.segments, g.name as group_name, g.custom_color as group_color FROM role r JOIN grp g ON g.id=r.group_id ORDER BY g.name, r.name`, [], db);
     setRoles(r.map(x => ({ ...x, segments: JSON.parse(x.segments) })));
     const p = all(`SELECT * FROM person WHERE active=1 ORDER BY last_name, first_name`, [], db);
     setPeople(p);
@@ -728,7 +712,7 @@ export default function App() {
         const def = monthlyDefaults.find(d => d.person_id===p.id && d.segment===seg);
         const role = roles.find(r => r.id===def?.role_id);
         const group = groups.find(g => g.id === role?.group_id);
-        const bg = group?.theme_color || '';
+        const bg = group?.custom_color || '';
         const color = bg ? contrastColor(bg) : '';
         const style = bg ? ` style="background:${bg};color:${color};"` : '';
         return `<td${style}>${escapeHtml(role?.name || '')}</td>`;
@@ -904,8 +888,8 @@ async function exportShifts() {
     const member = `${a.last_name}, ${a.first_name}`; // Last, First
     const workEmail = a.work_email;
     // Group logic: Breakfast forces Dining Room, otherwise from role
-    const group = (a.segment === "Early") ? "Dining Room" : a.group_name;
-    const themeColor = GROUPS[group]?.theme || "";
+    const group = a.segment === "Early" ? "Dining Room" : a.group_name;
+    const themeColor = groups.find((g) => g.name === group)?.theme || "";
     const customLabel = a.role_name; // per user: Plain Name
     const unpaidBreak = 0; // per user
     const notes = ""; // per user
@@ -1432,7 +1416,7 @@ async function exportShifts() {
     function cellData(month:string, personId:number, seg:Exclude<Segment,'Early'>){
       const def = defs.find((d:any)=>d.month===month && d.person_id===personId && d.segment===seg);
       const role = roles.find((r:any)=>r.id===def?.role_id);
-      const color = role ? GROUPS[role.group_name]?.color : undefined;
+      const color = role ? role.group_color : undefined;
       if (month === nextMonth || editPast) {
         return { content: <RoleSelect month={month} personId={personId} seg={seg} def={def} />, color };
       }
@@ -1470,8 +1454,8 @@ async function exportShifts() {
             selectedOptions={groupFilter}
             onOptionSelect={(_, data)=>setGroupFilter(data.selectedOptions as string[])}
           >
-            {Object.keys(GROUPS).map(g => (
-              <Option key={g} value={g}>{g}</Option>
+            {groups.map(g => (
+              <Option key={g.name} value={g.name}>{g.name}</Option>
             ))}
           </Dropdown>
           <Dropdown
@@ -1621,7 +1605,7 @@ async function exportShifts() {
                   start: fmtTime24(s.start),
                   end: fmtTime24(s.end),
                   label: a.role_name,
-                  color: GROUPS[group]?.theme || "",
+                  color: groups.find((gg) => gg.name === group)?.theme || "",
                 });
               }
             }
@@ -1673,6 +1657,15 @@ async function exportShifts() {
           </table>
         </div>
         <div className="text-slate-500 text-sm mt-2">Rows: {previewRows.length}</div>
+      </div>
+    );
+  }
+
+  function SetupView(){
+    return (
+      <div className="p-4 space-y-8">
+        <GroupEditor all={all} run={run} refresh={refreshCaches} />
+        <RoleEditor all={all} run={run} refresh={refreshCaches} segments={segments} />
       </div>
     );
   }
@@ -1935,6 +1928,7 @@ function PeopleEditor(){
           {activeTab === 'EXPORT' && <ExportView />}
           {activeTab === 'MONTHLY' && <MonthlyView />}
           {activeTab === 'HISTORY' && <CrewHistoryView />}
+          {activeTab === 'SETUP' && <SetupView />}
         </>
       )}
 
