@@ -110,6 +110,88 @@ const migrations: Record<number, Migration> = {
       FOREIGN KEY (role_id) REFERENCES role(id)
     );`);
   }
+,
+  3: (db) => {
+    // Add 'Early' segment to tables created before Early shift support existed
+    function recreate(table: string, createSql: string, cols: string) {
+      db.run(`ALTER TABLE ${table} RENAME TO ${table}_old;`);
+      db.run(createSql);
+      db.run(`INSERT INTO ${table} (${cols}) SELECT ${cols} FROM ${table}_old;`);
+      db.run(`DROP TABLE ${table}_old;`);
+    }
+
+    recreate(
+      'assignment',
+      `CREATE TABLE assignment (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        person_id INTEGER NOT NULL,
+        role_id INTEGER NOT NULL,
+        segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+        FOREIGN KEY (person_id) REFERENCES person(id),
+        FOREIGN KEY (role_id) REFERENCES role(id)
+      );`,
+      'id, date, person_id, role_id, segment'
+    );
+
+    recreate(
+      'monthly_default',
+      `CREATE TABLE monthly_default (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        month TEXT NOT NULL,
+        person_id INTEGER NOT NULL,
+        segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+        role_id INTEGER NOT NULL,
+        UNIQUE(month, person_id, segment),
+        FOREIGN KEY (person_id) REFERENCES person(id),
+        FOREIGN KEY (role_id) REFERENCES role(id)
+      );`,
+      'id, month, person_id, segment, role_id'
+    );
+
+    recreate(
+      'needs_baseline',
+      `CREATE TABLE needs_baseline (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id INTEGER NOT NULL,
+        role_id INTEGER NOT NULL,
+        segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+        required INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(group_id, role_id, segment)
+      );`,
+      'id, group_id, role_id, segment, required'
+    );
+
+    recreate(
+      'needs_override',
+      `CREATE TABLE needs_override (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        group_id INTEGER NOT NULL,
+        role_id INTEGER NOT NULL,
+        segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+        required INTEGER NOT NULL,
+        UNIQUE(date, group_id, role_id, segment)
+      );`,
+      'id, date, group_id, role_id, segment, required'
+    );
+
+    recreate(
+      'monthly_default_day',
+      `CREATE TABLE monthly_default_day (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        month TEXT NOT NULL,
+        person_id INTEGER NOT NULL,
+        weekday INTEGER NOT NULL,
+        segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+        role_id INTEGER NOT NULL,
+        UNIQUE(month, person_id, weekday, segment),
+        FOREIGN KEY (person_id) REFERENCES person(id),
+        FOREIGN KEY (role_id) REFERENCES role(id)
+      );`,
+      'id, month, person_id, weekday, segment, role_id'
+    );
+  }
 };
 
 export function addMigration(version: number, fn: Migration) {

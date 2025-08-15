@@ -529,10 +529,8 @@ export default function App() {
     if (weekdayName(d) === "Weekend") { alert("Weekends are ignored. Pick a weekday."); return; }
 
     // Time-off block enforcement
-    if (segment !== "Early") {
-      const blocked = isSegmentBlockedByTimeOff(personId, d, segment as Exclude<Segment,'Early'>);
-      if (blocked) { alert("Time-off overlaps this segment. Blocked."); return; }
-    }
+    const blocked = isSegmentBlockedByTimeOff(personId, d, segment);
+    if (blocked) { alert("Time-off overlaps this segment. Blocked."); return; }
 
     run(`INSERT INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`, [ymd(d), personId, roleId, segment]);
     run(
@@ -544,15 +542,24 @@ export default function App() {
 
   function deleteAssignment(id:number){ run(`DELETE FROM assignment WHERE id=?`,[id]); refreshCaches(); }
 
-  function isSegmentBlockedByTimeOff(personId: number, date: Date, segment: Exclude<Segment, "Early">): boolean {
+  function isSegmentBlockedByTimeOff(personId: number, date: Date, segment: Segment): boolean {
     // For UI adding, any overlap => return true (spec Q34 = Block)
     const intervals = listTimeOffIntervals(personId, date);
     if (intervals.length === 0) return false;
-    const segTimes = baseSegmentTimes(date, /*hasLunch*/true, /*hasEarly*/false);
-    const window = segment === "AM" ? segTimes.AM : segment === "Lunch" ? segTimes.Lunch : segTimes.PM;
-    const start = window.start.getTime();
-    const end = window.end.getTime();
-    return intervals.some(({start: s, end: e}) => Math.max(s.getTime(), start) < Math.min(e.getTime(), end));
+    let start: Date, end: Date;
+    if (segment === "Early") {
+      const t = earlyTimes(date);
+      start = t.start;
+      end = t.end;
+    } else {
+      const segTimes = baseSegmentTimes(date, /*hasLunch*/true, /*hasEarly*/false);
+      const window = segment === "AM" ? segTimes.AM : segment === "Lunch" ? segTimes.Lunch : segTimes.PM;
+      start = window.start;
+      end = window.end;
+    }
+    const sMs = start.getTime();
+    const eMs = end.getTime();
+    return intervals.some(({start: s, end: e}) => Math.max(s.getTime(), sMs) < Math.min(e.getTime(), eMs));
   }
 
   function listTimeOffIntervals(personId: number, date: Date): Array<{start: Date; end: Date; reason?: string}> {
@@ -574,7 +581,7 @@ export default function App() {
     setMonthlyOverrides(ov);
   }
 
-  function setMonthlyDefault(personId: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
+  function setMonthlyDefault(personId: number, segment: Segment, roleId: number | null) {
     if (!sqlDb) return;
     if (roleId) {
       run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
@@ -600,7 +607,7 @@ export default function App() {
     loadMonthlyDefaults(selectedMonth);
   }
 
-  function setMonthlyDefaultForMonth(month: string, personId: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
+  function setMonthlyDefaultForMonth(month: string, personId: number, segment: Segment, roleId: number | null) {
     if (!sqlDb) return;
     if (roleId) {
       run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
@@ -654,7 +661,7 @@ export default function App() {
         const wdNum = d.getDay(); // 1=Mon..5=Fri
         const availField = wdName === 'Monday'? 'avail_mon' : wdName === 'Tuesday'? 'avail_tue' : wdName === 'Wednesday'? 'avail_wed' : wdName === 'Thursday'? 'avail_thu' : 'avail_fri';
         const avail = person[availField];
-        for (const seg of ['AM','Lunch','PM'] as const) {
+        for (const seg of ['Early','AM','Lunch','PM'] as const) {
           let roleId = overrideMap.get(`${person.id}|${wdNum}|${seg}`);
           if (roleId === undefined) roleId = defaultMap.get(`${person.id}|${seg}`);
           if (!roleId) continue;
@@ -662,6 +669,7 @@ export default function App() {
           if (seg === 'AM') ok = avail === 'AM' || avail === 'B';
           else if (seg === 'PM') ok = avail === 'PM' || avail === 'B';
           else if (seg === 'Lunch') ok = avail === 'AM' || avail === 'PM' || avail === 'B';
+          else if (seg === 'Early') ok = avail === 'AM' || avail === 'B';
           if (!ok) continue;
           if (isSegmentBlockedByTimeOff(person.id, d, seg)) continue;
           run(`INSERT OR REPLACE INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`,
@@ -956,10 +964,10 @@ async function exportShifts() {
         const availOk =
           (segment === "AM" && (avail === "AM" || avail === "B")) ||
           (segment === "PM" && (avail === "PM" || avail === "B")) ||
-          (segment === "Lunch" && (avail === "AM" || avail === "PM" || avail === "B"));
+          (segment === "Lunch" && (avail === "AM" || avail === "PM" || avail === "B")) ||
+          (segment === "Early" && (avail === "AM" || avail === "B"));
         if (!availOk) return false;
-
-        if (segment !== "Early" && isSegmentBlockedByTimeOff(p.id, date, segment)) return false;
+        if (isSegmentBlockedByTimeOff(p.id, date, segment)) return false;
 
         return true;
       })
@@ -1025,6 +1033,7 @@ async function exportShifts() {
     const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc');
     const [filterText, setFilterText] = useState('');
     const [weekdayPerson, setWeekdayPerson] = useState<number|null>(null);
+    const [earlyPerson, setEarlyPerson] = useState<number|null>(null);
     const [activeOnly, setActiveOnly] = useState(false);
     const [commuterOnly, setCommuterOnly] = useState(false);
 
@@ -1034,7 +1043,7 @@ async function exportShifts() {
         .filter((p:any)=>!activeOnly || p.active)
         .filter((p:any)=>!commuterOnly || p.commuter)
         .filter((p:any)=>{
-          const roleNames = ['AM','Lunch','PM'].map(seg=>{
+          const roleNames = ['Early','AM','Lunch','PM'].map(seg=>{
             const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
             const role = roles.find(r=>r.id===def?.role_id);
             return role?.name || '';
@@ -1145,6 +1154,29 @@ async function exportShifts() {
       );
     }
 
+    function EarlyShiftModal({ personId, onClose }: { personId:number; onClose:()=>void }) {
+      const person = people.find(p=>p.id===personId);
+      if (!person) return null;
+      const def = monthlyDefaults.find(d=>d.person_id===personId && d.segment==='Early');
+      return (
+        <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center" onClick={onClose}>
+          <div className="bg-white rounded shadow-lg p-4" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-semibold">Early Shift - {person.first_name} {person.last_name}</div>
+              <button className="text-slate-600 hover:text-slate-800" onClick={onClose}>Close</button>
+            </div>
+            <select className="border rounded px-2 py-1" value={def?.role_id || ''} onChange={(e)=>{
+              const rid = Number(e.target.value);
+              setMonthlyDefault(personId, 'Early', rid||null);
+            }}>
+              <option value="">--</option>
+              {roleListForSegment('Early').map((r:any)=>(<option key={r.id} value={r.id}>{r.name}</option>))}
+            </select>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="p-4">
         <div className="flex items-center gap-2 mb-4">
@@ -1200,10 +1232,23 @@ async function exportShifts() {
                 <tr key={p.id} className="odd:bg-white even:bg-slate-50">
                   <td className="p-2">
                     <PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName>
+                    {(() => {
+                      const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment==='Early');
+                      if (def) {
+                        const role = roles.find(r=>r.id===def.role_id);
+                        return <span className="ml-2 text-xs text-slate-500">(Early: {role?.name})</span>;
+                      }
+                      return null;
+                    })()}
                     {monthlyEditing && (
-                      <button className="ml-2 text-xs text-slate-600 underline" onClick={()=>setWeekdayPerson(p.id)}>
-                        Days{monthlyOverrides.some(o=>o.person_id===p.id)?'*':''}
-                      </button>
+                      <>
+                        <button className="ml-2 text-xs text-slate-600 underline" onClick={()=>setWeekdayPerson(p.id)}>
+                          Days{monthlyOverrides.some(o=>o.person_id===p.id)?'*':''}
+                        </button>
+                        <button className="ml-2 text-xs text-slate-600 underline" onClick={()=>setEarlyPerson(p.id)}>
+                          Early{monthlyDefaults.some(d=>d.person_id===p.id && d.segment==='Early')?'*':''}
+                        </button>
+                      </>
                     )}
                   </td>
                   {(['AM','Lunch','PM'] as const).map(seg => {
@@ -1227,6 +1272,9 @@ async function exportShifts() {
         </div>
         {weekdayPerson !== null && (
           <WeeklyOverrideModal personId={weekdayPerson} onClose={()=>setWeekdayPerson(null)} />
+        )}
+        {earlyPerson !== null && (
+          <EarlyShiftModal personId={earlyPerson} onClose={()=>setEarlyPerson(null)} />
         )}
       </div>
     );
