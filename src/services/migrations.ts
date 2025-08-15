@@ -35,6 +35,36 @@ export const migrate5AddGroupTheme: Migration = (db) => {
   } catch {}
 };
 
+export const migrate6AddExportGroup: Migration = (db) => {
+  db.run(`CREATE TABLE IF NOT EXISTS export_group (
+      group_id INTEGER PRIMARY KEY,
+      code TEXT NOT NULL,
+      color TEXT NOT NULL,
+      column_group TEXT NOT NULL,
+      FOREIGN KEY (group_id) REFERENCES grp(id)
+    );`);
+  const seed = [
+    { name: 'Veggie Room', code: 'VEG', color: 'FFD8E4BC', column_group: 'kitchen1' },
+    { name: 'Bakery', code: 'BKRY', color: 'FFEAD1DC', column_group: 'kitchen1' },
+    { name: 'Main Course', code: 'MC', color: 'FFF4CCCC', column_group: 'kitchen2' },
+    { name: 'Receiving', code: 'RCVG', color: 'FFBDD7EE', column_group: 'kitchen2' },
+    { name: 'Prepack', code: 'PREPACK', color: 'FFCCE5FF', column_group: 'kitchen2' },
+    { name: 'Office', code: 'OFF', color: 'FFFFF2CC', column_group: 'kitchen2' },
+    { name: 'Dining Room', code: 'DR', color: 'FFFFF2CC', column_group: 'dining' },
+    { name: 'Machine Room', code: 'MR', color: 'FFD9D2E9', column_group: 'dining' },
+  ];
+  for (const s of seed) {
+    const gidRows = db.exec(`SELECT id FROM grp WHERE name=?`, [s.name]);
+    const gid = gidRows[0]?.values?.[0]?.[0];
+    if (gid !== undefined) {
+      db.run(
+        `INSERT INTO export_group (group_id, code, color, column_group) VALUES (?,?,?,?) ON CONFLICT(group_id) DO NOTHING;`,
+        [gid, s.code, s.color, s.column_group]
+      );
+    }
+  }
+};
+
 const migrations: Record<number, Migration> = {
   1: (db) => {
     db.run(`PRAGMA journal_mode=WAL;`);
@@ -165,6 +195,7 @@ const migrations: Record<number, Migration> = {
   3: migrate3RenameBuffetToDiningRoom,
   4: migrate4AddSegments,
   5: migrate5AddGroupTheme,
+  6: migrate6AddExportGroup,
 };
 
 export function addMigration(version: number, fn: Migration) {
