@@ -1239,7 +1239,7 @@ async function exportShifts() {
     const [activeOnly, setActiveOnly] = useState(false);
     const [commuterOnly, setCommuterOnly] = useState(false);
     const [bsFilter, setBsFilter] = useState("");
-    const [groupFilter, setGroupFilter] = useState("");
+    const [groupFilter, setGroupFilter] = useState<string[]>([]);
     const [sortField, setSortField] = useState<
       'last'|'first'|'brother_sister'|'commuter'|'active'|
       'avail_mon'|'avail_tue'|'avail_wed'|'avail_thu'|'avail_fri'|
@@ -1298,12 +1298,12 @@ async function exportShifts() {
         .filter((p:any) => !commuterOnly || p.commuter)
         .filter((p:any) => !bsFilter || p.brother_sister === bsFilter)
         .filter((p:any) => {
-          if (!groupFilter) return true;
+          if (groupFilter.length === 0) return true;
           return months.some(m => (
             ['AM','Lunch','PM'] as const).some(seg => {
               const def = defs.find(d=>d.month===m && d.person_id===p.id && d.segment===seg);
               const role = roles.find(r=>r.id===def?.role_id);
-              return role?.group_name === groupFilter;
+              return role && groupFilter.includes(role.group_name);
             })
           );
         })
@@ -1449,8 +1449,12 @@ async function exportShifts() {
             <Option value="Brother">Brother</Option>
             <Option value="Sister">Sister</Option>
           </Dropdown>
-          <Dropdown selectedOptions={[groupFilter]} onOptionSelect={(_, data)=>setGroupFilter(data.optionValue as string)}>
-            <Option value="">All Groups</Option>
+          <Dropdown
+            multiselect
+            placeholder="All Groups"
+            selectedOptions={groupFilter}
+            onOptionSelect={(_, data)=>setGroupFilter(data.selectedOptions as string[])}
+          >
             {Object.keys(GROUPS).map(g => (
               <Option key={g} value={g}>{g}</Option>
             ))}
