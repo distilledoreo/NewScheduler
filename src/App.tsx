@@ -529,10 +529,8 @@ export default function App() {
     if (weekdayName(d) === "Weekend") { alert("Weekends are ignored. Pick a weekday."); return; }
 
     // Time-off block enforcement
-    if (segment !== "Early") {
-      const blocked = isSegmentBlockedByTimeOff(personId, d, segment as Exclude<Segment,'Early'>);
-      if (blocked) { alert("Time-off overlaps this segment. Blocked."); return; }
-    }
+    const blocked = isSegmentBlockedByTimeOff(personId, d, segment);
+    if (blocked) { alert("Time-off overlaps this segment. Blocked."); return; }
 
     run(`INSERT INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`, [ymd(d), personId, roleId, segment]);
     run(
@@ -544,15 +542,24 @@ export default function App() {
 
   function deleteAssignment(id:number){ run(`DELETE FROM assignment WHERE id=?`,[id]); refreshCaches(); }
 
-  function isSegmentBlockedByTimeOff(personId: number, date: Date, segment: Exclude<Segment, "Early">): boolean {
+  function isSegmentBlockedByTimeOff(personId: number, date: Date, segment: Segment): boolean {
     // For UI adding, any overlap => return true (spec Q34 = Block)
     const intervals = listTimeOffIntervals(personId, date);
     if (intervals.length === 0) return false;
-    const segTimes = baseSegmentTimes(date, /*hasLunch*/true, /*hasEarly*/false);
-    const window = segment === "AM" ? segTimes.AM : segment === "Lunch" ? segTimes.Lunch : segTimes.PM;
-    const start = window.start.getTime();
-    const end = window.end.getTime();
-    return intervals.some(({start: s, end: e}) => Math.max(s.getTime(), start) < Math.min(e.getTime(), end));
+    let start: Date, end: Date;
+    if (segment === "Early") {
+      const t = earlyTimes(date);
+      start = t.start;
+      end = t.end;
+    } else {
+      const segTimes = baseSegmentTimes(date, /*hasLunch*/true, /*hasEarly*/false);
+      const window = segment === "AM" ? segTimes.AM : segment === "Lunch" ? segTimes.Lunch : segTimes.PM;
+      start = window.start;
+      end = window.end;
+    }
+    const sMs = start.getTime();
+    const eMs = end.getTime();
+    return intervals.some(({start: s, end: e}) => Math.max(s.getTime(), sMs) < Math.min(e.getTime(), eMs));
   }
 
   function listTimeOffIntervals(personId: number, date: Date): Array<{start: Date; end: Date; reason?: string}> {
@@ -654,7 +661,7 @@ export default function App() {
         const wdNum = d.getDay(); // 1=Mon..5=Fri
         const availField = wdName === 'Monday'? 'avail_mon' : wdName === 'Tuesday'? 'avail_tue' : wdName === 'Wednesday'? 'avail_wed' : wdName === 'Thursday'? 'avail_thu' : 'avail_fri';
         const avail = person[availField];
-        for (const seg of ['AM','Lunch','PM'] as const) {
+        for (const seg of ['Early','AM','Lunch','PM'] as const) {
           let roleId = overrideMap.get(`${person.id}|${wdNum}|${seg}`);
           if (roleId === undefined) roleId = defaultMap.get(`${person.id}|${seg}`);
           if (!roleId) continue;
@@ -662,6 +669,7 @@ export default function App() {
           if (seg === 'AM') ok = avail === 'AM' || avail === 'B';
           else if (seg === 'PM') ok = avail === 'PM' || avail === 'B';
           else if (seg === 'Lunch') ok = avail === 'AM' || avail === 'PM' || avail === 'B';
+          else if (seg === 'Early') ok = avail === 'AM' || avail === 'B';
           if (!ok) continue;
           if (isSegmentBlockedByTimeOff(person.id, d, seg)) continue;
           run(`INSERT OR REPLACE INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`,
@@ -956,10 +964,10 @@ async function exportShifts() {
         const availOk =
           (segment === "AM" && (avail === "AM" || avail === "B")) ||
           (segment === "PM" && (avail === "PM" || avail === "B")) ||
-          (segment === "Lunch" && (avail === "AM" || avail === "PM" || avail === "B"));
+          (segment === "Lunch" && (avail === "AM" || avail === "PM" || avail === "B")) ||
+          (segment === "Early" && (avail === "AM" || avail === "B"));
         if (!availOk) return false;
-
-        if (segment !== "Early" && isSegmentBlockedByTimeOff(p.id, date, segment)) return false;
+        if (isSegmentBlockedByTimeOff(p.id, date, segment)) return false;
 
         return true;
       })
