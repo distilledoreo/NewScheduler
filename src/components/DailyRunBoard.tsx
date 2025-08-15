@@ -331,7 +331,7 @@ export default function DailyRunBoard({
       </Grid>
 
       {moveContext && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white p-4 rounded shadow-md w-72">
             <div className="mb-2 font-medium">
               Move {moveContext.assignment.last_name}, {moveContext.assignment.first_name} to:
