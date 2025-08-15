@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { applyMigrations } from "./services/migrations";
-import { SEGMENTS, GROUPS, ROLE_SEED, baseSegmentTimes, earlyTimes } from "./config/domain";
-import type { Segment } from "./config/domain";
+import { GROUPS, ROLE_SEED } from "./config/domain";
+import { listSegments, type Segment, type SegmentRow } from "./services/segments";
 import Toolbar from "./components/Toolbar";
 import DailyRunBoard from "./components/DailyRunBoard";
 import { exportMonthOneSheetXlsx } from "./excel/export-one-sheet";
@@ -108,12 +108,13 @@ export default function App() {
   const [exportStart, setExportStart] = useState<string>(() => ymd(new Date()));
   const [exportEnd, setExportEnd] = useState<string>(() => ymd(new Date()));
   const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY">("RUN");
-  const [activeRunSegment, setActiveRunSegment] = useState<Exclude<Segment, "Early">>("AM");
+  const [activeRunSegment, setActiveRunSegment] = useState<Segment>("AM");
 
   // People cache for quick UI (id -> record)
   const [people, setPeople] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
+  const [segments, setSegments] = useState<SegmentRow[]>([]);
 
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const d = new Date();
@@ -131,6 +132,13 @@ export default function App() {
   // UI: simple dialogs
   const [showNeedsEditor, setShowNeedsEditor] = useState(false);
   const [profilePersonId, setProfilePersonId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (segments.length && !segments.find(s => s.name === activeRunSegment)) {
+      const first = segments.find(s => s.name !== "Early") || segments[0];
+      if (first) setActiveRunSegment(first.name as Segment);
+    }
+  }, [segments]);
 
   useEffect(() => {
     if (sqlDb) loadMonthlyDefaults(selectedMonth);
@@ -184,7 +192,8 @@ export default function App() {
     if (!SQL) return;
     const db = new SQL.Database();
     applyMigrations(db);
-    const segmentCheck = SEGMENTS.map(s => `'${s}'`).join(',');
+    const segRows = listSegments(db);
+    const segmentCheck = segRows.map(s => `'${s.name}'`).join(',');
     // Schema
     db.run(`PRAGMA journal_mode=WAL;`);
     db.run(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);`);
@@ -326,9 +335,9 @@ export default function App() {
       const file = await handle.getFile();
       const buf = await file.arrayBuffer();
       const db = new SQL.Database(new Uint8Array(buf));
-      const segmentCheck = SEGMENTS.map(s => `'${s}'`).join(',');
-
       applyMigrations(db);
+      const segRows = listSegments(db);
+      const segmentCheck = segRows.map(s => `'${s.name}'`).join(',');
       db.run(`CREATE TABLE IF NOT EXISTS monthly_default (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         month TEXT NOT NULL,
@@ -446,6 +455,8 @@ export default function App() {
     setRoles(r.map(x => ({ ...x, segments: JSON.parse(x.segments) })));
     const p = all(`SELECT * FROM person WHERE active=1 ORDER BY last_name, first_name`, [], db);
     setPeople(p);
+    const s = listSegments(db);
+    setSegments(s);
     syncTrainingFromAssignments(db);
   }
 
@@ -530,7 +541,7 @@ export default function App() {
 
     // Time-off block enforcement
     if (segment !== "Early") {
-      const blocked = isSegmentBlockedByTimeOff(personId, d, segment as Exclude<Segment,'Early'>);
+    const blocked = isSegmentBlockedByTimeOff(personId, d, segment);
       if (blocked) { alert("Time-off overlaps this segment. Blocked."); return; }
     }
 
@@ -544,15 +555,28 @@ export default function App() {
 
   function deleteAssignment(id:number){ run(`DELETE FROM assignment WHERE id=?`,[id]); refreshCaches(); }
 
-  function isSegmentBlockedByTimeOff(personId: number, date: Date, segment: Exclude<Segment, "Early">): boolean {
+  function segmentTimesForDate(date: Date): Record<string, { start: Date; end: Date }> {
+    const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const mk = (t: string) => {
+      const [h, m] = t.split(":" ).map(Number);
+      return new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m, 0, 0);
+    };
+    const out: Record<string, { start: Date; end: Date }> = {};
+    for (const s of segments) {
+      out[s.name] = { start: mk(s.start_time), end: mk(s.end_time) };
+    }
+    return out;
+  }
+
+  function isSegmentBlockedByTimeOff(personId: number, date: Date, segment: Segment): boolean {
     // For UI adding, any overlap => return true (spec Q34 = Block)
     const intervals = listTimeOffIntervals(personId, date);
     if (intervals.length === 0) return false;
-    const segTimes = baseSegmentTimes(date, /*hasLunch*/true, /*hasEarly*/false);
-    const window = segment === "AM" ? segTimes.AM : segment === "Lunch" ? segTimes.Lunch : segTimes.PM;
-    const start = window.start.getTime();
-    const end = window.end.getTime();
-    return intervals.some(({start: s, end: e}) => Math.max(s.getTime(), start) < Math.min(e.getTime(), end));
+    const seg = segmentTimesForDate(date)[segment];
+    if (!seg) return false;
+    const start = seg.start.getTime();
+    const end = seg.end.getTime();
+    return intervals.some(({ start: s, end: e }) => Math.max(s.getTime(), start) < Math.min(e.getTime(), end));
   }
 
   function listTimeOffIntervals(personId: number, date: Date): Array<{start: Date; end: Date; reason?: string}> {
@@ -807,30 +831,13 @@ async function exportShifts() {
                              JOIN grp g  ON g.id=r.group_id
                              WHERE a.date=?`, [dYMD]);
 
-        // Figure Lunch/Early flags per person-day
-        const byPerson = new Map<number, { hasLunch: boolean; hasEarly: boolean }>();
+        const segMap = segmentTimesForDate(d);
         for (const a of assigns) {
-          const s: Segment = a.segment;
-          const cur = byPerson.get(a.person_id) || { hasLunch: false, hasEarly: false };
-          if (s === "Lunch") cur.hasLunch = true;
-          if (s === "Early") cur.hasEarly = true;
-          byPerson.set(a.person_id, cur);
-        }
-
-        for (const a of assigns) {
-          const pkey = byPerson.get(a.person_id) || { hasLunch: false, hasEarly: false };
-          const times = baseSegmentTimes(d, pkey.hasLunch, pkey.hasEarly);
-          let windows: Array<{ start: Date; end: Date; label: string; group: string }>=[];
-          if (a.segment === "Early") {
-            const et = earlyTimes(d);
-            windows = [{ start: et.start, end: et.end, label: a.role_name, group: "Dining Room" /* Breakfast group fixed */ }];
-          } else if (a.segment === "AM") {
-            windows = [{ start: times.AM.start, end: times.AM.end, label: a.role_name, group: a.group_name }];
-          } else if (a.segment === "Lunch") {
-            windows = [{ start: times.Lunch.start, end: times.Lunch.end, label: a.role_name, group: a.group_name }];
-          } else if (a.segment === "PM") {
-            windows = [{ start: times.PM.start, end: times.PM.end, label: a.role_name, group: a.group_name }];
-          }
+          const seg = segMap[a.segment];
+          if (!seg) continue;
+          const windows: Array<{ start: Date; end: Date; label: string; group: string }> = [
+            { start: seg.start, end: seg.end, label: a.role_name, group: a.group_name },
+          ];
 
           // Apply time-off partial splitting rule
           const intervals = listTimeOffIntervals(a.person_id, d);
@@ -1595,24 +1602,12 @@ async function exportShifts() {
                                JOIN grp g  ON g.id=r.group_id
                                WHERE a.date=?`, [dYMD]);
 
-          const byPerson = new Map<number, { hasLunch: boolean; hasEarly: boolean }>();
+          const segMap = segmentTimesForDate(d);
           for (const a of assigns) {
-            const s: Segment = a.segment;
-            const cur = byPerson.get(a.person_id) || { hasLunch: false, hasEarly: false };
-            if (s === "Lunch") cur.hasLunch = true;
-            if (s === "Early") cur.hasEarly = true;
-            byPerson.set(a.person_id, cur);
-          }
-
-          for (const a of assigns) {
-            const pkey = byPerson.get(a.person_id) || { hasLunch: false, hasEarly: false };
-            const times = baseSegmentTimes(d, pkey.hasLunch, pkey.hasEarly);
-            let windows: Array<{ start: Date; end: Date }>=[];
+            const seg = segMap[a.segment];
+            if (!seg) continue;
+            let windows: Array<{ start: Date; end: Date }> = [{ start: seg.start, end: seg.end }];
             let group = a.group_name;
-            if (a.segment === "Early") { const et = earlyTimes(d); windows = [{ start: et.start, end: et.end }]; group = "Dining Room"; }
-            else if (a.segment === "AM") windows = [{ start: times.AM.start, end: times.AM.end }];
-            else if (a.segment === "Lunch") windows = [{ start: times.Lunch.start, end: times.Lunch.end }];
-            else if (a.segment === "PM") windows = [{ start: times.PM.start, end: times.PM.end }];
 
             const intervals = listTimeOffIntervals(a.person_id, d);
             for (const w of windows) {
@@ -1916,6 +1911,7 @@ function PeopleEditor(){
                 activeRunSegment={activeRunSegment}
                 setActiveRunSegment={setActiveRunSegment}
                 groups={groups}
+                segments={segments}
                 lockEmail={lockEmail}
                 sqlDb={sqlDb}
                 all={all}
