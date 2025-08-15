@@ -319,7 +319,8 @@ export default function DailyRunBoard({
             >
               <div className="font-semibold flex items-center justify-between mb-2 drag-handle px-3 pt-3">
                 <span>{g.name}</span>
-                <span className="text-xs text-slate-500">Theme: {g.theme_color || '-'}</span>
+                <span className="text-xs text-slate-500">Theme: {g.theme || '-'}</span>
+                <span className="text-xs text-slate-500 ml-2">Color: {g.custom_color || '-'}</span>
               </div>
               <div
                 className="flex-1 grid gap-3 px-3 pb-3 overflow-auto"

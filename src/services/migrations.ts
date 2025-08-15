@@ -1,4 +1,5 @@
 import type { Database } from 'sql.js';
+import { GROUPS, ROLE_SEED } from '../config/domain';
 
 export type Migration = (db: Database) => void;
 
@@ -25,6 +26,15 @@ export const migrate4AddSegments: Migration = (db) => {
     ON CONFLICT(name) DO NOTHING;`);
 };
 
+export const migrate5AddGroupTheme: Migration = (db) => {
+  try {
+    db.run(`ALTER TABLE grp RENAME COLUMN theme_color TO theme;`);
+  } catch {}
+  try {
+    db.run(`ALTER TABLE grp ADD COLUMN custom_color TEXT;`);
+  } catch {}
+};
+
 const migrations: Record<number, Migration> = {
   1: (db) => {
     db.run(`PRAGMA journal_mode=WAL;`);
@@ -47,7 +57,8 @@ const migrations: Record<number, Migration> = {
     db.run(`CREATE TABLE IF NOT EXISTS grp (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
-      theme_color TEXT
+      theme TEXT,
+      custom_color TEXT
     );`);
 
     db.run(`CREATE TABLE IF NOT EXISTS role (
@@ -59,6 +70,24 @@ const migrations: Record<number, Migration> = {
       UNIQUE(code, name, group_id),
       FOREIGN KEY (group_id) REFERENCES grp(id)
     );`);
+
+    // Seed initial groups and roles
+    for (const [name, cfg] of Object.entries(GROUPS)) {
+      db.run(
+        `INSERT INTO grp (name, theme, custom_color) VALUES (?,?,?) ON CONFLICT(name) DO NOTHING;`,
+        [name, cfg.theme, cfg.color]
+      );
+    }
+    for (const r of ROLE_SEED) {
+      const gidRows = db.exec(`SELECT id FROM grp WHERE name=?`, [r.group]);
+      const gid = gidRows[0]?.values?.[0]?.[0];
+      if (gid !== undefined) {
+        db.run(
+          `INSERT INTO role (code, name, group_id, segments) VALUES (?,?,?,?) ON CONFLICT(code, name, group_id) DO NOTHING;`,
+          [r.code, r.name, gid, JSON.stringify(r.segments)]
+        );
+      }
+    }
 
     db.run(`CREATE TABLE IF NOT EXISTS training (
       person_id INTEGER NOT NULL,
@@ -135,6 +164,7 @@ const migrations: Record<number, Migration> = {
   },
   3: migrate3RenameBuffetToDiningRoom,
   4: migrate4AddSegments,
+  5: migrate5AddGroupTheme,
 };
 
 export function addMigration(version: number, fn: Migration) {
