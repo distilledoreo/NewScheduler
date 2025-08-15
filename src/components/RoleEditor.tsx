@@ -44,6 +44,14 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
   function save() {
     if (!editing) return;
     const segArr = Array.from(editing.segs);
+    if (!editing.code.trim() || !editing.name.trim()) {
+      window.alert("Code and name are required");
+      return;
+    }
+    if (!segArr.length) {
+      window.alert("Select at least one segment");
+      return;
+    }
     if (editing.id) {
       run(`UPDATE role SET code=?, name=?, group_id=?, segments=? WHERE id=?`, [editing.code, editing.name, editing.group_id, JSON.stringify(segArr), editing.id]);
     } else {

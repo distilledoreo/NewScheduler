@@ -38,6 +38,14 @@ export default function ExportGroupEditor({ all, run, refresh }: ExportGroupEdit
   }
 
   function save() {
+    if (!form.group_id) {
+      window.alert("Group is required");
+      return;
+    }
+    if (!form.code.trim()) {
+      window.alert("Code is required");
+      return;
+    }
     if (editing) {
       run(`UPDATE export_group SET code=?, color=?, column_group=? WHERE group_id=?`, [form.code, form.color, form.column_group, editing.group_id]);
     } else {

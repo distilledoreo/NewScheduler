@@ -32,6 +32,10 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
   }
 
   function save() {
+    if (!form.name.trim()) {
+      window.alert("Name is required");
+      return;
+    }
     if (editing) {
       run(`UPDATE grp SET name=?, theme=?, custom_color=? WHERE id=?`, [form.name, form.theme || null, form.custom_color || null, editing.id]);
     } else {
