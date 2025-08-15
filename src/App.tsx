@@ -5,6 +5,7 @@ import Toolbar from "./components/Toolbar";
 import DailyRunBoard from "./components/DailyRunBoard";
 import GroupEditor from "./components/GroupEditor";
 import RoleEditor from "./components/RoleEditor";
+import ExportGroupEditor from "./components/ExportGroupEditor";
 import { exportMonthOneSheetXlsx } from "./excel/export-one-sheet";
 import PersonName from "./components/PersonName";
 import PersonProfileModal from "./components/PersonProfileModal";
@@ -1666,6 +1667,7 @@ async function exportShifts() {
       <div className="p-4 space-y-8">
         <GroupEditor all={all} run={run} refresh={refreshCaches} />
         <RoleEditor all={all} run={run} refresh={refreshCaches} segments={segments} />
+        <ExportGroupEditor all={all} run={run} refresh={refreshCaches} />
       </div>
     );
   }

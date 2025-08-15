@@ -1,31 +1,34 @@
 import { loadExcelJS } from './exceljs-loader';
 
-const GROUP_TO_CODE: Record<string, string> = {
-  'Dining Room': 'DR',
-  'Pattern': 'DR',
-  'Main Course': 'MC',
-  'Veggie Room': 'VEG',
-  'Machine Room': 'MR',
-  'Bakery': 'BKRY',
-  'Prepack': 'PREPACK',
-  'Receiving': 'RCVG',
-  'Office': 'OFF'
+type ExportGroupRow = {
+  group_name: string;
+  code: string;
+  color: string;
+  column_group: string;
 };
 
-const GROUP_COLORS: Record<string,string> = {
-  'Veggie Room':   'FFD8E4BC',
-  'Bakery':        'FFEAD1DC',
-  'Receiving':     'FFBDD7EE',
-  'Prepack':       'FFCCE5FF',
-  'Dining Room':   'FFFFF2CC',
-  'Machine Room':  'FFD9D2E9',
-  'Main Course':   'FFF4CCCC',
-  'Office':        'FFFFF2CC'
-};
+type GroupInfo = Record<string, { code: string; color: string; column_group: string }>;
 
-const KITCHEN_COL1_GROUPS = ['Veggie Room','Bakery'] as const;
-const KITCHEN_COL2_GROUPS = ['Main Course','Receiving','Prepack','Office'] as const;
-const DINING_GROUPS = ['Dining Room','Machine Room'] as const;
+function loadExportGroups(): { info: GroupInfo; col1: string[]; col2: string[]; dining: string[] } {
+  const rows = all<ExportGroupRow>(
+    `SELECT g.name AS group_name, eg.code, eg.color, eg.column_group
+       FROM export_group eg
+       JOIN grp g ON g.id = eg.group_id
+      ORDER BY eg.column_group, g.name`
+  );
+  const info: GroupInfo = {};
+  const col1: string[] = [];
+  const col2: string[] = [];
+  const dining: string[] = [];
+  for (const r of rows) {
+    info[r.group_name] = { code: r.code, color: r.color, column_group: r.column_group };
+    if (r.column_group === 'kitchen1') col1.push(r.group_name);
+    else if (r.column_group === 'kitchen2') col2.push(r.group_name);
+    else if (r.column_group === 'dining') dining.push(r.group_name);
+  }
+  return { info, col1, col2, dining };
+}
+
 
 const DAY_ORDER = ['M','T','W','TH','F'] as const;
 type DayLetter = typeof DAY_ORDER[number];
@@ -169,6 +172,8 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   const mdMonth = monthWhere('md.month', monthKey);
   const mddMonth = monthWhere('mdd.month', monthKey);
 
+  const { info: GROUP_INFO, col1: KITCHEN_COL1_GROUPS, col2: KITCHEN_COL2_GROUPS, dining: DINING_GROUPS } = loadExportGroups();
+
   // NOTE: Accept all segments in SQL; normalize/expand in code.
   const defaults = all<DefaultRow>(
     `SELECT md.person_id, md.segment,
@@ -216,7 +221,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     for (const s of segs) {
       if (!isAllowedByAvail(dayLetter, s, row)) continue; // skip days not allowed by availability
 
-      const code = GROUP_TO_CODE[row.group_name];
+      const code = GROUP_INFO[row.group_name]?.code;
       if (!code) continue;
 
       const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
@@ -240,7 +245,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   //    - Respect AVAILABILITY
   //    - SUBTRACT days that have per-day rows with a DIFFERENT role (by DAY LETTER)
   for (const row of defaults) {
-    const code = GROUP_TO_CODE[row.group_name];
+    const code = GROUP_INFO[row.group_name]?.code;
     if (!code) continue;
 
     const segs = expandSegments(row.segment);
@@ -316,7 +321,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     const hcell = ws.getCell(rowIndex, startCol);
     hcell.value = group;
     hcell.alignment = { horizontal: 'left' };
-    const fill = GROUP_COLORS[group] || 'FFEFEFEF';
+    const fill = GROUP_INFO[group]?.color || 'FFEFEFEF';
     hcell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
     // Ensure all cells in the merged range are bolded so row-level fonts from
     // other panes do not override the header styling.
@@ -378,17 +383,20 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
 
   function renderSection(kind: 'regular'|'commuter') {
     for (const g of KITCHEN_COL1_GROUPS) {
-      const code = GROUP_TO_CODE[g];
+      const code = GROUP_INFO[g]?.code;
+      if (!code) continue;
       const people = buckets[kind][code];
       if (people && Object.keys(people).length) renderBlock('kitchen1', g, people);
     }
     for (const g of KITCHEN_COL2_GROUPS) {
-      const code = GROUP_TO_CODE[g];
+      const code = GROUP_INFO[g]?.code;
+      if (!code) continue;
       const people = buckets[kind][code];
       if (people && Object.keys(people).length) renderBlock('kitchen2', g, people);
     }
     for (const g of DINING_GROUPS) {
-      const code = GROUP_TO_CODE[g];
+      const code = GROUP_INFO[g]?.code;
+      if (!code) continue;
       const people = buckets[kind][code];
       if (people && Object.keys(people).length) renderBlock('dining', g, people);
     }
