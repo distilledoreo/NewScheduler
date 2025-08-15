@@ -123,7 +123,7 @@ export default function DailyRunBoard({
     const assignedCount = assigns.length;
     const cardColor =
       assignedCount < req
-        ? 'bg-pink-100'
+        ? 'bg-red-100'
         : assignedCount === req
         ? 'bg-green-50'
         : 'bg-yellow-50';
@@ -307,7 +307,7 @@ export default function DailyRunBoard({
             const req = getRequiredFor(selectedDateObj, g.id, r.id, seg);
             return assignedCount >= req;
           });
-          const groupColor = groupNeedsMet ? 'bg-green-50' : 'bg-pink-100';
+          const groupColor = groupNeedsMet ? 'bg-green-50' : 'bg-red-100';
           return (
             <div
               key={String(g.id)}
@@ -331,7 +331,7 @@ export default function DailyRunBoard({
       </Grid>
 
       {moveContext && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white p-4 rounded shadow-md w-72">
             <div className="mb-2 font-medium">
               Move {moveContext.assignment.last_name}, {moveContext.assignment.first_name} to:
