@@ -1,5 +1,4 @@
-export const SEGMENTS = ["Early", "AM", "Lunch", "PM"] as const;
-export type Segment = (typeof SEGMENTS)[number];
+import type { Segment } from "../services/segments";
 
 export const GROUPS: Record<string, { theme: string; color: string }> = {
   "Bakery": { theme: "4. Purple", color: "#e9d5ff" },
@@ -70,28 +69,3 @@ export const ROLE_SEED: Array<{ code: string; name: string; group: keyof typeof 
   { code: "MC", name: "Consolidation Table", group: "Main Course", segments: ["Lunch"] },
   { code: "VEG", name: "Consolidation Table", group: "Veggie Room", segments: ["Lunch"] },
 ];
-
-export function baseSegmentTimes(date: Date, hasLunch: boolean, hasEarly: boolean): Record<Exclude<Segment, "Early">, { start: Date; end: Date }> {
-  // All times in America/New_York implicit local
-  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const mk = (h: number, m: number) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m, 0, 0);
-
-  if (hasLunch) {
-    // Lunch day pattern
-    const am = { start: mk(8, 0), end: mk(11, 0) };
-    const lunch = { start: mk(11, 0), end: mk(13, 0) };
-    const pm = { start: mk(14, 0), end: mk(hasEarly ? 16 : 17, 0) };
-    return { AM: am, Lunch: lunch, PM: pm };
-  } else {
-    const am = { start: mk(8, 0), end: mk(12, 0) };
-    const pm = { start: mk(13, 0), end: mk(hasEarly ? 16 : 17, 0) };
-    return { AM: am, Lunch: { start: mk(11, 0), end: mk(13, 0) }, PM: pm }; // Lunch unused if no Lunch assignment; kept for reference
-  }
-}
-
-export function earlyTimes(date: Date) {
-  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const mk = (h: number, m: number) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m, 0, 0);
-  return { start: mk(6, 20), end: mk(7, 20) };
-}
-

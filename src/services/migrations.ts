@@ -9,6 +9,22 @@ export const migrate3RenameBuffetToDiningRoom: Migration = (db) => {
   );
 };
 
+export const migrate4AddSegments: Migration = (db) => {
+  db.run(`CREATE TABLE IF NOT EXISTS segment (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      ordering INTEGER NOT NULL UNIQUE
+    );`);
+  db.run(`INSERT INTO segment (name, start_time, end_time, ordering) VALUES
+      ('Early','06:20','07:20',0),
+      ('AM','08:00','11:00',1),
+      ('Lunch','11:00','13:00',2),
+      ('PM','14:00','17:00',3)
+    ON CONFLICT(name) DO NOTHING;`);
+};
+
 const migrations: Record<number, Migration> = {
   1: (db) => {
     db.run(`PRAGMA journal_mode=WAL;`);
@@ -118,6 +134,7 @@ const migrations: Record<number, Migration> = {
     );`);
   },
   3: migrate3RenameBuffetToDiningRoom,
+  4: migrate4AddSegments,
 };
 
 export function addMigration(version: number, fn: Migration) {

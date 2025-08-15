@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import GridLayout, { WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
-import type { Segment } from "../config/domain";
+import type { Segment, SegmentRow } from "../services/segments";
 import PersonName from "./PersonName";
 
 const Grid = WidthProvider(GridLayout);
@@ -11,6 +11,7 @@ interface DailyRunBoardProps {
   activeRunSegment: Exclude<Segment, "Early">;
   setActiveRunSegment: (seg: Exclude<Segment, "Early">) => void;
   groups: any[];
+  segments: SegmentRow[];
   lockEmail: string;
   sqlDb: any | null;
   all: (sql: string, params?: any[], db?: any) => any[];
@@ -47,6 +48,7 @@ export default function DailyRunBoard({
   activeRunSegment,
   setActiveRunSegment,
   groups,
+  segments,
   lockEmail,
   sqlDb,
   all,
@@ -270,17 +272,19 @@ export default function DailyRunBoard({
           />
         </div>
         <div className="flex gap-2">
-          {["AM", "Lunch", "PM"].map((s) => (
-            <button
-              key={s}
-              className={`px-3 py-1 rounded text-sm ${
-                activeRunSegment === s ? "bg-indigo-600 text-white" : "bg-slate-200"
-              }`}
-              onClick={() => setActiveRunSegment(s as Exclude<Segment, "Early">)}
-            >
-              {s}
-            </button>
-          ))}
+          {segments
+            .filter((s) => s.name !== "Early")
+            .map((s) => (
+              <button
+                key={s.name}
+                className={`px-3 py-1 rounded text-sm ${
+                  activeRunSegment === s.name ? "bg-indigo-600 text-white" : "bg-slate-200"
+                }`}
+                onClick={() => setActiveRunSegment(s.name as Exclude<Segment, "Early">)}
+              >
+                {s.name}
+              </button>
+            ))}
         </div>
         <div className="flex flex-wrap gap-2 lg:ml-auto">
           <button
