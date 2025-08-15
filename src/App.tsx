@@ -574,7 +574,7 @@ export default function App() {
     setMonthlyOverrides(ov);
   }
 
-  function setMonthlyDefault(personId: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
+  function setMonthlyDefault(personId: number, segment: Segment, roleId: number | null) {
     if (!sqlDb) return;
     if (roleId) {
       run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
@@ -600,7 +600,7 @@ export default function App() {
     loadMonthlyDefaults(selectedMonth);
   }
 
-  function setMonthlyDefaultForMonth(month: string, personId: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
+  function setMonthlyDefaultForMonth(month: string, personId: number, segment: Segment, roleId: number | null) {
     if (!sqlDb) return;
     if (roleId) {
       run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
@@ -1025,6 +1025,7 @@ async function exportShifts() {
     const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc');
     const [filterText, setFilterText] = useState('');
     const [weekdayPerson, setWeekdayPerson] = useState<number|null>(null);
+    const [earlyPerson, setEarlyPerson] = useState<number|null>(null);
     const [activeOnly, setActiveOnly] = useState(false);
     const [commuterOnly, setCommuterOnly] = useState(false);
 
@@ -1034,7 +1035,7 @@ async function exportShifts() {
         .filter((p:any)=>!activeOnly || p.active)
         .filter((p:any)=>!commuterOnly || p.commuter)
         .filter((p:any)=>{
-          const roleNames = ['AM','Lunch','PM'].map(seg=>{
+          const roleNames = ['Early','AM','Lunch','PM'].map(seg=>{
             const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
             const role = roles.find(r=>r.id===def?.role_id);
             return role?.name || '';
@@ -1145,6 +1146,29 @@ async function exportShifts() {
       );
     }
 
+    function EarlyShiftModal({ personId, onClose }: { personId:number; onClose:()=>void }) {
+      const person = people.find(p=>p.id===personId);
+      if (!person) return null;
+      const def = monthlyDefaults.find(d=>d.person_id===personId && d.segment==='Early');
+      return (
+        <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center" onClick={onClose}>
+          <div className="bg-white rounded shadow-lg p-4" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-semibold">Early Shift - {person.first_name} {person.last_name}</div>
+              <button className="text-slate-600 hover:text-slate-800" onClick={onClose}>Close</button>
+            </div>
+            <select className="border rounded px-2 py-1" value={def?.role_id || ''} onChange={(e)=>{
+              const rid = Number(e.target.value);
+              setMonthlyDefault(personId, 'Early', rid||null);
+            }}>
+              <option value="">--</option>
+              {roleListForSegment('Early').map((r:any)=>(<option key={r.id} value={r.id}>{r.name}</option>))}
+            </select>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="p-4">
         <div className="flex items-center gap-2 mb-4">
@@ -1200,10 +1224,23 @@ async function exportShifts() {
                 <tr key={p.id} className="odd:bg-white even:bg-slate-50">
                   <td className="p-2">
                     <PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName>
+                    {(() => {
+                      const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment==='Early');
+                      if (def) {
+                        const role = roles.find(r=>r.id===def.role_id);
+                        return <span className="ml-2 text-xs text-slate-500">(Early: {role?.name})</span>;
+                      }
+                      return null;
+                    })()}
                     {monthlyEditing && (
-                      <button className="ml-2 text-xs text-slate-600 underline" onClick={()=>setWeekdayPerson(p.id)}>
-                        Days{monthlyOverrides.some(o=>o.person_id===p.id)?'*':''}
-                      </button>
+                      <>
+                        <button className="ml-2 text-xs text-slate-600 underline" onClick={()=>setWeekdayPerson(p.id)}>
+                          Days{monthlyOverrides.some(o=>o.person_id===p.id)?'*':''}
+                        </button>
+                        <button className="ml-2 text-xs text-slate-600 underline" onClick={()=>setEarlyPerson(p.id)}>
+                          Early{monthlyDefaults.some(d=>d.person_id===p.id && d.segment==='Early')?'*':''}
+                        </button>
+                      </>
                     )}
                   </td>
                   {(['AM','Lunch','PM'] as const).map(seg => {
@@ -1227,6 +1264,9 @@ async function exportShifts() {
         </div>
         {weekdayPerson !== null && (
           <WeeklyOverrideModal personId={weekdayPerson} onClose={()=>setWeekdayPerson(null)} />
+        )}
+        {earlyPerson !== null && (
+          <EarlyShiftModal personId={earlyPerson} onClose={()=>setEarlyPerson(null)} />
         )}
       </div>
     );
