@@ -8,8 +8,8 @@ import PersonName from "./PersonName";
 const Grid = WidthProvider(GridLayout);
 
 interface DailyRunBoardProps {
-  activeRunSegment: Exclude<Segment, "Early">;
-  setActiveRunSegment: (seg: Exclude<Segment, "Early">) => void;
+  activeRunSegment: Segment;
+  setActiveRunSegment: (seg: Segment) => void;
   groups: any[];
   lockEmail: string;
   sqlDb: any | null;
@@ -25,7 +25,7 @@ interface DailyRunBoardProps {
   canEdit: boolean;
   peopleOptionsForSegment: (
     date: Date,
-    segment: Exclude<Segment, "Early">,
+    segment: Segment,
     role: any
   ) => Array<{ id: number; label: string; blocked: boolean }>;
   getRequiredFor: (
@@ -64,7 +64,7 @@ export default function DailyRunBoard({
   addAssignment,
   deleteAssignment,
 }: DailyRunBoardProps) {
-  const seg: Exclude<Segment, "Early"> = activeRunSegment;
+  const seg: Segment = activeRunSegment;
   const [layout, setLayout] = useState<any[]>([]);
   const [layoutLoaded, setLayoutLoaded] = useState(false);
   const [moveContext, setMoveContext] = useState<{
@@ -270,13 +270,13 @@ export default function DailyRunBoard({
           />
         </div>
         <div className="flex gap-2">
-          {["AM", "Lunch", "PM"].map((s) => (
+          {["Early", "AM", "Lunch", "PM"].map((s) => (
             <button
               key={s}
               className={`px-3 py-1 rounded text-sm ${
                 activeRunSegment === s ? "bg-indigo-600 text-white" : "bg-slate-200"
               }`}
-              onClick={() => setActiveRunSegment(s as Exclude<Segment, "Early">)}
+              onClick={() => setActiveRunSegment(s as Segment)}
             >
               {s}
             </button>

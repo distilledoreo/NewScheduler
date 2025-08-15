@@ -108,7 +108,7 @@ export default function App() {
   const [exportStart, setExportStart] = useState<string>(() => ymd(new Date()));
   const [exportEnd, setExportEnd] = useState<string>(() => ymd(new Date()));
   const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY">("RUN");
-  const [activeRunSegment, setActiveRunSegment] = useState<Exclude<Segment, "Early">>("AM");
+  const [activeRunSegment, setActiveRunSegment] = useState<Segment>("AM");
 
   // People cache for quick UI (id -> record)
   const [people, setPeople] = useState<any[]>([]);
@@ -529,10 +529,8 @@ export default function App() {
     if (weekdayName(d) === "Weekend") { alert("Weekends are ignored. Pick a weekday."); return; }
 
     // Time-off block enforcement
-    if (segment !== "Early") {
-      const blocked = isSegmentBlockedByTimeOff(personId, d, segment as Exclude<Segment,'Early'>);
-      if (blocked) { alert("Time-off overlaps this segment. Blocked."); return; }
-    }
+    const blocked = isSegmentBlockedByTimeOff(personId, d, segment);
+    if (blocked) { alert("Time-off overlaps this segment. Blocked."); return; }
 
     run(`INSERT INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`, [ymd(d), personId, roleId, segment]);
     run(
@@ -544,10 +542,16 @@ export default function App() {
 
   function deleteAssignment(id:number){ run(`DELETE FROM assignment WHERE id=?`,[id]); refreshCaches(); }
 
-  function isSegmentBlockedByTimeOff(personId: number, date: Date, segment: Exclude<Segment, "Early">): boolean {
+  function isSegmentBlockedByTimeOff(personId: number, date: Date, segment: Segment): boolean {
     // For UI adding, any overlap => return true (spec Q34 = Block)
     const intervals = listTimeOffIntervals(personId, date);
     if (intervals.length === 0) return false;
+    if (segment === "Early") {
+      const et = earlyTimes(date);
+      const start = et.start.getTime();
+      const end = et.end.getTime();
+      return intervals.some(({ start: s, end: e }) => Math.max(s.getTime(), start) < Math.min(e.getTime(), end));
+    }
     const segTimes = baseSegmentTimes(date, /*hasLunch*/true, /*hasEarly*/false);
     const window = segment === "AM" ? segTimes.AM : segment === "Lunch" ? segTimes.Lunch : segTimes.PM;
     const start = window.start.getTime();
@@ -574,7 +578,7 @@ export default function App() {
     setMonthlyOverrides(ov);
   }
 
-  function setMonthlyDefault(personId: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
+  function setMonthlyDefault(personId: number, segment: Segment, roleId: number | null) {
     if (!sqlDb) return;
     if (roleId) {
       run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
@@ -587,7 +591,7 @@ export default function App() {
     loadMonthlyDefaults(selectedMonth);
   }
 
-  function setWeeklyOverride(personId: number, weekday: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
+  function setWeeklyOverride(personId: number, weekday: number, segment: Segment, roleId: number | null) {
     if (!sqlDb) return;
     if (roleId) {
       run(`INSERT INTO monthly_default_day (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)
@@ -600,7 +604,7 @@ export default function App() {
     loadMonthlyDefaults(selectedMonth);
   }
 
-  function setMonthlyDefaultForMonth(month: string, personId: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
+  function setMonthlyDefaultForMonth(month: string, personId: number, segment: Segment, roleId: number | null) {
     if (!sqlDb) return;
     if (roleId) {
       run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
@@ -654,12 +658,13 @@ export default function App() {
         const wdNum = d.getDay(); // 1=Mon..5=Fri
         const availField = wdName === 'Monday'? 'avail_mon' : wdName === 'Tuesday'? 'avail_tue' : wdName === 'Wednesday'? 'avail_wed' : wdName === 'Thursday'? 'avail_thu' : 'avail_fri';
         const avail = person[availField];
-        for (const seg of ['AM','Lunch','PM'] as const) {
+        for (const seg of ['Early','AM','Lunch','PM'] as const) {
           let roleId = overrideMap.get(`${person.id}|${wdNum}|${seg}`);
           if (roleId === undefined) roleId = defaultMap.get(`${person.id}|${seg}`);
           if (!roleId) continue;
           let ok = false;
-          if (seg === 'AM') ok = avail === 'AM' || avail === 'B';
+          if (seg === 'Early') ok = avail === 'AM' || avail === 'B';
+          else if (seg === 'AM') ok = avail === 'AM' || avail === 'B';
           else if (seg === 'PM') ok = avail === 'PM' || avail === 'B';
           else if (seg === 'Lunch') ok = avail === 'AM' || avail === 'PM' || avail === 'B';
           if (!ok) continue;
@@ -676,7 +681,7 @@ export default function App() {
   async function exportMonthlyDefaults(month: string) {
     if (!sqlDb) return;
     const headers = [
-      'Last Name','First Name','AM Role','Lunch Role','PM Role','B/S','Commute','Active',
+      'Last Name','First Name','Early Role','AM Role','Lunch Role','PM Role','B/S','Commute','Active',
       'Mon','Tue','Wed','Thu','Fri'
     ];
 
@@ -700,7 +705,7 @@ export default function App() {
 
     const headerHtml = headers.map(h => `<th>${escapeHtml(h)}</th>`).join('');
     const bodyHtml = people.map((p:any) => {
-      const roleTds = ['AM','Lunch','PM'].map(seg => {
+      const roleTds = ['Early','AM','Lunch','PM'].map(seg => {
         const def = monthlyDefaults.find(d => d.person_id===p.id && d.segment===seg);
         const role = roles.find(r => r.id===def?.role_id);
         const group = groups.find(g => g.id === role?.group_id);
@@ -763,7 +768,6 @@ export default function App() {
 
   // Needs
   function getRequiredFor(date: Date, groupId: number, roleId: number, segment: Segment): number {
-    if (segment === "Early") return 0; // Breakfast baseline usually 0 unless set
     const dY = ymd(date);
     const ov = all(`SELECT required FROM needs_override WHERE date=? AND group_id=? AND role_id=? AND segment=?`, [dY, groupId, roleId, segment]);
     if (ov.length) return ov[0].required;
@@ -925,7 +929,7 @@ async function exportShifts() {
   const canSave = !!sqlDb && (!lockedBy || lockedBy === lockEmail);
   const selectedDateObj = useMemo(()=>parseMDY(selectedDate),[selectedDate]);
 
-  function peopleOptionsForSegment(date: Date, segment: Exclude<Segment, "Early">, role: any) {
+  function peopleOptionsForSegment(date: Date, segment: Segment, role: any) {
     // Determine weekday availability field
     const wd = weekdayName(date);
     const availField =
@@ -954,12 +958,13 @@ async function exportShifts() {
       .filter((p: any) => {
         const avail = p[availField] as "U" | "AM" | "PM" | "B";
         const availOk =
+          (segment === "Early" && (avail === "AM" || avail === "B")) ||
           (segment === "AM" && (avail === "AM" || avail === "B")) ||
           (segment === "PM" && (avail === "PM" || avail === "B")) ||
           (segment === "Lunch" && (avail === "AM" || avail === "PM" || avail === "B"));
         if (!availOk) return false;
 
-        if (segment !== "Early" && isSegmentBlockedByTimeOff(p.id, date, segment)) return false;
+        if (isSegmentBlockedByTimeOff(p.id, date, segment)) return false;
 
         return true;
       })
@@ -1020,7 +1025,7 @@ async function exportShifts() {
     const [sortKey, setSortKey] = useState<
       'name' | 'email' | 'brother_sister' | 'commuter' | 'active' |
       'avail_mon' | 'avail_tue' | 'avail_wed' | 'avail_thu' | 'avail_fri' |
-      'AM' | 'Lunch' | 'PM'
+      'Early' | 'AM' | 'Lunch' | 'PM'
     >('name');
     const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc');
     const [filterText, setFilterText] = useState('');
@@ -1034,7 +1039,7 @@ async function exportShifts() {
         .filter((p:any)=>!activeOnly || p.active)
         .filter((p:any)=>!commuterOnly || p.commuter)
         .filter((p:any)=>{
-          const roleNames = ['AM','Lunch','PM'].map(seg=>{
+          const roleNames = ['Early','AM','Lunch','PM'].map(seg=>{
             const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
             const role = roles.find(r=>r.id===def?.role_id);
             return role?.name || '';
@@ -1079,6 +1084,7 @@ async function exportShifts() {
           case 'avail_wed': av = a.avail_wed; bv = b.avail_wed; break;
           case 'avail_thu': av = a.avail_thu; bv = b.avail_thu; break;
           case 'avail_fri': av = a.avail_fri; bv = b.avail_fri; break;
+          case 'Early':
           case 'AM':
           case 'Lunch':
           case 'PM':
@@ -1101,7 +1107,7 @@ async function exportShifts() {
       const person = people.find(p=>p.id===personId);
       if (!person) return null;
       const weekdays = [1,2,3,4,5];
-      const segments = ['AM','Lunch','PM'] as const;
+      const segments = ['Early','AM','Lunch','PM'] as const;
       return (
         <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center" onClick={onClose}>
           <div className="bg-white rounded shadow-lg p-4" onClick={e=>e.stopPropagation()}>
@@ -1175,11 +1181,12 @@ async function exportShifts() {
             <Option value="avail_mon">Mon</Option>
             <Option value="avail_tue">Tue</Option>
             <Option value="avail_wed">Wed</Option>
-            <Option value="avail_thu">Thu</Option>
-            <Option value="avail_fri">Fri</Option>
-            <Option value="AM">AM Role</Option>
-            <Option value="Lunch">Lunch Role</Option>
-            <Option value="PM">PM Role</Option>
+          <Option value="avail_thu">Thu</Option>
+          <Option value="avail_fri">Fri</Option>
+          <Option value="Early">Early Role</Option>
+          <Option value="AM">AM Role</Option>
+          <Option value="Lunch">Lunch Role</Option>
+          <Option value="PM">PM Role</Option>
           </Dropdown>
           <Button onClick={()=>setSortDir(sortDir==='asc'?'desc':'asc')}>{sortDir==='asc'?'Asc':'Desc'}</Button>
           <Checkbox label="Active" checked={activeOnly} onChange={(_, data)=>setActiveOnly(!!data.checked)} />
@@ -1190,7 +1197,7 @@ async function exportShifts() {
             <thead className="bg-slate-100">
               <tr>
                 <th className="p-2 text-left">Name</th>
-                {(['AM','Lunch','PM'] as const).map(seg=> (
+                {(['Early','AM','Lunch','PM'] as const).map(seg=> (
                   <th key={seg} className="p-2 text-left">{seg}</th>
                 ))}
               </tr>
@@ -1206,7 +1213,7 @@ async function exportShifts() {
                       </button>
                     )}
                   </td>
-                  {(['AM','Lunch','PM'] as const).map(seg => {
+                  {(['Early','AM','Lunch','PM'] as const).map(seg => {
                     const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
                     return (
                       <td key={seg} className="p-2">
@@ -1235,7 +1242,7 @@ async function exportShifts() {
   function CrewHistoryView(){
     const [defs, setDefs] = useState<any[]>([]);
     const [filter, setFilter] = useState("");
-    const [showSeg, setShowSeg] = useState({ AM: true, Lunch: true, PM: true });
+    const [showSeg, setShowSeg] = useState({ Early: true, AM: true, Lunch: true, PM: true });
     const [activeOnly, setActiveOnly] = useState(false);
     const [commuterOnly, setCommuterOnly] = useState(false);
     const [bsFilter, setBsFilter] = useState("");
@@ -1243,7 +1250,7 @@ async function exportShifts() {
     const [sortField, setSortField] = useState<
       'last'|'first'|'brother_sister'|'commuter'|'active'|
       'avail_mon'|'avail_tue'|'avail_wed'|'avail_thu'|'avail_fri'|
-      'AM'|'Lunch'|'PM'
+      'Early'|'AM'|'Lunch'|'PM'
     >('last');
     const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc');
     const [startMonth, setStartMonth] = useState<string>("");
@@ -1308,7 +1315,7 @@ async function exportShifts() {
         .filter((p:any) => {
           if (groupFilter.length === 0) return true;
           return monthsToCheck.some(m => (
-            ['AM','Lunch','PM'] as const).some(seg => {
+            ['Early','AM','Lunch','PM'] as const).some(seg => {
               const def = defs.find(d=>d.month===m && d.person_id===p.id && d.segment===seg);
               const role = roles.find(r=>r.id===def?.role_id);
               return role && groupFilter.includes(role.group_name);
@@ -1317,7 +1324,7 @@ async function exportShifts() {
         })
         .filter((p:any) => {
           const roleNames = monthsToCheck.flatMap(m => (
-            ['AM','Lunch','PM'] as const).map(seg => {
+            ['Early','AM','Lunch','PM'] as const).map(seg => {
               const def = defs.find(d=>d.month===m && d.person_id===p.id && d.segment===seg);
               const role = roles.find(r=>r.id===def?.role_id);
               return role?.name || '';
@@ -1356,6 +1363,7 @@ async function exportShifts() {
             case 'avail_wed': av = a.avail_wed; bv = b.avail_wed; break;
             case 'avail_thu': av = a.avail_thu; bv = b.avail_thu; break;
             case 'avail_fri': av = a.avail_fri; bv = b.avail_fri; break;
+            case 'Early':
             case 'AM':
             case 'Lunch':
             case 'PM':
@@ -1374,12 +1382,13 @@ async function exportShifts() {
         });
     }, [people, defs, roles, months, filter, activeOnly, commuterOnly, bsFilter, groupFilter, sortField, sortDir, filterMonth]);
 
-    const segs = ([] as Exclude<Segment,'Early'>[]);
+    const segs = ([] as Segment[]);
+    if (showSeg.Early) segs.push('Early');
     if (showSeg.AM) segs.push('AM');
     if (showSeg.Lunch) segs.push('Lunch');
     if (showSeg.PM) segs.push('PM');
 
-    function RoleSelect({ month, personId, seg, def }: { month: string; personId: number; seg: Exclude<Segment,'Early'>; def: any }){
+    function RoleSelect({ month, personId, seg, def }: { month: string; personId: number; seg: Segment; def: any }){
       const ref = useRef<HTMLSelectElement>(null);
       const options = roleListForSegment(seg);
 
@@ -1422,7 +1431,7 @@ async function exportShifts() {
       );
     }
 
-    function cellData(month:string, personId:number, seg:Exclude<Segment,'Early'>){
+    function cellData(month:string, personId:number, seg:Segment){
       const def = defs.find((d:any)=>d.month===month && d.person_id===personId && d.segment===seg);
       const role = roles.find((r:any)=>r.id===def?.role_id);
       const color = role ? GROUPS[role.group_name]?.color : undefined;
@@ -1447,6 +1456,7 @@ async function exportShifts() {
             <Option value="avail_wed">Wed</Option>
             <Option value="avail_thu">Thu</Option>
             <Option value="avail_fri">Fri</Option>
+            <Option value="Early">Early Role</Option>
             <Option value="AM">AM Role</Option>
             <Option value="Lunch">Lunch Role</Option>
             <Option value="PM">PM Role</Option>
@@ -1477,6 +1487,7 @@ async function exportShifts() {
           </Dropdown>
           <Checkbox label="Active" checked={activeOnly} onChange={(_, data)=>setActiveOnly(!!data.checked)} />
           <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data)=>setCommuterOnly(!!data.checked)} />
+          <Checkbox label="Early" checked={showSeg.Early} onChange={(_, data)=>setShowSeg({...showSeg, Early:!!data.checked})} />
           <Checkbox label="AM" checked={showSeg.AM} onChange={(_, data)=>setShowSeg({...showSeg, AM:!!data.checked})} />
           <Checkbox label="Lunch" checked={showSeg.Lunch} onChange={(_, data)=>setShowSeg({...showSeg, Lunch:!!data.checked})} />
           <Checkbox label="PM" checked={showSeg.PM} onChange={(_, data)=>setShowSeg({...showSeg, PM:!!data.checked})} />
@@ -1551,7 +1562,11 @@ async function exportShifts() {
               {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
                 <div key={r.id} className="mb-4 border rounded p-3">
                   <div className="font-medium mb-3">{r.name}</div>
-                  <div className="space-y-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
+                  <div className="space-y-3 sm:grid sm:grid-cols-4 sm:gap-3 sm:space-y-0">
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">Early Required</div>
+                      <RequiredCell date={null} group={g} role={r} segment={'Early'} />
+                    </div>
                     <div>
                       <div className="text-xs text-slate-500 mb-1">AM Required</div>
                       <RequiredCell date={null} group={g} role={r} segment={'AM'} />
