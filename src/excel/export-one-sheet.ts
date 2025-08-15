@@ -2,7 +2,6 @@ import { loadExcelJS } from './exceljs-loader';
 
 const GROUP_TO_CODE: Record<string, string> = {
   'Dining Room': 'DR',
-  'Buffet': 'DR',
   'Pattern': 'DR',
   'Main Course': 'MC',
   'Veggie Room': 'VEG',
