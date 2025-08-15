@@ -313,14 +313,18 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     const rowIndex = paneState[pane];
 
     // Group header
-    ws.mergeCells(rowIndex, startCol, rowIndex, startCol+3);
-    const hcell = ws.getCell(rowIndex,startCol);
+    ws.mergeCells(rowIndex, startCol, rowIndex, startCol + 3);
+    const hcell = ws.getCell(rowIndex, startCol);
     hcell.value = group;
-    hcell.font = { bold:true, size:18 };
-    hcell.alignment = { horizontal:'left' };
+    hcell.alignment = { horizontal: 'left' };
     const fill = GROUP_COLORS[group] || 'FFEFEFEF';
-    hcell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:fill} };
-    setRowBorders(ws.getRow(rowIndex), startCol, startCol+3);
+    hcell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
+    // Ensure all cells in the merged range are bolded so row-level fonts from
+    // other panes do not override the header styling.
+    for (let c = startCol; c <= startCol + 3; c++) {
+      ws.getCell(rowIndex, c).font = { bold: true, size: 18 };
+    }
+    setRowBorders(ws.getRow(rowIndex), startCol, startCol + 3);
 
     function simplifyRole(role: string): string | null {
       if (role === group) return null;
@@ -362,7 +366,11 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
       }
 
       ws.getCell(r, startCol + 3).value = days;
-      ws.getRow(r).font = { size:16 };
+      // Apply font to each cell individually to avoid interfering with other
+      // panes that may use the same worksheet row.
+      for (let c = startCol; c <= startCol + 3; c++) {
+        ws.getCell(r, c).font = { size: 16 };
+      }
       setRowBorders(ws.getRow(r), startCol, startCol + 3);
       r++;
     }
