@@ -110,6 +110,93 @@ const migrations: Record<number, Migration> = {
       FOREIGN KEY (role_id) REFERENCES role(id)
     );`);
   }
+ ,
+  3: (db) => {
+    const segmentCheck = "'Early','AM','Lunch','PM'";
+    function recreate(name: string, createSql: string, columns: string) {
+      db.run(`ALTER TABLE ${name} RENAME TO ${name}_old;`);
+      db.run(createSql);
+      db.run(`INSERT INTO ${name} (${columns}) SELECT ${columns} FROM ${name}_old;`);
+      db.run(`DROP TABLE ${name}_old;`);
+    }
+    try {
+      recreate(
+        'assignment',
+        `CREATE TABLE assignment (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      person_id INTEGER NOT NULL,
+      role_id INTEGER NOT NULL,
+      segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
+      FOREIGN KEY (person_id) REFERENCES person(id),
+      FOREIGN KEY (role_id) REFERENCES role(id)
+    );`,
+        'id, date, person_id, role_id, segment'
+      );
+    } catch (e) {}
+    try {
+      recreate(
+        'monthly_default',
+        `CREATE TABLE monthly_default (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL,
+      person_id INTEGER NOT NULL,
+      segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
+      role_id INTEGER NOT NULL,
+      UNIQUE(month, person_id, segment),
+      FOREIGN KEY (person_id) REFERENCES person(id),
+      FOREIGN KEY (role_id) REFERENCES role(id)
+    );`,
+        'id, month, person_id, segment, role_id'
+      );
+    } catch (e) {}
+    try {
+      recreate(
+        'needs_baseline',
+        `CREATE TABLE needs_baseline (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      group_id INTEGER NOT NULL,
+      role_id INTEGER NOT NULL,
+      segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
+      required INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(group_id, role_id, segment)
+    );`,
+        'id, group_id, role_id, segment, required'
+      );
+    } catch (e) {}
+    try {
+      recreate(
+        'needs_override',
+        `CREATE TABLE needs_override (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      group_id INTEGER NOT NULL,
+      role_id INTEGER NOT NULL,
+      segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
+      required INTEGER NOT NULL,
+      UNIQUE(date, group_id, role_id, segment)
+    );`,
+        'id, date, group_id, role_id, segment, required'
+      );
+    } catch (e) {}
+    try {
+      recreate(
+        'monthly_default_day',
+        `CREATE TABLE monthly_default_day (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL,
+      person_id INTEGER NOT NULL,
+      weekday INTEGER NOT NULL,
+      segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
+      role_id INTEGER NOT NULL,
+      UNIQUE(month, person_id, weekday, segment),
+      FOREIGN KEY (person_id) REFERENCES person(id),
+      FOREIGN KEY (role_id) REFERENCES role(id)
+    );`,
+        'id, month, person_id, weekday, segment, role_id'
+      );
+    } catch (e) {}
+  }
 };
 
 export function addMigration(version: number, fn: Migration) {
