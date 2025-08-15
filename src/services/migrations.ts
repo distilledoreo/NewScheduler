@@ -2,6 +2,13 @@ import type { Database } from 'sql.js';
 
 export type Migration = (db: Database) => void;
 
+export const migrate3RenameBuffetToDiningRoom: Migration = (db) => {
+  db.run(`UPDATE grp SET name='Dining Room' WHERE name='Buffet';`);
+  db.run(
+    `UPDATE role SET code='DR', name=REPLACE(name,'Buffet','Dining Room') WHERE group_id=(SELECT id FROM grp WHERE name='Dining Room') AND segments<>'["Lunch"]';`
+  );
+};
+
 const migrations: Record<number, Migration> = {
   1: (db) => {
     db.run(`PRAGMA journal_mode=WAL;`);
@@ -109,9 +116,11 @@ const migrations: Record<number, Migration> = {
       FOREIGN KEY (person_id) REFERENCES person(id),
       FOREIGN KEY (role_id) REFERENCES role(id)
     );`);
+      },
+  3: migrate3RenameBuffetToDiningRoom,
   }
  ,
-  3: (db) => {
+  4: (db) => {
     const segmentCheck = "'Early','AM','Lunch','PM'";
     function recreate(name: string, createSql: string, columns: string) {
       db.run(`ALTER TABLE ${name} RENAME TO ${name}_old;`);
@@ -197,6 +206,7 @@ const migrations: Record<number, Migration> = {
       );
     } catch (e) {}
   }
+
 };
 
 export function addMigration(version: number, fn: Migration) {

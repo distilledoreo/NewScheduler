@@ -15,10 +15,10 @@ export const GROUPS: Record<string, { theme: string; color: string }> = {
 };
 
 export const ROLE_SEED: Array<{ code: string; name: string; group: keyof typeof GROUPS; segments: Segment[] }> = [
-  { code: "DR", name: "Buffet", group: "Dining Room", segments: ["AM", "PM"] },
-  { code: "DR", name: "Buffet Training", group: "Dining Room", segments: ["AM", "PM"] },
-  { code: "DR", name: "Buffet Sup", group: "Dining Room", segments: ["AM", "PM"] },
-  { code: "DR", name: "Buffet Assistant", group: "Dining Room", segments: ["AM", "PM"] },
+  { code: "DR", name: "Dining Room", group: "Dining Room", segments: ["AM", "PM"] },
+  { code: "DR", name: "Dining Room Training", group: "Dining Room", segments: ["AM", "PM"] },
+  { code: "DR", name: "Dining Room Supervisor", group: "Dining Room", segments: ["AM", "PM"] },
+  { code: "DR", name: "Dining Room Assistant", group: "Dining Room", segments: ["AM", "PM"] },
   { code: "DR", name: "Pattern", group: "Dining Room", segments: ["AM", "PM"] },
   { code: "DR", name: "Pattern Training", group: "Dining Room", segments: ["AM", "PM"] },
   { code: "DR", name: "Pattern Supervisor", group: "Dining Room", segments: ["AM", "PM"] },
@@ -54,7 +54,7 @@ export const ROLE_SEED: Array<{ code: string; name: string; group: keyof typeof 
   { code: "OFF", name: "Office", group: "Office", segments: ["AM", "PM"] },
 
   { code: "L SUP", name: "Lunch Supervisor", group: "Lunch", segments: ["Lunch"] },
-  { code: "B SUP", name: "Buffet Supervisor", group: "Lunch", segments: ["Lunch"] },
+  { code: "DR SUP", name: "Dining Room Supervisor", group: "Lunch", segments: ["Lunch"] },
   { code: "ATT SUP", name: "Attendant Supervisor", group: "Lunch", segments: ["Lunch"] },
   { code: "R SUP", name: "Guest Supervisor", group: "Lunch", segments: ["Lunch"] },
   { code: "CK-IN", name: "Guest Check-In", group: "Lunch", segments: ["Lunch"] },
