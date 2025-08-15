@@ -1238,6 +1238,8 @@ async function exportShifts() {
     const [showSeg, setShowSeg] = useState({ AM: true, Lunch: true, PM: true });
     const [activeOnly, setActiveOnly] = useState(false);
     const [commuterOnly, setCommuterOnly] = useState(false);
+    const [bsFilter, setBsFilter] = useState("");
+    const [groupFilter, setGroupFilter] = useState<string[]>([]);
     const [sortField, setSortField] = useState<
       'last'|'first'|'brother_sister'|'commuter'|'active'|
       'avail_mon'|'avail_tue'|'avail_wed'|'avail_thu'|'avail_fri'|
@@ -1246,6 +1248,7 @@ async function exportShifts() {
     const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc');
     const [startMonth, setStartMonth] = useState<string>("");
     const [endMonth, setEndMonth] = useState<string>("");
+    const [filterMonth, setFilterMonth] = useState<string>("");
     const [editPast, setEditPast] = useState(false);
 
     useEffect(() => {
@@ -1289,13 +1292,31 @@ async function exportShifts() {
       return arr;
     }, [startMonth, endMonth]);
 
+    useEffect(() => {
+      if (months.length && !months.includes(filterMonth)) {
+        setFilterMonth(months[0]);
+      }
+    }, [months, filterMonth]);
+
     const filteredPeople = useMemo(() => {
       const low = filter.toLowerCase();
+      const monthsToCheck = filterMonth ? [filterMonth] : months;
       return people
         .filter((p:any) => !activeOnly || p.active)
         .filter((p:any) => !commuterOnly || p.commuter)
+        .filter((p:any) => !bsFilter || p.brother_sister === bsFilter)
         .filter((p:any) => {
-          const roleNames = months.flatMap(m => (
+          if (groupFilter.length === 0) return true;
+          return monthsToCheck.some(m => (
+            ['AM','Lunch','PM'] as const).some(seg => {
+              const def = defs.find(d=>d.month===m && d.person_id===p.id && d.segment===seg);
+              const role = roles.find(r=>r.id===def?.role_id);
+              return role && groupFilter.includes(role.group_name);
+            })
+          );
+        })
+        .filter((p:any) => {
+          const roleNames = monthsToCheck.flatMap(m => (
             ['AM','Lunch','PM'] as const).map(seg => {
               const def = defs.find(d=>d.month===m && d.person_id===p.id && d.segment===seg);
               const role = roles.find(r=>r.id===def?.role_id);
@@ -1338,7 +1359,7 @@ async function exportShifts() {
             case 'AM':
             case 'Lunch':
             case 'PM':
-              const month = months[0];
+              const month = filterMonth || months[0];
               const defA = defs.find(d=>d.month===month && d.person_id===a.id && d.segment===sortField);
               const defB = defs.find(d=>d.month===month && d.person_id===b.id && d.segment===sortField);
               const roleA = roles.find(r=>r.id===defA?.role_id)?.name || '';
@@ -1351,7 +1372,7 @@ async function exportShifts() {
           if(av > bv) return sortDir==='asc' ? 1 : -1;
           return 0;
         });
-    }, [people, defs, roles, months, filter, activeOnly, commuterOnly, sortField, sortDir]);
+    }, [people, defs, roles, months, filter, activeOnly, commuterOnly, bsFilter, groupFilter, sortField, sortDir, filterMonth]);
 
     const segs = ([] as Exclude<Segment,'Early'>[]);
     if (showSeg.AM) segs.push('AM');
@@ -1431,6 +1452,29 @@ async function exportShifts() {
             <Option value="PM">PM Role</Option>
           </Dropdown>
           <Button onClick={()=>setSortDir(sortDir==='asc'?'desc':'asc')}>{sortDir==='asc'?'Asc':'Desc'}</Button>
+          <Dropdown selectedOptions={[bsFilter]} onOptionSelect={(_, data)=>setBsFilter(data.optionValue as string)}>
+            <Option value="">All B/S</Option>
+            <Option value="Brother">Brother</Option>
+            <Option value="Sister">Sister</Option>
+          </Dropdown>
+          <Dropdown
+            multiselect
+            placeholder="All Groups"
+            selectedOptions={groupFilter}
+            onOptionSelect={(_, data)=>setGroupFilter(data.selectedOptions as string[])}
+          >
+            {Object.keys(GROUPS).map(g => (
+              <Option key={g} value={g}>{g}</Option>
+            ))}
+          </Dropdown>
+          <Dropdown
+            selectedOptions={filterMonth ? [filterMonth] : []}
+            onOptionSelect={(_, data)=>setFilterMonth(data.optionValue as string)}
+          >
+            {months.map(m => (
+              <Option key={m} value={m}>{m}</Option>
+            ))}
+          </Dropdown>
           <Checkbox label="Active" checked={activeOnly} onChange={(_, data)=>setActiveOnly(!!data.checked)} />
           <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data)=>setCommuterOnly(!!data.checked)} />
           <Checkbox label="AM" checked={showSeg.AM} onChange={(_, data)=>setShowSeg({...showSeg, AM:!!data.checked})} />
