@@ -65,6 +65,95 @@ export const migrate6AddExportGroup: Migration = (db) => {
   }
 };
 
+export const migrate7SegmentRefs: Migration = (db) => {
+  const rebuild = (
+    table: string,
+    createSql: string,
+    columns: string
+  ) => {
+    try {
+      db.run(`ALTER TABLE ${table} RENAME TO ${table}_old;`);
+      db.run(createSql);
+      db.run(
+        `INSERT INTO ${table} (${columns}) SELECT ${columns} FROM ${table}_old;`
+      );
+      db.run(`DROP TABLE ${table}_old;`);
+    } catch {}
+  };
+
+  rebuild(
+    'assignment',
+    `CREATE TABLE assignment (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      person_id INTEGER NOT NULL,
+      role_id INTEGER NOT NULL,
+      segment TEXT NOT NULL REFERENCES segment(name),
+      FOREIGN KEY (person_id) REFERENCES person(id),
+      FOREIGN KEY (role_id) REFERENCES role(id)
+    );`,
+    'id, date, person_id, role_id, segment'
+  );
+
+  rebuild(
+    'monthly_default',
+    `CREATE TABLE monthly_default (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL,
+      person_id INTEGER NOT NULL,
+      segment TEXT NOT NULL REFERENCES segment(name),
+      role_id INTEGER NOT NULL,
+      UNIQUE(month, person_id, segment),
+      FOREIGN KEY (person_id) REFERENCES person(id),
+      FOREIGN KEY (role_id) REFERENCES role(id)
+    );`,
+    'id, month, person_id, segment, role_id'
+  );
+
+  rebuild(
+    'monthly_default_day',
+    `CREATE TABLE monthly_default_day (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL,
+      person_id INTEGER NOT NULL,
+      weekday INTEGER NOT NULL,
+      segment TEXT NOT NULL REFERENCES segment(name),
+      role_id INTEGER NOT NULL,
+      UNIQUE(month, person_id, weekday, segment),
+      FOREIGN KEY (person_id) REFERENCES person(id),
+      FOREIGN KEY (role_id) REFERENCES role(id)
+    );`,
+    'id, month, person_id, weekday, segment, role_id'
+  );
+
+  rebuild(
+    'needs_baseline',
+    `CREATE TABLE needs_baseline (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      group_id INTEGER NOT NULL,
+      role_id INTEGER NOT NULL,
+      segment TEXT NOT NULL REFERENCES segment(name),
+      required INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(group_id, role_id, segment)
+    );`,
+    'id, group_id, role_id, segment, required'
+  );
+
+  rebuild(
+    'needs_override',
+    `CREATE TABLE needs_override (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      group_id INTEGER NOT NULL,
+      role_id INTEGER NOT NULL,
+      segment TEXT NOT NULL REFERENCES segment(name),
+      required INTEGER NOT NULL,
+      UNIQUE(date, group_id, role_id, segment)
+    );`,
+    'id, date, group_id, role_id, segment, required'
+  );
+};
+
 const migrations: Record<number, Migration> = {
   1: (db) => {
     db.run(`PRAGMA journal_mode=WAL;`);
@@ -196,6 +285,7 @@ const migrations: Record<number, Migration> = {
   4: migrate4AddSegments,
   5: migrate5AddGroupTheme,
   6: migrate6AddExportGroup,
+  7: migrate7SegmentRefs,
 };
 
 export function addMigration(version: number, fn: Migration) {
