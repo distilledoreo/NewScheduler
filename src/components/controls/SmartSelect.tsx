@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Combobox, Option } from "@fluentui/react-components";
 
 export interface SmartOption {
@@ -32,9 +32,22 @@ export default function SmartSelect({
     [options]
   );
 
+  const selectedOption = useMemo(
+    () => options.find((o) => o.value === value),
+    [options, value]
+  );
+
+  const [inputValue, setInputValue] = useState(selectedOption?.label ?? "");
+
+  useEffect(() => {
+    setInputValue(selectedOption?.label ?? "");
+  }, [selectedOption]);
+
   return (
     <Combobox
       key={`smart-${value ?? ""}-${optionsKey}`}
+      value={inputValue}
+      onInput={(e) => setInputValue((e.target as HTMLInputElement).value)}
       selectedOptions={value ? [value] : []}
       onOptionSelect={(_, data) => {
         const v = data.optionValue ?? null;
