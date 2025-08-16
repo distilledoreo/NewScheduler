@@ -38,13 +38,23 @@ export default function CrewHistoryView({
   const useStyles = makeStyles({
     root: {
       padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
+      display: 'flex',
+      flexDirection: 'column',
+      width: '100%',
+      maxWidth: '100%',
+      minWidth: 0,
+      overflow: 'hidden',
+      boxSizing: 'border-box',
+      rowGap: tokens.spacingVerticalM,
     },
     toolbar: {
       display: 'flex',
       flexWrap: 'wrap',
       alignItems: 'center',
       gap: tokens.spacingHorizontalS,
-      marginBottom: tokens.spacingVerticalM,
+      overflowX: 'auto',
+      paddingBlockEnd: tokens.spacingVerticalS,
+      minWidth: 0,
     },
     monthRange: {
       display: 'flex',
@@ -56,7 +66,12 @@ export default function CrewHistoryView({
       color: tokens.colorNeutralForeground2,
     },
     scroll: {
+      width: '100%',
+      maxWidth: '100%',
+      minWidth: 0,
       overflowX: 'auto',
+      overflowY: 'auto',
+      overscrollBehaviorX: 'contain',
     },
   });
   const styles = useStyles();

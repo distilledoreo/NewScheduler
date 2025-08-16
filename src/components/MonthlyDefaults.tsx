@@ -46,20 +46,35 @@ export default function MonthlyDefaults({
   const useStyles = makeStyles({
     root: {
       padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
+      display: 'flex',
+      flexDirection: 'column',
+      width: '100%',
+      maxWidth: '100%',
+      minWidth: 0,
+      overflow: 'hidden',
+      boxSizing: 'border-box',
+      rowGap: tokens.spacingVerticalM,
     },
     toolbar: {
       display: 'flex',
       alignItems: 'center',
       flexWrap: 'wrap',
       gap: tokens.spacingHorizontalS,
-      marginBottom: tokens.spacingVerticalM,
+      overflowX: 'auto',
+      paddingBlockEnd: tokens.spacingVerticalS,
+      minWidth: 0,
     },
     label: {
       fontSize: tokens.fontSizeBase300,
       color: tokens.colorNeutralForeground2,
     },
     scroll: {
+      width: '100%',
+      maxWidth: '100%',
+      minWidth: 0,
       overflowX: 'auto',
+      overflowY: 'auto',
+      overscrollBehaviorX: 'contain',
     },
     inlineLink: {
       marginLeft: tokens.spacingHorizontalS,
