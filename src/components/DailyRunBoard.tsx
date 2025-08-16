@@ -5,7 +5,7 @@ import "react-resizable/css/styles.css";
 import type { Segment, SegmentRow } from "../services/segments";
 import "../styles/scrollbar.css";
 import PersonName from "./PersonName";
-import { Button, Dropdown, Option, Tab, TabList, Input, tokens, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, DialogTrigger, makeStyles } from "@fluentui/react-components";
+import { Button, Dropdown, Option, Tab, TabList, Input, tokens, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, DialogTrigger, makeStyles, Badge } from "@fluentui/react-components";
 
 const Grid = WidthProvider(GridLayout);
 
@@ -85,6 +85,61 @@ export default function DailyRunBoard({
     },
     headerLeft: { display: "flex", alignItems: "center", gap: "8px" },
     headerRight: { display: "flex", flexWrap: "wrap", gap: "8px", marginLeft: "auto" },
+    label: { fontSize: tokens.fontSizeBase300, color: tokens.colorNeutralForeground2, whiteSpace: 'nowrap' },
+    groupCard: {
+      border: `1px solid ${tokens.colorNeutralStroke2}`,
+      borderRadius: tokens.borderRadiusMedium,
+      boxShadow: tokens.shadow2,
+      backgroundColor: tokens.colorNeutralBackground1,
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+    },
+    groupHeader: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM} 0 ${tokens.spacingHorizontalM}`,
+    },
+    groupMeta: { fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3 },
+    rolesGrid: {
+      flex: 1,
+      display: 'grid',
+      gap: tokens.spacingHorizontalS,
+      padding: `0 ${tokens.spacingHorizontalM} ${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
+      overflow: 'auto',
+    },
+    roleCard: {
+      border: `1px solid ${tokens.colorNeutralStroke2}`,
+      borderLeftWidth: '4px',
+      borderRadius: tokens.borderRadiusMedium,
+      backgroundColor: tokens.colorNeutralBackground1,
+      padding: tokens.spacingHorizontalS,
+    },
+    roleHeader: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: tokens.spacingVerticalXS,
+    },
+    assignmentsList: {
+      listStyleType: 'none',
+      padding: 0,
+      margin: 0,
+      maxHeight: '240px',
+      overflow: 'auto',
+      display: 'grid',
+      rowGap: tokens.spacingVerticalXS,
+    },
+    assignmentItem: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: tokens.colorNeutralBackground2,
+      borderRadius: tokens.borderRadiusSmall,
+      padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
+    },
+    actionsRow: { display: 'flex', columnGap: tokens.spacingHorizontalS },
   });
   const s = useStyles();
   const seg: Segment = activeRunSegment;
@@ -161,16 +216,12 @@ export default function DailyRunBoard({
 
     const req = getRequiredFor(selectedDateObj, group.id, role.id, seg);
     const assignedCount = assigns.length;
-    const cardBg = assignedCount < req
+    const status: 'under' | 'exact' | 'over' = assignedCount < req ? 'under' : assignedCount === req ? 'exact' : 'over';
+    const accentColor = status === 'under'
       ? (isDark ? tokens.colorPaletteRedBackground2 : tokens.colorPaletteRedBackground3)
-      : assignedCount === req
+      : status === 'exact'
       ? (isDark ? tokens.colorPaletteGreenBackground2 : tokens.colorPaletteGreenBackground3)
       : (isDark ? tokens.colorPaletteYellowBackground2 : tokens.colorPaletteYellowBackground3);
-    const badgeBg = assignedCount < req
-      ? (isDark ? tokens.colorPaletteRedBackground3 : tokens.colorPaletteRedBackground1)
-      : assignedCount === req
-      ? (isDark ? tokens.colorPaletteGreenBackground3 : tokens.colorPaletteGreenBackground1)
-      : (isDark ? tokens.colorPaletteYellowBackground3 : tokens.colorPaletteYellowBackground1);
     const isOverstaffed = assignedCount > req;
 
     function handleMove(a: any, targets: any[]) {
@@ -182,15 +233,15 @@ export default function DailyRunBoard({
     const [addSel, setAddSel] = useState<string[]>([]);
 
     return (
-  <div className={"border rounded p-2"} style={{ backgroundColor: cardBg, ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1 }}>
-        <div className="flex items-center justify-between mb-2">
-          <div className="font-medium">{role.name}</div>
-          <div className={"text-xs px-2 py-0.5 rounded"} style={{ backgroundColor: badgeBg }}>
+      <div className={s.roleCard} style={{ borderLeftColor: accentColor, ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1 }}>
+        <div className={s.roleHeader}>
+          <div style={{ fontWeight: 600 }}>{role.name}</div>
+          <Badge appearance="tint" color={status === 'under' ? 'danger' : status === 'exact' ? 'success' : 'warning'}>
             {assignedCount}/{req}
-          </div>
+          </Badge>
         </div>
 
-        <div className="flex items-center gap-2 mb-2">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: tokens.spacingVerticalXS }}>
           <Dropdown
             placeholder={canEdit ? "+ Add person…" : "Add person…"}
             disabled={!canEdit}
@@ -220,19 +271,15 @@ export default function DailyRunBoard({
             ))}
           </Dropdown>
         </div>
-  <ul className="space-y-1 themed-scrollbar" style={{ maxHeight: 240, overflow: "auto" }}>
+        <ul className={s.assignmentsList}>
           {assigns.map((a: any) => (
-            <li
-              key={a.id}
-              className="flex items-center justify-between rounded px-2 py-1"
-              style={{ backgroundColor: tokens.colorNeutralBackground2 }}
-            >
+            <li key={a.id} className={s.assignmentItem}>
               <PersonName personId={a.person_id}>
                 {a.last_name}, {a.first_name}
                 {!trainedBefore.has(a.person_id) && " (Untrained)"}
               </PersonName>
               {canEdit && (
-                <div className="flex gap-2">
+                <div className={s.actionsRow}>
                   {isOverstaffed && (
                     (() => {
                       const targets = deficitRoles.filter((d: any) => {
@@ -285,7 +332,7 @@ export default function DailyRunBoard({
     <div className={s.root}>
       <div className={s.header}>
         <div className={s.headerLeft}>
-          <label className="text-sm whitespace-nowrap">Date</label>
+          <span className={s.label}>Date</span>
           <Input
             type="date"
             value={ymd(selectedDateObj)}
@@ -329,24 +376,21 @@ export default function DailyRunBoard({
             const req = getRequiredFor(selectedDateObj, g.id, r.id, seg);
             return assignedCount >= req;
           });
-          const groupBg = groupNeedsMet
+          const groupAccent = groupNeedsMet
             ? (isDark ? tokens.colorPaletteGreenBackground2 : tokens.colorPaletteGreenBackground3)
             : (isDark ? tokens.colorPaletteRedBackground2 : tokens.colorPaletteRedBackground3);
           return (
             <div
               key={String(g.id)}
-              className={"border rounded-lg shadow-sm flex flex-col h-full"}
-              style={{ backgroundColor: groupBg, ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1 }}
+              className={s.groupCard}
+              style={{ borderLeft: `4px solid ${groupAccent}`, ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1 }}
             >
-              <div className="font-semibold flex items-center justify-between mb-2 drag-handle px-3 pt-3">
-                <span>{g.name}</span>
-                <span className="text-xs text-slate-500">Theme: {g.theme || '-'}</span>
-                <span className="text-xs text-slate-500 ml-2">Color: {g.custom_color || '-'}</span>
+              <div className={`${s.groupHeader} drag-handle`}>
+                <span style={{ fontWeight: 600 }}>{g.name}</span>
+                <span className={s.groupMeta}>Theme: {g.theme || '-'}</span>
+                <span className={s.groupMeta}>Color: {g.custom_color || '-'}</span>
               </div>
-              <div
-                className="flex-1 grid gap-3 px-3 pb-3 overflow-auto themed-scrollbar"
-                style={{ gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))" }}
-              >
+              <div className={s.rolesGrid} style={{ gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))" }}>
                 {rolesForGroup.map((r: any) => (
                   <RoleCard key={r.id} group={g} role={r} />
                 ))}
