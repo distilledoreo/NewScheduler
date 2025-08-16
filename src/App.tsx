@@ -551,6 +551,19 @@ export default function App() {
     for (const s of segments) {
       out[s.name] = { start: mk(s.start_time), end: mk(s.end_time) };
     }
+
+    const assigns = listAssignmentsForDate(fmtDateMDY(date));
+    const hasLunch = assigns.some((a: any) => a.segment === "Lunch");
+    const hasEarly = assigns.some((a: any) => a.segment === "Early");
+
+    if (hasLunch && out["Lunch"]) {
+      if (out["AM"]) out["AM"].end = out["Lunch"].start;
+      if (out["PM"]) out["PM"].start = addMinutes(out["Lunch"].end, 60);
+    }
+    if (hasEarly && out["PM"]) {
+      out["PM"].end = addMinutes(out["PM"].end, -60);
+    }
+
     return out;
   }
 
