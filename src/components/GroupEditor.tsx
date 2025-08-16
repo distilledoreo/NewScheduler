@@ -2,19 +2,32 @@ import React, { useEffect, useState } from "react";
 import {
   Button,
   Card,
+  Field,
   Input,
   Table,
   TableHeader,
   TableRow,
+  TableHeaderCell,
   TableBody,
   TableCell,
-  TableHeaderCell,
+  Text,
+  Toaster,
+  Toast,
+  ToastTitle,
+  useId,
+  useToastController,
   makeStyles,
   shorthands,
   tokens,
 } from "@fluentui/react-components";
 
-const useGroupEditorStyles = makeStyles({
+interface GroupEditorProps {
+  all: (sql: string, params?: any[]) => any[];
+  run: (sql: string, params?: any[]) => void;
+  refresh: () => void;
+}
+
+const useStyles = makeStyles({
   root: {
     display: "flex",
     flexDirection: "column",
@@ -51,7 +64,7 @@ const useGroupEditorStyles = makeStyles({
   form: {
     display: "flex",
     flexDirection: "column",
-    rowGap: tokens.spacingVerticalS,
+    rowGap: tokens.spacingVerticalM,
   },
   actions: {
     display: "flex",
@@ -62,19 +75,15 @@ const useGroupEditorStyles = makeStyles({
   },
 });
 
-interface GroupEditorProps {
-  all: (sql: string, params?: any[]) => any[];
-  run: (sql: string, params?: any[]) => void;
-  refresh: () => void;
-}
-
 export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
+  const styles = useStyles();
   const empty = { name: "", theme: "", custom_color: "" };
   const [groups, setGroups] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const [form, setForm] = useState(empty);
-  const styles = useGroupEditorStyles();
+  const toasterId = useId("group-editor-toast");
+  const { dispatchToast } = useToastController(toasterId);
 
   function load() {
     setGroups(all(`SELECT id,name,theme,custom_color FROM grp ORDER BY name`));
@@ -94,9 +103,18 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
     setFormVisible(true);
   }
 
+  function showError(msg: string) {
+    dispatchToast(
+      <Toast>
+        <ToastTitle>{msg}</ToastTitle>
+      </Toast>,
+      { intent: "error" }
+    );
+  }
+
   function save() {
     if (!form.name.trim()) {
-      window.alert("Name is required");
+      showError("Name is required");
       return;
     }
     if (editing) {
@@ -127,21 +145,24 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
 
   return (
     <Card className={styles.root}>
+      <Toaster toasterId={toasterId} position="bottom" />
       <div className={styles.header}>
-        <div>Groups</div>
+        <Text weight="semibold" size={500}>
+          Groups
+        </Text>
         <Button className={styles.addButton} onClick={startAdd}>
           Add Group
         </Button>
       </div>
 
       <div className={styles.tableContainer}>
-        <Table>
+        <Table size="small">
           <TableHeader>
             <TableRow>
               <TableHeaderCell>Name</TableHeaderCell>
               <TableHeaderCell>Theme</TableHeaderCell>
               <TableHeaderCell>Color</TableHeaderCell>
-              <TableHeaderCell></TableHeaderCell>
+              <TableHeaderCell />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -166,24 +187,27 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
 
       {formVisible && (
         <div className={styles.form}>
-          <Input
-            className={styles.input}
-            placeholder="Name"
-            value={form.name}
-            onChange={(_, data) => setForm({ ...form, name: data.value })}
-          />
-          <Input
-            className={styles.input}
-            placeholder="Theme"
-            value={form.theme}
-            onChange={(_, data) => setForm({ ...form, theme: data.value })}
-          />
-          <Input
-            className={styles.input}
-            placeholder="Custom Color"
-            value={form.custom_color}
-            onChange={(_, data) => setForm({ ...form, custom_color: data.value })}
-          />
+          <Field label="Name" required>
+            <Input
+              className={styles.input}
+              value={form.name}
+              onChange={(_, data) => setForm({ ...form, name: data.value })}
+            />
+          </Field>
+          <Field label="Theme">
+            <Input
+              className={styles.input}
+              value={form.theme}
+              onChange={(_, data) => setForm({ ...form, theme: data.value })}
+            />
+          </Field>
+          <Field label="Custom Color">
+            <Input
+              className={styles.input}
+              value={form.custom_color}
+              onChange={(_, data) => setForm({ ...form, custom_color: data.value })}
+            />
+          </Field>
           <div className={styles.actions}>
             <Button appearance="primary" onClick={save}>
               Save

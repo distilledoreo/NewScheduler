@@ -1,4 +1,26 @@
 import React, { useEffect, useState } from "react";
+import {
+  Button,
+  Dropdown,
+  Field,
+  Input,
+  Option,
+  Table,
+  TableHeader,
+  TableRow,
+  TableHeaderCell,
+  TableBody,
+  TableCell,
+  Text,
+  Toaster,
+  Toast,
+  ToastTitle,
+  useId,
+  useToastController,
+  makeStyles,
+  shorthands,
+  tokens,
+} from "@fluentui/react-components";
 
 interface ExportGroupEditorProps {
   all: (sql: string, params?: any[]) => any[];
@@ -6,13 +28,39 @@ interface ExportGroupEditorProps {
   refresh: () => void;
 }
 
+const useStyles = makeStyles({
+  root: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: tokens.spacingVerticalL,
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  tableWrapper: {
+    maxHeight: "40vh",
+    overflow: "auto",
+    ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke1),
+  },
+  actionRow: {
+    display: "flex",
+    columnGap: tokens.spacingHorizontalS,
+  },
+});
+
 export default function ExportGroupEditor({ all, run, refresh }: ExportGroupEditorProps) {
+  const classes = useStyles();
   const empty = { group_id: "", code: "", color: "", column_group: "" };
   const [rows, setRows] = useState<any[]>([]);
   const [available, setAvailable] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const [form, setForm] = useState<any>(empty);
+  const toasterId = useId("export-group-editor-toast");
+  const { dispatchToast } = useToastController(toasterId);
 
   function load() {
     const r = all(`SELECT eg.group_id, g.name as group_name, eg.code, eg.color, eg.column_group
@@ -37,13 +85,22 @@ export default function ExportGroupEditor({ all, run, refresh }: ExportGroupEdit
     setFormVisible(true);
   }
 
+  function showError(msg: string) {
+    dispatchToast(
+      <Toast>
+        <ToastTitle>{msg}</ToastTitle>
+      </Toast>,
+      { intent: "error" }
+    );
+  }
+
   function save() {
     if (!form.group_id) {
-      window.alert("Group is required");
+      showError("Group is required");
       return;
     }
     if (!form.code.trim()) {
-      window.alert("Code is required");
+      showError("Code is required");
       return;
     }
     if (editing) {
@@ -72,81 +129,95 @@ export default function ExportGroupEditor({ all, run, refresh }: ExportGroupEdit
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="font-semibold text-lg">Export Groups</div>
-        <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={startAdd}>
+    <div className={classes.root}>
+      <Toaster toasterId={toasterId} position="bottom" />
+      <div className={classes.header}>
+        <Text weight="semibold" size={500}>
+          Export Groups
+        </Text>
+        <Button appearance="primary" onClick={startAdd}>
           Add Export Group
-        </button>
+        </Button>
       </div>
-      <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
-        <table className="min-w-full text-sm divide-y divide-slate-200">
-          <thead className="bg-slate-100 sticky top-0">
-            <tr>
-              <th className="p-2 text-left">Group</th>
-              <th className="p-2 text-left">Code</th>
-              <th className="p-2 text-left">Color</th>
-              <th className="p-2 text-left">Column Group</th>
-              <th className="p-2"></th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className={classes.tableWrapper}>
+        <Table size="small">
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell>Group</TableHeaderCell>
+              <TableHeaderCell>Code</TableHeaderCell>
+              <TableHeaderCell>Color</TableHeaderCell>
+              <TableHeaderCell>Column Group</TableHeaderCell>
+              <TableHeaderCell />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((r: any) => (
-              <tr key={r.group_id} className="odd:bg-white even:bg-slate-50">
-                <td className="p-2">{r.group_name}</td>
-                <td className="p-2">{r.code}</td>
-                <td className="p-2">{r.color}</td>
-                <td className="p-2">{r.column_group}</td>
-                <td className="p-2 text-right space-x-2">
-                  <button className="text-blue-600" onClick={() => startEdit(r)}>Edit</button>
-                  <button className="text-red-600" onClick={() => remove(r.group_id)}>Delete</button>
-                </td>
-              </tr>
+              <TableRow key={r.group_id}>
+                <TableCell>{r.group_name}</TableCell>
+                <TableCell>{r.code}</TableCell>
+                <TableCell>{r.color}</TableCell>
+                <TableCell>{r.column_group}</TableCell>
+                <TableCell>
+                  <div className={classes.actionRow}>
+                    <Button appearance="subtle" onClick={() => startEdit(r)}>
+                      Edit
+                    </Button>
+                    <Button appearance="subtle" onClick={() => remove(r.group_id)}>
+                      Delete
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       {formVisible && (
-        <div className="space-y-2">
+        <div className={classes.root}>
           {editing ? (
-            <div>{rows.find((r:any)=>r.group_id===editing.group_id)?.group_name}</div>
+            <Text>{rows.find((r: any) => r.group_id === editing.group_id)?.group_name}</Text>
           ) : (
-            <select
-              className="border rounded px-2 py-1 w-full"
-              value={form.group_id}
-              onChange={(e) => setForm({ ...form, group_id: e.target.value })}
-            >
-              <option value="">Select group...</option>
-              {available.map((g:any)=>(
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
+            <Field label="Group">
+              <Dropdown
+                selectedOptions={[form.group_id]}
+                onOptionSelect={(_, data) =>
+                  setForm({ ...form, group_id: data.optionValue || "" })
+                }
+              >
+                <Option value="">Select group...</Option>
+                {available.map((g: any) => (
+                  <Option key={g.id} value={g.id.toString()}>
+                    {g.name}
+                  </Option>
+                ))}
+              </Dropdown>
+            </Field>
           )}
-          <input
-            className="border rounded px-2 py-1 w-full"
-            placeholder="Code"
-            value={form.code}
-            onChange={(e) => setForm({ ...form, code: e.target.value })}
-          />
-          <input
-            className="border rounded px-2 py-1 w-full"
-            placeholder="Color"
-            value={form.color}
-            onChange={(e) => setForm({ ...form, color: e.target.value })}
-          />
-          <input
-            className="border rounded px-2 py-1 w-full"
-            placeholder="Column Group"
-            value={form.column_group}
-            onChange={(e) => setForm({ ...form, column_group: e.target.value })}
-          />
-          <div className="flex gap-2">
-            <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={save}>
+          <Field label="Code">
+            <Input
+              value={form.code}
+              onChange={(_, data) => setForm({ ...form, code: data.value })}
+            />
+          </Field>
+          <Field label="Color">
+            <Input
+              value={form.color}
+              onChange={(_, data) => setForm({ ...form, color: data.value })}
+            />
+          </Field>
+          <Field label="Column Group">
+            <Input
+              value={form.column_group}
+              onChange={(_, data) =>
+                setForm({ ...form, column_group: data.value })
+              }
+            />
+          </Field>
+          <div className={classes.actionRow}>
+            <Button appearance="primary" onClick={save}>
               Save
-            </button>
-            <button className="px-3 py-2 border rounded" onClick={cancel}>
-              Cancel
-            </button>
+            </Button>
+            <Button onClick={cancel}>Cancel</Button>
           </div>
         </div>
       )}
