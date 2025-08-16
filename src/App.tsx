@@ -9,7 +9,7 @@ import { exportMonthOneSheetXlsx } from "./excel/export-one-sheet";
 import PersonName from "./components/PersonName";
 import PersonProfileModal from "./components/PersonProfileModal";
 import { ProfileContext } from "./components/ProfileContext";
-import { Button, Checkbox, Dropdown, Input, Option } from "@fluentui/react-components";
+import { Button, Checkbox, Dropdown, Input, Option, Table, TableHeader, TableHeaderCell, TableRow, TableBody, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions } from "@fluentui/react-components";
 import { FluentProvider, webDarkTheme, webLightTheme } from "@fluentui/react-components";
 import MonthlyDefaults from "./components/MonthlyDefaults";
 import CrewHistoryView from "./components/CrewHistoryView";
@@ -992,55 +992,53 @@ function PeopleEditor(){
         </div>
 
         <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
-          <table className="min-w-full text-sm divide-y divide-slate-200">
-            <thead className="bg-slate-100 sticky top-0">
-              <tr>
-                <th className="p-2 text-left font-medium text-slate-600">Name</th>
-                <th className="p-2 text-left font-medium text-slate-600">Email</th>
-                <th className="p-2 text-left font-medium text-slate-600">B/S</th>
-                <th className="p-2 text-left font-medium text-slate-600">Commute</th>
-                <th className="p-2 text-left font-medium text-slate-600">Active</th>
-                <th className="p-2 text-left font-medium text-slate-600">Mon</th>
-                <th className="p-2 text-left font-medium text-slate-600">Tue</th>
-                <th className="p-2 text-left font-medium text-slate-600">Wed</th>
-                <th className="p-2 text-left font-medium text-slate-600">Thu</th>
-                <th className="p-2 text-left font-medium text-slate-600">Fri</th>
-                <th className="p-2 text-left font-medium text-slate-600">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
+          <Table aria-label="People table">
+            <TableHeader>
+              <TableRow>
+                <TableHeaderCell>Name</TableHeaderCell>
+                <TableHeaderCell>Email</TableHeaderCell>
+                <TableHeaderCell>B/S</TableHeaderCell>
+                <TableHeaderCell>Commute</TableHeaderCell>
+                <TableHeaderCell>Active</TableHeaderCell>
+                <TableHeaderCell>Mon</TableHeaderCell>
+                <TableHeaderCell>Tue</TableHeaderCell>
+                <TableHeaderCell>Wed</TableHeaderCell>
+                <TableHeaderCell>Thu</TableHeaderCell>
+                <TableHeaderCell>Fri</TableHeaderCell>
+                <TableHeaderCell>Actions</TableHeaderCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {people.map(p => (
-                <tr key={p.id} className="odd:bg-white even:bg-slate-50 hover:bg-slate-100">
-                  <td className="p-2"><PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName></td>
-                  <td className="p-2">{p.work_email}</td>
-                  <td className="p-2">{p.brother_sister||'-'}</td>
-                  <td className="p-2">{p.commuter?"Yes":"No"}</td>
-                  <td className="p-2">{p.active?"Yes":"No"}</td>
-                  <td className="p-2">{p.avail_mon}</td>
-                  <td className="p-2">{p.avail_tue}</td>
-                  <td className="p-2">{p.avail_wed}</td>
-                  <td className="p-2">{p.avail_thu}</td>
-                  <td className="p-2">{p.avail_fri}</td>
-                  <td className="p-2 flex gap-2">
-                    <Button size="small" onClick={()=>openModal(p)}>Edit</Button>
-                    <Button size="small" appearance="secondary" onClick={()=>{ if(confirm('Delete?')) deletePerson(p.id); }}>Delete</Button>
-                  </td>
-                </tr>
+                <TableRow key={p.id}>
+                  <TableCell><PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName></TableCell>
+                  <TableCell>{p.work_email}</TableCell>
+                  <TableCell>{p.brother_sister||'-'}</TableCell>
+                  <TableCell>{p.commuter?"Yes":"No"}</TableCell>
+                  <TableCell>{p.active?"Yes":"No"}</TableCell>
+                  <TableCell>{p.avail_mon}</TableCell>
+                  <TableCell>{p.avail_tue}</TableCell>
+                  <TableCell>{p.avail_wed}</TableCell>
+                  <TableCell>{p.avail_thu}</TableCell>
+                  <TableCell>{p.avail_fri}</TableCell>
+                  <TableCell>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Button size="small" onClick={()=>openModal(p)}>Edit</Button>
+                      <Button size="small" appearance="secondary" onClick={()=>{ if(confirm('Delete?')) deletePerson(p.id); }}>Delete</Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black/40 z-30 overflow-auto">
-          <div className="min-h-full flex items-start justify-center p-4">
-            <div className="bg-white w-full max-w-3xl max-h-[85vh] overflow-auto rounded-xl p-4 shadow-xl">
-              <div className="flex items-center justify-between mb-4">
-                <div className="font-semibold text-lg">{editing ? 'Edit Person' : 'Add Person'}</div>
-                <Button onClick={closeModal}>Close</Button>
-              </div>
-
+      <Dialog open={showModal} onOpenChange={(_, d) => setShowModal(d.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>{editing ? 'Edit Person' : 'Add Person'}</DialogTitle>
+            <DialogContent>
               <div className="grid grid-cols-12 gap-2 mb-3">
                 <Input className="col-span-3" placeholder="Last Name" value={form.last_name||''} onChange={(_,d)=>setForm({...form,last_name:d.value})} />
                 <Input className="col-span-3" placeholder="First Name" value={form.first_name||''} onChange={(_,d)=>setForm({...form,first_name:d.value})} />
@@ -1095,14 +1093,14 @@ function PeopleEditor(){
                   ))}
                 </div>
               </div>
-
-              <div className="flex gap-2">
-                <Button appearance="primary" onClick={save}>{editing ? 'Save Changes' : 'Add Person'}</Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={closeModal}>Close</Button>
+              <Button appearance="primary" onClick={save}>{editing ? 'Save Changes' : 'Add Person'}</Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     </div>
   );
 }
@@ -1110,39 +1108,41 @@ function PeopleEditor(){
   function NeedsEditor(){
     const d = selectedDateObj;
     return (
-      <div className="fixed inset-0 bg-black/40 z-30 overflow-auto">
-        <div className="min-h-full flex items-start justify-center p-4">
-          <div className="bg-white w-full max-w-6xl max-h-[85vh] overflow-auto rounded-xl p-4 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <div className="font-semibold text-lg">Needs for {fmtDateMDY(d)}</div>
-              <Button onClick={()=>setShowNeedsEditor(false)}>Close</Button>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-              {groups.map((g:any)=> (
-                <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
-                  <div className="font-semibold mb-3">{g.name}</div>
-                  {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
-                    <div key={r.id} className="mb-4 border rounded p-3">
-                      <div className="font-medium mb-3">{r.name}</div>
-                      <div
-                        className="space-y-3 sm:grid sm:gap-3 sm:space-y-0"
-                        style={{ gridTemplateColumns: `repeat(${segments.length}, minmax(0,1fr))` }}
-                      >
-                        {segments.map((s) => (
-                          <div key={s.name}>
-                            <div className="text-xs text-slate-500 mb-1">{s.name} Required</div>
-                            <RequiredCell date={d} group={g} role={r} segment={s.name as Segment} />
-                          </div>
-                        ))}
+      <Dialog open={showNeedsEditor} onOpenChange={(_, data)=> setShowNeedsEditor(data.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Needs for {fmtDateMDY(d)}</DialogTitle>
+            <DialogContent>
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                {groups.map((g:any)=> (
+                  <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
+                    <div className="font-semibold mb-3">{g.name}</div>
+                    {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
+                      <div key={r.id} className="mb-4 border rounded p-3">
+                        <div className="font-medium mb-3">{r.name}</div>
+                        <div
+                          className="space-y-3 sm:grid sm:gap-3 sm:space-y-0"
+                          style={{ gridTemplateColumns: `repeat(${segments.length}, minmax(0,1fr))` }}
+                        >
+                          {segments.map((s) => (
+                            <div key={s.name}>
+                              <div className="text-xs text-slate-500 mb-1">{s.name} Required</div>
+                              <RequiredCell date={d} group={g} role={r} segment={s.name as Segment} />
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={()=>setShowNeedsEditor(false)}>Close</Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     );
   }
 

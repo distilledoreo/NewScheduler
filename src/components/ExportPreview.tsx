@@ -1,5 +1,17 @@
 import React, { useMemo } from "react";
-import { Button } from "@fluentui/react-components";
+import {
+  Button,
+  Field,
+  Input,
+  Table,
+  TableHeader,
+  TableHeaderCell,
+  TableRow,
+  TableBody,
+  TableCell,
+  Text,
+  tokens,
+} from "@fluentui/react-components";
 
 interface ExportPreviewProps {
   sqlDb: any;
@@ -133,55 +145,48 @@ export default function ExportPreview({
   }, [sqlDb, exportStart, exportEnd, people.length, roles.length]);
 
   return (
-    <div className="p-4">
-      <div className="flex items-center gap-3 mb-4">
-        <label>Start</label>
-        <input
-          type="date"
-          className="border rounded px-2 py-1"
-          value={exportStart}
-          onChange={(e) => setExportStart(e.target.value)}
-        />
-        <label>End</label>
-        <input
-          type="date"
-          className="border rounded px-2 py-1"
-          value={exportEnd}
-          onChange={(e) => setExportEnd(e.target.value)}
-        />
-        <Button appearance="primary" style={{ marginLeft: "auto" }} onClick={exportShifts}>Download XLSX</Button>
+    <div style={{ padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "end", gap: 12, marginBottom: 16 }}>
+        <Field label="Start">
+          <Input type="date" value={exportStart} onChange={(_, d) => setExportStart(d.value)} />
+        </Field>
+        <Field label="End">
+          <Input type="date" value={exportEnd} onChange={(_, d) => setExportEnd(d.value)} />
+        </Field>
+        <div style={{ marginLeft: "auto" }} />
+        <Button appearance="primary" onClick={exportShifts}>Download XLSX</Button>
       </div>
-      <div className="overflow-auto max-h-[60vh] border rounded">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-100 sticky top-0">
-            <tr>
-              <th className="p-2 text-left">Date</th>
-              <th className="p-2 text-left">Member</th>
-              <th className="p-2 text-left">Work Email</th>
-              <th className="p-2 text-left">Group</th>
-              <th className="p-2 text-left">Start</th>
-              <th className="p-2 text-left">End</th>
-              <th className="p-2 text-left">Custom Label</th>
-              <th className="p-2 text-left">Theme</th>
-            </tr>
-          </thead>
-          <tbody>
+  <div style={{ overflow: "auto", maxHeight: "60vh", border: `1px solid ${tokens.colorNeutralStroke2}`, borderRadius: 6 }}>
+        <Table aria-label="Export preview table">
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell>Date</TableHeaderCell>
+              <TableHeaderCell>Member</TableHeaderCell>
+              <TableHeaderCell>Work Email</TableHeaderCell>
+              <TableHeaderCell>Group</TableHeaderCell>
+              <TableHeaderCell>Start</TableHeaderCell>
+              <TableHeaderCell>End</TableHeaderCell>
+              <TableHeaderCell>Custom Label</TableHeaderCell>
+              <TableHeaderCell>Theme</TableHeaderCell>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {previewRows.map((r, i) => (
-              <tr key={i} className="odd:bg-white even:bg-slate-50">
-                <td className="p-2">{r.date}</td>
-                <td className="p-2">{r.member}</td>
-                <td className="p-2">{r.email}</td>
-                <td className="p-2">{r.group}</td>
-                <td className="p-2">{r.start}</td>
-                <td className="p-2">{r.end}</td>
-                <td className="p-2">{r.label}</td>
-                <td className="p-2">{r.color}</td>
-              </tr>
+              <TableRow key={i}>
+                <TableCell>{r.date}</TableCell>
+                <TableCell>{r.member}</TableCell>
+                <TableCell>{r.email}</TableCell>
+                <TableCell>{r.group}</TableCell>
+                <TableCell>{r.start}</TableCell>
+                <TableCell>{r.end}</TableCell>
+                <TableCell>{r.label}</TableCell>
+                <TableCell>{r.color}</TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
-      <div className="text-slate-500 text-sm mt-2">Rows: {previewRows.length}</div>
+      <Text size={200} style={{ color: "GrayText", marginTop: 8 }}>Rows: {previewRows.length}</Text>
     </div>
   );
 }

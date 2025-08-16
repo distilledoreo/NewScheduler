@@ -5,7 +5,7 @@ import "react-resizable/css/styles.css";
 import type { Segment, SegmentRow } from "../services/segments";
 import "../styles/scrollbar.css";
 import PersonName from "./PersonName";
-import { Button, Dropdown, Option, Tab, TabList, Input, tokens } from "@fluentui/react-components";
+import { Button, Dropdown, Option, Tab, TabList, Input, tokens, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, DialogTrigger } from "@fluentui/react-components";
 
 const Grid = WidthProvider(GridLayout);
 
@@ -340,32 +340,35 @@ export default function DailyRunBoard({
       </Grid>
 
       {moveContext && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white p-4 rounded shadow-md w-72">
-            <div className="mb-2 font-medium">
-              Move {moveContext.assignment.last_name}, {moveContext.assignment.first_name} to:
-            </div>
-            <Dropdown
-              placeholder="Select destination"
-              selectedOptions={moveTargetId != null ? [String(moveTargetId)] : []}
-              onOptionSelect={(_, data) => {
-                const v = data.optionValue ?? data.optionText;
-                setMoveTargetId(v ? Number(v) : null);
-              }}
-              style={{ width: "100%", marginBottom: 12 }}
-            >
-              {moveContext.targets.map((t) => (
-                <Option key={t.role.id} value={String(t.role.id)} text={`${t.group.name} - ${t.role.name}`} />
-              ))}
-            </Dropdown>
-            <div className="flex justify-end gap-2">
-              <Button onClick={cancelMove}>Cancel</Button>
-              <Button appearance="primary" disabled={moveTargetId == null} onClick={confirmMove}>
-                Move
-              </Button>
-            </div>
-          </div>
-        </div>
+        <Dialog open onOpenChange={(_, data) => { if (!data.open) cancelMove(); }}>
+          <DialogTrigger>
+            <span />
+          </DialogTrigger>
+          <DialogSurface>
+            <DialogBody>
+              <DialogTitle>Move {moveContext.assignment.last_name}, {moveContext.assignment.first_name}</DialogTitle>
+              <DialogContent>
+                <Dropdown
+                  placeholder="Select destination"
+                  selectedOptions={moveTargetId != null ? [String(moveTargetId)] : []}
+                  onOptionSelect={(_, data) => {
+                    const v = data.optionValue ?? data.optionText;
+                    setMoveTargetId(v ? Number(v) : null);
+                  }}
+                  style={{ width: "100%" }}
+                >
+                  {moveContext.targets.map((t) => (
+                    <Option key={t.role.id} value={String(t.role.id)} text={`${t.group.name} - ${t.role.name}`} />
+                  ))}
+                </Dropdown>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={cancelMove}>Cancel</Button>
+                <Button appearance="primary" disabled={moveTargetId == null} onClick={confirmMove}>Move</Button>
+              </DialogActions>
+            </DialogBody>
+          </DialogSurface>
+        </Dialog>
       )}
     </div>
   );
