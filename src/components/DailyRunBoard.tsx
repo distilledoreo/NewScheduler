@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import GridLayout, { WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -191,9 +191,11 @@ export default function DailyRunBoard({
   } | null>(null);
   const [moveTargetId, setMoveTargetId] = useState<number | null>(null);
 
+  const roles = useMemo(() => roleListForSegment(seg), [roleListForSegment, seg]);
+
   useEffect(() => {
     setLayoutLoaded(false);
-    const key = `layout:${seg}:${lockEmail || 'default'}`;
+    const key = `layout:${seg}:${lockEmail || "default"}`;
     let saved: any[] = [];
     try {
       const rows = all(`SELECT value FROM meta WHERE key=?`, [key]);
@@ -201,18 +203,26 @@ export default function DailyRunBoard({
     } catch {}
     const byId = new Map(saved.map((l: any) => [l.i, l]));
     const merged = groups.map((g: any, idx: number) => {
-      const roleCount = roleListForSegment(seg).filter((r) => r.group_id === g.id).length;
-      const h = Math.max(2, roleCount + 1);
-      return byId.get(String(g.id)) || { i: String(g.id), x: (idx % 4) * 3, y: Math.floor(idx / 4) * h, w: 3, h };
+      const roleCount = roles.filter((r) => r.group_id === g.id).length;
+      const h = Math.max(2, Math.ceil(roleCount / 2)) + 1;
+      return (
+        byId.get(String(g.id)) || {
+          i: String(g.id),
+          x: (idx % 3) * 4,
+          y: Math.floor(idx / 3) * h,
+          w: 4,
+          h,
+        }
+      );
     });
     setLayout(merged);
     setLayoutLoaded(true);
-  }, [groups, lockEmail, seg, roleListForSegment]);
+  }, [groups, lockEmail, seg, roles, all]);
 
   function handleLayoutChange(l: any[]) {
     setLayout(l);
     if (!layoutLoaded) return;
-    const key = `layout:${seg}:${lockEmail || 'default'}`;
+    const key = `layout:${seg}:${lockEmail || "default"}`;
     try {
       const stmt = sqlDb.prepare(`INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)`);
       stmt.bind([key, JSON.stringify(l)]);
@@ -221,7 +231,6 @@ export default function DailyRunBoard({
     } catch {}
   }
 
-  const roles = roleListForSegment(seg);
   const assignedCountRows = all(
     `SELECT role_id, COUNT(*) as c FROM assignment WHERE date=? AND segment=? GROUP BY role_id`,
     [ymd(selectedDateObj), seg]
@@ -483,15 +492,7 @@ export default function DailyRunBoard({
           className="layout"
           layout={layout}
           cols={12}
-          rowHeight={30}
-          margin={[
-            parseInt(tokens.spacingHorizontalL),
-            parseInt(tokens.spacingHorizontalL),
-          ]}
-          containerPadding={[
-            parseInt(tokens.spacingHorizontalL),
-            parseInt(tokens.spacingHorizontalL),
-          ]}
+          rowHeight={120}
           onLayoutChange={handleLayoutChange}
           draggableHandle=".drag-handle"
         >
