@@ -1,3 +1,4 @@
+import { Field, Input, Button, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell } from "@fluentui/react-components";
 import React, { useMemo } from "react";
 
 interface ExportPreviewProps {
@@ -133,57 +134,44 @@ export default function ExportPreview({
 
   return (
     <div className="p-4">
-      <div className="flex items-center gap-3 mb-4">
-        <label>Start</label>
-        <input
-          type="date"
-          className="border rounded px-2 py-1"
-          value={exportStart}
-          onChange={(e) => setExportStart(e.target.value)}
-        />
-        <label>End</label>
-        <input
-          type="date"
-          className="border rounded px-2 py-1"
-          value={exportEnd}
-          onChange={(e) => setExportEnd(e.target.value)}
-        />
-        <button
-          className="ml-auto px-3 py-2 bg-emerald-700 text-white rounded"
-          onClick={exportShifts}
-        >
-          Download XLSX
-        </button>
-      </div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 12, marginBottom: 16 }}>
+  <Field label="Start">
+    <Input type="date" value={exportStart} onChange={(_, d) => setExportStart(d.value)} />
+  </Field>
+  <Field label="End">
+    <Input type="date" value={exportEnd} onChange={(_, d) => setExportEnd(d.value)} />
+  </Field>
+  <Button appearance="primary" onClick={exportShifts}>Export</Button>
+</div>
       <div className="overflow-auto max-h-[60vh] border rounded">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-100 sticky top-0">
-            <tr>
-              <th className="p-2 text-left">Date</th>
-              <th className="p-2 text-left">Member</th>
-              <th className="p-2 text-left">Work Email</th>
-              <th className="p-2 text-left">Group</th>
-              <th className="p-2 text-left">Start</th>
-              <th className="p-2 text-left">End</th>
-              <th className="p-2 text-left">Custom Label</th>
-              <th className="p-2 text-left">Theme</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <TableHeaderCellead className="bg-slate-100 sticky top-0">
+            <TableRow>
+              <TableHeaderCell className="p-2 text-left">Date</TableHeaderCell>
+              <TableHeaderCell className="p-2 text-left">Member</TableHeaderCell>
+              <TableHeaderCell className="p-2 text-left">Work Email</TableHeaderCell>
+              <TableHeaderCell className="p-2 text-left">Group</TableHeaderCell>
+              <TableHeaderCell className="p-2 text-left">Start</TableHeaderCell>
+              <TableHeaderCell className="p-2 text-left">End</TableHeaderCell>
+              <TableHeaderCell className="p-2 text-left">Custom Label</TableHeaderCell>
+              <TableHeaderCell className="p-2 text-left">Theme</TableHeaderCell>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {previewRows.map((r, i) => (
               <tr key={i} className="odd:bg-white even:bg-slate-50">
-                <td className="p-2">{r.date}</td>
-                <td className="p-2">{r.member}</td>
-                <td className="p-2">{r.email}</td>
-                <td className="p-2">{r.group}</td>
-                <td className="p-2">{r.start}</td>
-                <td className="p-2">{r.end}</td>
-                <td className="p-2">{r.label}</td>
-                <td className="p-2">{r.color}</td>
-              </tr>
+                <TableCell className="p-2">{r.date}</TableCell>
+                <TableCell className="p-2">{r.member}</TableCell>
+                <TableCell className="p-2">{r.email}</TableCell>
+                <TableCell className="p-2">{r.group}</TableCell>
+                <TableCell className="p-2">{r.start}</TableCell>
+                <TableCell className="p-2">{r.end}</TableCell>
+                <TableCell className="p-2">{r.label}</TableCell>
+                <TableCell className="p-2">{r.color}</TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       <div className="text-slate-500 text-sm mt-2">Rows: {previewRows.length}</div>
     </div>

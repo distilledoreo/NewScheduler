@@ -289,27 +289,24 @@ export default function CrewHistoryView({
     }, [def?.role_id, options]);
 
     return (
-      <select
-        ref={ref}
-        className="border rounded px-2 py-1 w-full"
-        value={def?.role_id ?? ""}
-        onFocus={showNames}
-        onBlur={showCode}
-        onChange={(e) => {
-          const val = e.target.value;
-          const rid = val === "" ? null : Number(val);
-          setMonthlyDefaultForMonth(month, personId, seg, rid);
-          setDefs(all(`SELECT * FROM monthly_default`));
-          showCode();
-        }}
-      >
-        <option value=""></option>
-        {options.map((r: any) => (
-          <option key={r.id} value={r.id}>
-            {r.name}
-          </option>
-        ))}
-      </select>
+      <Dropdown
+  selectedOptions={def?.role_id != null ? [String(def.role_id)] : []}
+  onOptionSelect={(_, data) => {
+    const val = data.optionValue ?? "";
+    const rid = val === "" ? null : Number(val);
+    setMonthlyDefaultForMonth(month, personId, seg, rid);
+    setDefs(all(`SELECT * FROM monthly_default`));
+    showCode();
+  }}
+  onOpenChange={(_, d) => { if (d.open) showNames(); else showCode(); }}
+>
+  <Option value=""></Option>
+  {options.map((r: any) => (
+    <Option key={r.id} value={String(r.id)}>
+      {r.name}
+    </Option>
+  ))}
+</Dropdown>
     );
   }
 
@@ -423,18 +420,16 @@ export default function CrewHistoryView({
         />
         <div className="flex items-center gap-1">
           <label className="text-sm">From</label>
-          <input
+          <Input
             type="month"
-            className="border rounded px-2 py-1 text-sm"
             value={startMonth}
-            onChange={(e) => setStartMonth(e.target.value)}
+            onChange={(_, d) => setStartMonth(e.target.value)}
           />
           <label className="text-sm">To</label>
-          <input
+          <Input
             type="month"
-            className="border rounded px-2 py-1 text-sm"
             value={endMonth}
-            onChange={(e) => setEndMonth(e.target.value)}
+            onChange={(_, d) => setEndMonth(e.target.value)}
           />
         </div>
       </div>

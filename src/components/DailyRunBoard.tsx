@@ -1,3 +1,4 @@
+import { Button, Dropdown, Option, Input } from "@fluentui/react-components";
 import React, { useEffect, useState } from "react";
 import GridLayout, { WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
@@ -151,30 +152,26 @@ export default function DailyRunBoard({
         </div>
 
         <div className="flex items-center gap-2 mb-2">
-          <select
-            className="border rounded w-full px-2 py-1"
-            defaultValue=""
-            disabled={!canEdit}
-            onChange={(e) => {
-              const pid = Number(e.target.value);
-              if (!pid) return;
-              const sel = opts.find((o) => o.id === pid);
-              if (sel?.blocked) {
-                alert("Blocked by time-off for this segment.");
-                return;
-              }
-              addAssignment(selectedDate, pid, role.id, seg);
-              (e.target as HTMLSelectElement).value = "";
-            }}
-          >
-            <option value="">{canEdit ? "+ Add person…" : "Add person…"}</option>
-            {opts.map((o) => (
-              <option key={o.id} value={o.id} disabled={o.blocked}>
-                {o.label}
-                {o.blocked ? " (Time-off)" : ""}
-              </option>
-            ))}
-          </select>
+          <Dropdown
+  placeholder={canEdit ? "+ Add person…" : "Add person…"}
+  disabled={!canEdit}
+  onOptionSelect={(_, data) => {
+    const pid = Number(data.optionValue);
+    if (!pid) return;
+    const sel = opts.find((o) => o.id === pid);
+    if (sel?.blocked) {
+      alert("Blocked by time-off for this segment.");
+      return;
+    }
+    addAssignment(selectedDate, pid, role.id, seg);
+  }}
+>
+  {opts.map((o) => (
+    <Option key={o.id} value={String(o.id)} disabled={o.blocked}>
+      {o.label}
+    </Option>
+  ))}
+</Dropdown>
         </div>
         <ul className="space-y-1">
           {assigns.map((a: any) => (
@@ -194,21 +191,19 @@ export default function DailyRunBoard({
                         );
                       });
                       return targets.length ? (
-                        <button
-                          className="text-blue-600 text-sm"
-                          onClick={() => handleMove(a, targets)}
+                        <Button appearance="subtle" onClick={() => handleMove(a, targets)}
                         >
                           Move
-                        </button>
+                        </Button>
                       ) : null;
                     })()
                   )}
-                  <button
+                  <Button
                     className="text-red-600 text-sm"
                     onClick={() => deleteAssignment(a.id)}
                   >
                     Remove
-                  </button>
+                  </Button>
                 </div>
               )}
             </li>
@@ -261,19 +256,19 @@ export default function DailyRunBoard({
       <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 mb-4">
         <div className="flex items-center gap-2">
           <label className="text-sm whitespace-nowrap">Date</label>
-          <input
-            type="date"
-            className="border rounded px-2 py-1 min-w-0"
-            value={ymd(selectedDateObj)}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v) setSelectedDate(fmtDateMDY(parseYMD(v)));
-            }}
-          />
+          <Input
+  type="date"
+  value={ymd(selectedDateObj)}
+  onChange={(_, d) => {
+    const v = d.value;
+    const newDate = new Date(v + "T00:00:00");
+    setSelected((s: any) => ({ ...s, date: newDate }));
+  }}
+/>
         </div>
         <div className="flex gap-2">
           {segments.map((s) => (
-            <button
+            <Button
               key={s.name}
               className={`px-3 py-1 rounded text-sm ${
                 activeRunSegment === s.name ? "bg-indigo-600 text-white" : "bg-slate-200"
@@ -281,16 +276,16 @@ export default function DailyRunBoard({
               onClick={() => setActiveRunSegment(s.name as Segment)}
             >
               {s.name}
-            </button>
+            </Button>
           ))}
         </div>
         <div className="flex flex-wrap gap-2 lg:ml-auto">
-          <button
+          <Button
             className="px-3 py-2 bg-slate-200 rounded text-sm"
             onClick={() => setShowNeedsEditor(true)}
           >
             Edit Needs for This Day
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -339,34 +334,25 @@ export default function DailyRunBoard({
             <div className="mb-2 font-medium">
               Move {moveContext.assignment.last_name}, {moveContext.assignment.first_name} to:
             </div>
-            <select
-              className="border rounded w-full px-2 py-1 mb-4"
-              value={moveTargetId ?? ""}
-              onChange={(e) =>
-                setMoveTargetId(e.target.value ? Number(e.target.value) : null)
-              }
-            >
-              <option value="">Select destination</option>
-              {moveContext.targets.map((t) => (
-                <option key={t.role.id} value={t.role.id}>
-                  {t.group.name} - {t.role.name}
-                </option>
-              ))}
-            </select>
+            <Dropdown
+  placeholder="Select destination"
+  selectedOptions={moveTargetId ? [String(moveTargetId)] : []}
+  onOptionSelect={(_, data) => setMoveTargetId(data.optionValue ? Number(data.optionValue) : null)}
+>
+  {moveContext.targets.map((t) => (
+    <Option key={t.role.id} value={String(t.role.id)}>
+      {t.group.name} - {t.role.name}
+    </Option>
+  ))}
+</Dropdown>
             <div className="flex justify-end gap-2">
-              <button
+              <Button
                 className="px-3 py-1 text-sm bg-slate-200 rounded"
                 onClick={cancelMove}
               >
                 Cancel
-              </button>
-              <button
-                className="px-3 py-1 text-sm bg-blue-600 text-white rounded disabled:opacity-50"
-                disabled={moveTargetId == null}
-                onClick={confirmMove}
-              >
-                Move
-              </button>
+              </Button>
+              <Button appearance="primary" disabled={moveTargetId == null} onClick={confirmMove}>Move</Button>
             </div>
           </div>
         </div>
