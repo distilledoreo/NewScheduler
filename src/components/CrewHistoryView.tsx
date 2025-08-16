@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Input, Dropdown, Option, Button, Checkbox, Table, TableHeader, TableBody, TableRow, TableHeaderCell, TableCell, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider } from "@fluentui/react-components";
+import SmartSelect from "./controls/SmartSelect";
 import PersonName from "./PersonName";
 import type { Segment } from "../services/segments";
 
@@ -352,22 +353,16 @@ export default function CrewHistoryView({
   const options = roleListForSegment(seg);
   const optionsKey = options.map((r: any) => `${r.id}:${r.name}`).join(',');
     return (
-      <Dropdown
-    key={`ch-${personId}-${seg}-${def?.role_id ?? ''}-${optionsKey}`}
-        placeholder="--"
-        selectedOptions={def?.role_id != null ? [String(def.role_id)] : []}
-        onOptionSelect={(_, data) => {
-          const v = data.optionValue;
+      <SmartSelect
+        options={[{ value: "", label: "--" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name }))]}
+        value={def?.role_id != null ? String(def.role_id) : null}
+        onChange={(v) => {
           const rid = v ? Number(v) : null;
           setMonthlyDefaultForMonth(month, personId, seg, rid);
           setDefs(all(`SELECT * FROM monthly_default`));
         }}
-      >
-        <Option value="" text="--">--</Option>
-        {options.map((r: any) => (
-          <Option key={r.id} value={String(r.id)} text={r.name}>{r.name}</Option>
-        ))}
-      </Dropdown>
+        placeholder="--"
+      />
     );
   }
 

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { Input, Dropdown, Option, Button, Checkbox, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, Link, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider } from "@fluentui/react-components";
+import { Input, Button, Checkbox, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, Link, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider, Dropdown, Option } from "@fluentui/react-components";
+import SmartSelect from "./controls/SmartSelect";
 import PersonName from "./PersonName";
 import { exportMonthOneSheetXlsx } from "../excel/export-one-sheet";
 import { type Segment, type SegmentRow } from "../services/segments";
@@ -158,21 +159,15 @@ export default function MonthlyDefaults({
                         const optionsKey = options.map((r: any) => `${r.id}:${r.name}`).join(',');
                         return (
                           <TableCell key={w}>
-                            <Dropdown
-                              key={`wk-${personId}-${seg}-${w}-${ov?.role_id ?? ''}-${optionsKey}`}
-                              placeholder="(default)"
-                              selectedOptions={ov?.role_id != null ? [String(ov.role_id)] : []}
-                              onOptionSelect={(_, data) => {
-                                const v = data.optionValue ?? data.optionText;
+                            <SmartSelect
+                              options={[{ value: "", label: "(default)" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name }))]}
+                              value={ov?.role_id != null ? String(ov.role_id) : null}
+                              onChange={(v) => {
                                 const rid = v ? Number(v) : null;
                                 setWeeklyOverride(personId, w, seg, rid);
                               }}
-                            >
-                              <Option value="">(default)</Option>
-                              {options.map((r: any) => (
-                                <Option key={r.id} value={String(r.id)}>{r.name}</Option>
-                              ))}
-                            </Dropdown>
+                              placeholder="(default)"
+                            />
                           </TableCell>
                         );
                       })}
@@ -257,22 +252,16 @@ export default function MonthlyDefaults({
                   const optionsKey = options.map((r: any) => `${r.id}:${r.name}`).join(',');
                   return (
                     <TableCell key={seg}>
-                      <Dropdown
-                        key={`md-${p.id}-${seg}-${def?.role_id ?? ''}-${optionsKey}`}
-                        placeholder="--"
-                        selectedOptions={def?.role_id != null ? [String(def.role_id)] : []}
-                        disabled={!monthlyEditing}
-                        onOptionSelect={(_, data) => {
-                          const v = data.optionValue ?? data.optionText;
+                      <SmartSelect
+                        options={[{ value: "", label: "--" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name }))]}
+                        value={def?.role_id != null ? String(def.role_id) : null}
+                        onChange={(v) => {
                           const rid = v ? Number(v) : null;
                           setMonthlyDefault(p.id, seg, rid);
                         }}
-                      >
-                        <Option value="" text="--">--</Option>
-                        {options.map((r: any) => (
-                          <Option key={r.id} value={String(r.id)} text={r.name}>{r.name}</Option>
-                        ))}
-                      </Dropdown>
+                        placeholder="--"
+                        disabled={!monthlyEditing}
+                      />
                     </TableCell>
                   );
                 })}
