@@ -56,11 +56,10 @@ export default function MonthlyDefaults({
       rowGap: tokens.spacingVerticalM,
     },
     toolbar: {
-      display: 'flex',
-      alignItems: 'center',
-      flexWrap: 'wrap',
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+      alignItems: 'end',
       gap: tokens.spacingHorizontalS,
-      overflowX: 'auto',
       paddingBlockEnd: tokens.spacingVerticalS,
       minWidth: 0,
     },
@@ -191,21 +190,21 @@ export default function MonthlyDefaults({
   return (
     <div className={styles.root}>
       <div className={styles.toolbar}>
-        <Toolbar aria-label="Monthly defaults actions" size="small">
+        <div>
           <span className={styles.label}>Month</span>
           <Input type="month" value={selectedMonth} onChange={(_, d) => setSelectedMonth(d.value)} />
-          <ToolbarButton onClick={() => applyMonthlyDefaults(selectedMonth)}>Apply to Month</ToolbarButton>
-          <ToolbarDivider />
+        </div>
+        <Button onClick={() => applyMonthlyDefaults(selectedMonth)}>Apply to Month</Button>
+        <div>
+          <span className={styles.label}>Copy From</span>
           <Input type="month" value={copyFromMonth} onChange={(_, d) => setCopyFromMonth(d.value)} />
-          <ToolbarButton onClick={() => copyMonthlyDefaults(copyFromMonth, selectedMonth)}>Copy From Month</ToolbarButton>
-          <ToolbarDivider />
-          <ToolbarButton onClick={() => setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</ToolbarButton>
-          <ToolbarDivider />
-          <ToolbarButton onClick={() => exportMonthlyDefaults(selectedMonth)}>Export HTML</ToolbarButton>
-          <ToolbarButton onClick={() => exportMonthOneSheetXlsx(selectedMonth).catch((err) => alert(err.message))}>Export One Sheet (.xlsx)</ToolbarButton>
-          <ToolbarDivider />
-          <Input placeholder="Filter" value={filterText} onChange={(_, data) => setFilterText(data.value)} />
-          <Dropdown selectedOptions={[sortKey]} onOptionSelect={(_, data) => setSortKey(data.optionValue as any)}>
+        </div>
+        <Button onClick={() => copyMonthlyDefaults(copyFromMonth, selectedMonth)}>Copy</Button>
+        <Button onClick={() => setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</Button>
+        <Button onClick={() => exportMonthlyDefaults(selectedMonth)}>Export HTML</Button>
+        <Button onClick={() => exportMonthOneSheetXlsx(selectedMonth).catch((err) => alert(err.message))}>Export .xlsx</Button>
+        <Input placeholder="Filter" value={filterText} onChange={(_, data) => setFilterText(data.value)} />
+        <Dropdown selectedOptions={[sortKey]} onOptionSelect={(_, data) => setSortKey(data.optionValue as any)}>
           <Option value="name">Name</Option>
           <Option value="email">Email</Option>
           <Option value="brother_sister">B/S</Option>
@@ -219,11 +218,10 @@ export default function MonthlyDefaults({
           {segmentNames.map(seg => (
             <Option key={seg} value={seg} text={`${seg} Role`} />
           ))}
-          </Dropdown>
-          <ToolbarButton onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}>{sortDir === 'asc' ? 'Asc' : 'Desc'}</ToolbarButton>
-          <Checkbox label="Active" checked={activeOnly} onChange={(_, data) => setActiveOnly(!!data.checked)} />
-          <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data) => setCommuterOnly(!!data.checked)} />
-        </Toolbar>
+        </Dropdown>
+        <Button onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}>{sortDir === 'asc' ? 'Asc' : 'Desc'}</Button>
+        <Checkbox label="Active" checked={activeOnly} onChange={(_, data) => setActiveOnly(!!data.checked)} />
+        <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data) => setCommuterOnly(!!data.checked)} />
       </div>
   <div className={styles.scroll}>
         <Table size="small" aria-label="Monthly defaults">

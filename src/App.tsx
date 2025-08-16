@@ -1021,13 +1021,14 @@ function PeopleEditor(){
     closeModal();
   }
 
-  const useStyles = makeStyles({
+    const useStyles = makeStyles({
     root: { padding: tokens.spacingHorizontalM },
     tableWrap: {
       border: `1px solid ${tokens.colorNeutralStroke2}`,
       borderRadius: tokens.borderRadiusLarge,
-      overflow: "auto",
-      maxHeight: "40vh",
+      overflowY: "auto",
+      overflowX: "hidden",
+      maxHeight: "60vh",
       width: "100%",
       boxShadow: tokens.shadow2,
     },
@@ -1056,6 +1057,8 @@ function PeopleEditor(){
       padding: tokens.spacingHorizontalS,
     },
     row: { display: 'flex', gap: tokens.spacingHorizontalS },
+  cellWrap: { whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' },
+  availText: { color: tokens.colorNeutralForeground3, fontSize: tokens.fontSizeBase200 },
   });
   const s = useStyles();
 
@@ -1072,31 +1075,27 @@ function PeopleEditor(){
             <TableHeader>
               <TableRow>
                 <TableHeaderCell>Name</TableHeaderCell>
-                <TableHeaderCell>Email</TableHeaderCell>
+                <TableHeaderCell>Work Email</TableHeaderCell>
                 <TableHeaderCell>B/S</TableHeaderCell>
                 <TableHeaderCell>Commute</TableHeaderCell>
                 <TableHeaderCell>Active</TableHeaderCell>
-                <TableHeaderCell>Mon</TableHeaderCell>
-                <TableHeaderCell>Tue</TableHeaderCell>
-                <TableHeaderCell>Wed</TableHeaderCell>
-                <TableHeaderCell>Thu</TableHeaderCell>
-                <TableHeaderCell>Fri</TableHeaderCell>
+                <TableHeaderCell>Availability</TableHeaderCell>
                 <TableHeaderCell>Actions</TableHeaderCell>
               </TableRow>
             </TableHeader>
             <TableBody>
               {people.map(p => (
                 <TableRow key={p.id}>
-                  <TableCell><PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName></TableCell>
-                  <TableCell>{p.work_email}</TableCell>
+                  <TableCell className={s.cellWrap}><PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName></TableCell>
+                  <TableCell className={s.cellWrap}>{p.work_email}</TableCell>
                   <TableCell>{p.brother_sister||'-'}</TableCell>
                   <TableCell>{p.commuter?"Yes":"No"}</TableCell>
                   <TableCell>{p.active?"Yes":"No"}</TableCell>
-                  <TableCell>{p.avail_mon}</TableCell>
-                  <TableCell>{p.avail_tue}</TableCell>
-                  <TableCell>{p.avail_wed}</TableCell>
-                  <TableCell>{p.avail_thu}</TableCell>
-                  <TableCell>{p.avail_fri}</TableCell>
+                  <TableCell className={s.cellWrap}>
+                    <div className={s.availText}>
+                      Mon: {p.avail_mon || 'U'} | Tue: {p.avail_tue || 'U'} | Wed: {p.avail_wed || 'U'} | Thu: {p.avail_thu || 'U'} | Fri: {p.avail_fri || 'U'}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div style={{ display: "flex", gap: 8 }}>
                       <Button size="small" onClick={()=>openModal(p)}>Edit</Button>
@@ -1289,14 +1288,9 @@ function PeopleEditor(){
         <SideRail
           ready={ready}
           sqlDb={sqlDb}
-          createNewDb={createNewDb}
-          openDbFromFile={openDbFromFile}
-          saveDb={saveDb}
-          saveDbAs={saveDbAs}
           status={status}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          canSave={canSave}
           themeName={themeName}
           setThemeName={setThemeName}
         />

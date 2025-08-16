@@ -48,11 +48,10 @@ export default function CrewHistoryView({
       rowGap: tokens.spacingVerticalM,
     },
     toolbar: {
-      display: 'flex',
-      flexWrap: 'wrap',
-      alignItems: 'center',
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+      alignItems: 'end',
       gap: tokens.spacingHorizontalS,
-      overflowX: 'auto',
       paddingBlockEnd: tokens.spacingVerticalS,
       minWidth: 0,
     },
@@ -345,96 +344,50 @@ export default function CrewHistoryView({
   return (
     <div className={styles.root}>
       <div className={styles.toolbar}>
-        <Toolbar aria-label="Crew history actions" size="small">
-          <Input
-            placeholder="Filter people..."
-            value={filter}
-            onChange={(_, data) => setFilter(data.value)}
-          />
-          <Dropdown
-            selectedOptions={[sortField]}
-            onOptionSelect={(_, data) => setSortField(data.optionValue as any)}
-          >
-            <Option value="last">Last Name</Option>
-            <Option value="first">First Name</Option>
-            <Option value="brother_sister">B/S</Option>
-            <Option value="commuter">Commute</Option>
-            <Option value="active">Active</Option>
-            <Option value="avail_mon">Mon</Option>
-            <Option value="avail_tue">Tue</Option>
-            <Option value="avail_wed">Wed</Option>
-            <Option value="avail_thu">Thu</Option>
-            <Option value="avail_fri">Fri</Option>
-            {segmentNames.map((seg) => (
-              <Option key={seg} value={seg} text={`${seg} Role`} />
-            ))}
-          </Dropdown>
-          <ToolbarButton onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}> {sortDir === "asc" ? "Asc" : "Desc"} </ToolbarButton>
-          <ToolbarDivider />
-          <Dropdown
-            selectedOptions={[bsFilter]}
-            onOptionSelect={(_, data) => setBsFilter(data.optionValue as string)}
-          >
-            <Option value="">All B/S</Option>
-            <Option value="Brother">Brother</Option>
-            <Option value="Sister">Sister</Option>
-          </Dropdown>
-          <Dropdown
-            multiselect
-            placeholder="All Groups"
-            selectedOptions={groupFilter}
-            onOptionSelect={(_, data) => setGroupFilter(data.selectedOptions as string[])}
-          >
-            {groups.map((g) => (
-              <Option key={g.name} value={g.name}>
-                {g.name}
-              </Option>
-            ))}
-          </Dropdown>
-          <Dropdown
-            selectedOptions={filterMonth ? [filterMonth] : []}
-            onOptionSelect={(_, data) => setFilterMonth(data.optionValue as string)}
-          >
-            {months.map((m) => (
-              <Option key={m} value={m}>
-                {m}
-              </Option>
-            ))}
-          </Dropdown>
-          <ToolbarDivider />
-          <Checkbox
-            label="Active"
-            checked={activeOnly}
-            onChange={(_, data) => setActiveOnly(!!data.checked)}
-          />
-          <Checkbox
-            label="Commuter"
-            checked={commuterOnly}
-            onChange={(_, data) => setCommuterOnly(!!data.checked)}
-          />
+        <Input placeholder="Filter people..." value={filter} onChange={(_, data) => setFilter(data.value)} />
+        <Dropdown selectedOptions={[sortField]} onOptionSelect={(_, data) => setSortField(data.optionValue as any)}>
+          <Option value="last">Last Name</Option>
+          <Option value="first">First Name</Option>
+          <Option value="brother_sister">B/S</Option>
+          <Option value="commuter">Commute</Option>
+          <Option value="active">Active</Option>
+          <Option value="avail_mon">Mon</Option>
+          <Option value="avail_tue">Tue</Option>
+          <Option value="avail_wed">Wed</Option>
+          <Option value="avail_thu">Thu</Option>
+          <Option value="avail_fri">Fri</Option>
           {segmentNames.map((seg) => (
-            <Checkbox
-              key={seg}
-              label={seg}
-              checked={!!showSeg[seg]}
-              onChange={(_, data) =>
-                setShowSeg({ ...showSeg, [seg]: !!data.checked })
-              }
-            />
+            <Option key={seg} value={seg} text={`${seg} Role`} />
           ))}
-          <Checkbox
-            label="Edit past months"
-            checked={editPast}
-            onChange={(_, data) => setEditPast(!!data.checked)}
-          />
-          <ToolbarDivider />
-          <div className={styles.monthRange}>
-            <span className={styles.label}>From</span>
-            <Input type="month" value={startMonth} onChange={(_, d) => setStartMonth(d.value)} />
-            <span className={styles.label}>To</span>
-            <Input type="month" value={endMonth} onChange={(_, d) => setEndMonth(d.value)} />
-          </div>
-        </Toolbar>
+        </Dropdown>
+        <Button onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}> {sortDir === "asc" ? "Asc" : "Desc"} </Button>
+        <Dropdown selectedOptions={[bsFilter]} onOptionSelect={(_, data) => setBsFilter(data.optionValue as string)}>
+          <Option value="">All B/S</Option>
+          <Option value="Brother">Brother</Option>
+          <Option value="Sister">Sister</Option>
+        </Dropdown>
+        <Dropdown multiselect placeholder="All Groups" selectedOptions={groupFilter} onOptionSelect={(_, data) => setGroupFilter(data.selectedOptions as string[])}>
+          {groups.map((g) => (
+            <Option key={g.name} value={g.name}>{g.name}</Option>
+          ))}
+        </Dropdown>
+        <Dropdown selectedOptions={filterMonth ? [filterMonth] : []} onOptionSelect={(_, data) => setFilterMonth(data.optionValue as string)}>
+          {months.map((m) => (
+            <Option key={m} value={m}>{m}</Option>
+          ))}
+        </Dropdown>
+        <Checkbox label="Active" checked={activeOnly} onChange={(_, data) => setActiveOnly(!!data.checked)} />
+        <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data) => setCommuterOnly(!!data.checked)} />
+        {segmentNames.map((seg) => (
+          <Checkbox key={seg} label={seg} checked={!!showSeg[seg]} onChange={(_, data) => setShowSeg({ ...showSeg, [seg]: !!data.checked })} />
+        ))}
+        <Checkbox label="Edit past months" checked={editPast} onChange={(_, data) => setEditPast(!!data.checked)} />
+        <div className={styles.monthRange}>
+          <span className={styles.label}>From</span>
+          <Input type="month" value={startMonth} onChange={(_, d) => setStartMonth(d.value)} />
+          <span className={styles.label}>To</span>
+          <Input type="month" value={endMonth} onChange={(_, d) => setEndMonth(d.value)} />
+        </div>
       </div>
       <div className={styles.scroll}>
         <Table size="small" aria-label="Crew history">
