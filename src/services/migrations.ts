@@ -65,6 +65,147 @@ export const migrate6AddExportGroup: Migration = (db) => {
   }
 };
 
+export const migrate7SegmentRefs: Migration = (db) => {
+  const rebuild = (
+    table: string,
+    createSql: string,
+    columns: string
+  ) => {
+    const old = `${table}_old`;
+    try {
+      db.run(`ALTER TABLE ${table} RENAME TO ${old};`);
+    } catch {
+      return;
+    }
+
+    db.run(createSql);
+
+    let migrated = false;
+    try {
+      db.run(
+        `INSERT INTO ${table} (${columns}) SELECT ${columns} FROM ${old};`
+      );
+      migrated = true;
+    } catch {
+      const info = db.exec(`PRAGMA table_info(${old});`);
+      const names = info[0]?.values?.map((r: any[]) => String(r[1])) || [];
+
+      if (table === 'monthly_default' && names.includes('am_role_id')) {
+        const hasEarly = names.includes('early_role_id');
+        let select = `SELECT month, person_id, am_role_id, lunch_role_id, pm_role_id`;
+        if (hasEarly) select += ', early_role_id';
+        select += ` FROM ${old}`;
+        const rows = db.exec(select);
+        const vals = rows[0]?.values || [];
+        for (const row of vals) {
+          const [month, personId, am, lunch, pm, early] = row as any[];
+          if (am != null) db.run(`INSERT INTO ${table} (month, person_id, segment, role_id) VALUES (?,?,?,?)`, [month, personId, 'AM', am]);
+          if (lunch != null) db.run(`INSERT INTO ${table} (month, person_id, segment, role_id) VALUES (?,?,?,?)`, [month, personId, 'Lunch', lunch]);
+          if (pm != null) db.run(`INSERT INTO ${table} (month, person_id, segment, role_id) VALUES (?,?,?,?)`, [month, personId, 'PM', pm]);
+          if (hasEarly && early != null) db.run(`INSERT INTO ${table} (month, person_id, segment, role_id) VALUES (?,?,?,?)`, [month, personId, 'Early', early]);
+        }
+        migrated = true;
+      } else if (table === 'monthly_default_day' && names.includes('am_role_id')) {
+        const hasEarly = names.includes('early_role_id');
+        let select = `SELECT month, person_id, weekday, am_role_id, lunch_role_id, pm_role_id`;
+        if (hasEarly) select += ', early_role_id';
+        select += ` FROM ${old}`;
+        const rows = db.exec(select);
+        const vals = rows[0]?.values || [];
+        for (const row of vals) {
+          const [month, personId, weekday, am, lunch, pm, early] = row as any[];
+          if (am != null) db.run(`INSERT INTO ${table} (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)`, [month, personId, weekday, 'AM', am]);
+          if (lunch != null) db.run(`INSERT INTO ${table} (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)`, [month, personId, weekday, 'Lunch', lunch]);
+          if (pm != null) db.run(`INSERT INTO ${table} (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)`, [month, personId, weekday, 'PM', pm]);
+          if (hasEarly && early != null) db.run(`INSERT INTO ${table} (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)`, [month, personId, weekday, 'Early', early]);
+        }
+        migrated = true;
+      }
+    }
+
+    if (!migrated) {
+      // If migration failed entirely, drop the new table and restore old
+      db.run(`DROP TABLE ${table};`);
+      db.run(`ALTER TABLE ${old} RENAME TO ${table};`);
+      return;
+    }
+
+    db.run(`DROP TABLE ${old};`);
+  };
+
+  rebuild(
+    'assignment',
+    `CREATE TABLE assignment (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      person_id INTEGER NOT NULL,
+      role_id INTEGER NOT NULL,
+      segment TEXT NOT NULL REFERENCES segment(name),
+      FOREIGN KEY (person_id) REFERENCES person(id),
+      FOREIGN KEY (role_id) REFERENCES role(id)
+    );`,
+    'id, date, person_id, role_id, segment'
+  );
+
+  rebuild(
+    'monthly_default',
+    `CREATE TABLE monthly_default (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL,
+      person_id INTEGER NOT NULL,
+      segment TEXT NOT NULL REFERENCES segment(name),
+      role_id INTEGER NOT NULL,
+      UNIQUE(month, person_id, segment),
+      FOREIGN KEY (person_id) REFERENCES person(id),
+      FOREIGN KEY (role_id) REFERENCES role(id)
+    );`,
+    'id, month, person_id, segment, role_id'
+  );
+
+  rebuild(
+    'monthly_default_day',
+    `CREATE TABLE monthly_default_day (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL,
+      person_id INTEGER NOT NULL,
+      weekday INTEGER NOT NULL,
+      segment TEXT NOT NULL REFERENCES segment(name),
+      role_id INTEGER NOT NULL,
+      UNIQUE(month, person_id, weekday, segment),
+      FOREIGN KEY (person_id) REFERENCES person(id),
+      FOREIGN KEY (role_id) REFERENCES role(id)
+    );`,
+    'id, month, person_id, weekday, segment, role_id'
+  );
+
+  rebuild(
+    'needs_baseline',
+    `CREATE TABLE needs_baseline (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      group_id INTEGER NOT NULL,
+      role_id INTEGER NOT NULL,
+      segment TEXT NOT NULL REFERENCES segment(name),
+      required INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(group_id, role_id, segment)
+    );`,
+    'id, group_id, role_id, segment, required'
+  );
+
+  rebuild(
+    'needs_override',
+    `CREATE TABLE needs_override (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      group_id INTEGER NOT NULL,
+      role_id INTEGER NOT NULL,
+      segment TEXT NOT NULL REFERENCES segment(name),
+      required INTEGER NOT NULL,
+      UNIQUE(date, group_id, role_id, segment)
+    );`,
+    'id, date, group_id, role_id, segment, required'
+  );
+};
+
 const migrations: Record<number, Migration> = {
   1: (db) => {
     db.run(`PRAGMA journal_mode=WAL;`);
@@ -196,6 +337,7 @@ const migrations: Record<number, Migration> = {
   4: migrate4AddSegments,
   5: migrate5AddGroupTheme,
   6: migrate6AddExportGroup,
+  7: migrate7SegmentRefs,
 };
 
 export function addMigration(version: number, fn: Migration) {
