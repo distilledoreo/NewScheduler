@@ -1,10 +1,6 @@
 import * as React from "react";
 import { Button, Tooltip, makeStyles, tokens, Menu, MenuTrigger, MenuPopover, MenuList, MenuItem, Divider, Text, Switch } from "@fluentui/react-components";
 import {
-  Add20Regular,
-  FolderOpen20Regular,
-  Save20Regular,
-  SaveCopy20Regular,
   CalendarLtr20Regular,
   PeopleCommunity20Regular,
   TableSimple20Regular,
@@ -19,11 +15,6 @@ export type TabKey = "RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTOR
 export interface SideRailProps {
   ready: boolean;
   sqlDb: any;
-  canSave: boolean;
-  createNewDb: () => void;
-  openDbFromFile: () => void;
-  saveDb: () => void;
-  saveDbAs: () => void;
   status: string;
   activeTab: TabKey;
   setActiveTab: (tab: TabKey) => void;
@@ -99,11 +90,6 @@ function RailItem({ icon, label, active, onClick }: { icon: React.ReactNode; lab
 export default function SideRail({
   ready,
   sqlDb,
-  canSave,
-  createNewDb,
-  openDbFromFile,
-  saveDb,
-  saveDbAs,
   status,
   activeTab,
   setActiveTab,
@@ -111,6 +97,9 @@ export default function SideRail({
   setThemeName,
 }: SideRailProps){
   const s = useStyles();
+  const railRef = React.useRef<HTMLDivElement | null>(null);
+  const navRef = React.useRef<HTMLDivElement | null>(null);
+  const [maxVisible, setMaxVisible] = React.useState<number>(5);
 
   const primaryNav: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
     { key: "RUN", label: "Run", icon: <CalendarLtr20Regular /> },
@@ -122,32 +111,54 @@ export default function SideRail({
     { key: "ADMIN", label: "Admin", icon: <Settings20Regular /> },
   ];
 
-  // Determine how many nav items fit; reserve space for More button
-  const maxVisible = 5; // simple heuristic; can be made responsive later
+  // Determine how many nav items fit dynamically; reserve space for More
   const visible = primaryNav.slice(0, maxVisible);
   const overflow = primaryNav.slice(maxVisible);
 
+  React.useEffect(() => {
+    const measure = () => {
+      const rail = railRef.current;
+      const nav = navRef.current;
+      if (!rail || !nav) return;
+      // Available height for nav area (rail height - fixed sections ~ top(title)+divider and bottom section height)
+      const railRect = rail.getBoundingClientRect();
+      const bottomSection = rail.querySelector('[data-rail-bottom]') as HTMLElement | null;
+      const topSection = rail.querySelector('[data-rail-top]') as HTMLElement | null;
+      const dividers = rail.querySelectorAll('hr');
+      const bottomH = bottomSection ? bottomSection.offsetHeight : 0;
+      const topH = topSection ? topSection.offsetHeight : 0;
+      let dividerH = 0; dividers.forEach(d => dividerH += (d as HTMLElement).offsetHeight);
+      const padding = 16; // rough extra
+      const available = railRect.height - bottomH - topH - dividerH - padding;
+
+      // Estimate per-item height using the first child (icon+label stack)
+      const first = nav.firstElementChild as HTMLElement | null;
+      const itemH = first ? first.offsetHeight + 6 : 48; // add gap
+      const moreH = 36; // More button height
+      if (itemH <= 0) return;
+      const possible = Math.max(1, Math.floor((available - moreH) / itemH));
+      setMaxVisible(Math.min(primaryNav.length, possible));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (railRef.current) ro.observe(railRef.current);
+    if (navRef.current) ro.observe(navRef.current);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [primaryNav.length]);
+
   return (
-    <aside className={s.root} aria-label="App navigation">
-      <div className={s.section}>
+    <aside className={s.root} aria-label="App navigation" ref={railRef}>
+      <div className={s.section} data-rail-top>
         <Text align="center" className={s.appTitle}>Sched</Text>
-        <Tooltip content="New DB" relationship="label">
-          <Button appearance="primary" icon={<Add20Regular />} onClick={createNewDb}>New</Button>
-        </Tooltip>
-        <Tooltip content="Open DB" relationship="label">
-          <Button icon={<FolderOpen20Regular />} onClick={openDbFromFile}>Open</Button>
-        </Tooltip>
-        <Tooltip content="Save" relationship="label">
-          <Button icon={<Save20Regular />} onClick={saveDb} disabled={!canSave}>Save</Button>
-        </Tooltip>
-        <Tooltip content="Save As" relationship="label">
-          <Button icon={<SaveCopy20Regular />} onClick={saveDbAs} disabled={!sqlDb}>Save As</Button>
-        </Tooltip>
       </div>
 
       <Divider />
 
-      <div className={`${s.section} ${s.grow} ${s.navScroll}`}>
+      <div className={`${s.section} ${s.grow} ${s.navScroll}`} ref={navRef}>
         {visible.map(it => (
           <RailItem key={it.key} icon={it.icon} label={it.label} active={activeTab===it.key} onClick={()=>setActiveTab(it.key)} />
         ))}
@@ -172,7 +183,7 @@ export default function SideRail({
 
       <Divider />
 
-      <div className={s.section}>
+  <div className={s.section} data-rail-bottom>
         <Switch checked={themeName === "dark"} onChange={(_, d)=> setThemeName(d.checked ? "dark" : "light")} label={themeName === 'dark' ? 'Dark' : 'Light'} />
         <Text size={200} title={status}>{status}</Text>
       </div>

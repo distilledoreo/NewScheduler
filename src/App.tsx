@@ -2,6 +2,7 @@ import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { applyMigrations } from "./services/migrations";
 import { listSegments, type Segment, type SegmentRow } from "./services/segments";
 import SideRail from "./components/SideRail";
+import TopBar from "./components/TopBar";
 const DailyRunBoard = React.lazy(() => import("./components/DailyRunBoard"));
 const AdminView = React.lazy(() => import("./components/AdminView"));
 const ExportPreview = React.lazy(() => import("./components/ExportPreview"));
@@ -1245,10 +1246,19 @@ function PeopleEditor(){
     shell: {
       minHeight: '100vh',
       display: 'flex',
+      flexDirection: 'column',
       width: '100%',
       maxWidth: '100%',
       overflow: 'hidden',
       backgroundColor: (themeName === "dark" ? webDarkTheme : webLightTheme).colorNeutralBackground1,
+    },
+    contentRow: {
+      display: 'flex',
+      width: '100%',
+      maxWidth: '100%',
+      minHeight: 0,
+      flex: 1,
+      overflow: 'hidden',
     },
     main: {
       flex: 1,
@@ -1265,21 +1275,32 @@ function PeopleEditor(){
   <FluentProvider theme={themeName === "dark" ? webDarkTheme : webLightTheme}>
   <ProfileContext.Provider value={{ showProfile: (id: number) => setProfilePersonId(id) }}>
   <div className={sh.shell}>
-      <SideRail
+      <TopBar
         ready={ready}
         sqlDb={sqlDb}
+        canSave={canSave}
         createNewDb={createNewDb}
         openDbFromFile={openDbFromFile}
         saveDb={saveDb}
         saveDbAs={saveDbAs}
         status={status}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        canSave={canSave}
-        themeName={themeName}
-        setThemeName={setThemeName}
       />
-      <main className={sh.main}>
+      <div className={sh.contentRow}>
+        <SideRail
+          ready={ready}
+          sqlDb={sqlDb}
+          createNewDb={createNewDb}
+          openDbFromFile={openDbFromFile}
+          saveDb={saveDb}
+          saveDbAs={saveDbAs}
+          status={status}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          canSave={canSave}
+          themeName={themeName}
+          setThemeName={setThemeName}
+        />
+        <main className={sh.main}>
         <div className={sh.mainInner}>
       {!sqlDb && (
         <div className="p-6 text-slate-600">
@@ -1397,7 +1418,8 @@ function PeopleEditor(){
         />
       )}
         </div>
-      </main>
+        </main>
+      </div>
   </div>
   </ProfileContext.Provider>
   </FluentProvider>
