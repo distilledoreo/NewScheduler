@@ -16,6 +16,7 @@ import { ProfileContext } from "./components/ProfileContext";
 import { Button, Checkbox, Dropdown, Input, Option } from "@fluentui/react-components";
 import MonthlyDefaults from "./components/MonthlyDefaults";
 import CrewHistoryView from "./components/CrewHistoryView";
+import { useLayoutStyles } from "./layoutStyles";
 
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
@@ -32,7 +33,7 @@ Runtime deps (loaded via CDN):
   - sql.js (WASM) via jsDelivr
   - xlsx ESM via SheetJS CDN (no Node `fs`)
 
-Tailwind classes used for styling. This file is a single React component export.
+Fluent UI styling with layout helpers. This file is a single React component export.
 */
 
 // Types
@@ -100,7 +101,8 @@ async function loadXLSX(){
   return mod as any;
 }
 
-export default function App() {
+export default function App({ theme, toggleTheme }: { theme: "light" | "dark"; toggleTheme: () => void }) {
+  const layout = useLayoutStyles();
   const [ready, setReady] = useState(false);
   const [sqlDb, setSqlDb] = useState<any | null>(null);
 
@@ -1128,7 +1130,7 @@ function PeopleEditor(){
 
   return (
     <ProfileContext.Provider value={{ showProfile: (id: number) => setProfilePersonId(id) }}>
-    <div className="min-h-screen bg-slate-50">
+    <div className={layout.appRoot}>
       <Toolbar
         ready={ready}
         sqlDb={sqlDb}
@@ -1140,6 +1142,8 @@ function PeopleEditor(){
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         canSave={canSave}
+        theme={theme}
+        toggleTheme={toggleTheme}
       />
 
       {!sqlDb && (
