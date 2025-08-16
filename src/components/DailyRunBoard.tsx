@@ -95,6 +95,8 @@ export default function DailyRunBoard({
   deleteAssignment,
   isDark,
 }: DailyRunBoardProps) {
+  // Height of each react-grid-layout row in pixels. Increase to make group cards taller.
+  const RGL_ROW_HEIGHT = 110;
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
 
   useEffect(() => {
@@ -166,7 +168,7 @@ export default function DailyRunBoard({
       margin: 0,
       overflow: "auto",
       display: "grid",
-      rowGap: tokens.spacingVerticalXS,
+      rowGap: tokens.spacingVerticalS,
     },
     assignmentItem: {
       display: "flex",
@@ -174,11 +176,18 @@ export default function DailyRunBoard({
       justifyContent: "space-between",
       backgroundColor: tokens.colorNeutralBackground2,
       borderRadius: tokens.borderRadiusSmall,
-      padding: `2px ${tokens.spacingHorizontalS}`,
+      padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalM}`,
+      columnGap: tokens.spacingHorizontalM,
+    },
+    assignmentName: {
+      flex: 1,
+      overflowWrap: "anywhere",
+      wordBreak: "break-word",
     },
     actionsRow: {
       display: "flex",
       columnGap: tokens.spacingHorizontalS,
+      flexShrink: 0,
     },
   });
   const s = useStyles();
@@ -203,8 +212,17 @@ export default function DailyRunBoard({
     } catch {}
     const byId = new Map(saved.map((l: any) => [l.i, l]));
     const merged = groups.map((g: any, idx: number) => {
-      const roleCount = roles.filter((r) => r.group_id === g.id).length;
-      const h = Math.max(2, Math.ceil(roleCount / 3)) + 1;
+      const rolesForGroup = roles.filter((r) => r.group_id === g.id);
+      const roleCount = rolesForGroup.length;
+      // Base height estimates number of role rows across ~3 columns plus header
+      const baseH = Math.max(2, Math.ceil(roleCount / 3)) + 1;
+      // Estimate extra rows based on additional required people beyond 1 per role
+      const extraNeededSum = rolesForGroup.reduce((sum, r) => {
+        const req = getRequiredFor(selectedDateObj, g.id, r.id, seg);
+        return sum + Math.max(0, req - 1);
+      }, 0);
+      const extraRows = Math.ceil(extraNeededSum / 3);
+      const h = baseH + extraRows;
       return (
         byId.get(String(g.id)) || {
           i: String(g.id),
@@ -217,7 +235,7 @@ export default function DailyRunBoard({
     });
     setLayout(merged);
     setLayoutLoaded(true);
-  }, [groups, lockEmail, seg, roles, all]);
+  }, [groups, lockEmail, seg, roles, all, getRequiredFor, selectedDateObj]);
 
   function handleLayoutChange(l: any[]) {
     setLayout(l);
@@ -271,7 +289,7 @@ export default function DailyRunBoard({
         <div
           className={s.rolesGrid}
           style={{
-            gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+            gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))",
             ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1,
           }}
         >
@@ -382,15 +400,15 @@ export default function DailyRunBoard({
             ))}
           </Dropdown>
         </div>
-        <ul className={s.assignmentsList}>
+    <ul className={s.assignmentsList}>
           {assigns.map((a: any) => (
             <li key={a.id} className={s.assignmentItem}>
-              <Caption1>
+      <Body1 className={s.assignmentName}>
                 <PersonName personId={a.person_id}>
                   {a.last_name}, {a.first_name}
                   {!trainedBefore.has(a.person_id) && " (Untrained)"}
                 </PersonName>
-              </Caption1>
+      </Body1>
               {canEdit && (
                 <div className={s.actionsRow}>
                   {isOverstaffed &&
@@ -488,7 +506,7 @@ export default function DailyRunBoard({
           className="layout"
           layout={layout}
           cols={12}
-          rowHeight={80}
+          rowHeight={RGL_ROW_HEIGHT}
           onLayoutChange={handleLayoutChange}
           draggableHandle=".drag-handle"
         >
