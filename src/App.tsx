@@ -908,24 +908,53 @@ async function exportShifts() {
     );
   }
   function BaselineView(){
+    const useStyles = makeStyles({
+      root: { padding: "16px" },
+      title: { fontWeight: 600, fontSize: "1.125rem", marginBottom: "16px" },
+      grid: {
+        display: "grid",
+        gridTemplateColumns: "1fr",
+        gap: "16px",
+        [`@media (min-width: 1024px)`]: { gridTemplateColumns: "repeat(2, 1fr)" },
+        [`@media (min-width: 1280px)`]: { gridTemplateColumns: "repeat(3, 1fr)" },
+      },
+      card: {
+        border: `1px solid ${tokens.colorNeutralStroke2}`,
+        borderRadius: "8px",
+        padding: "12px",
+        backgroundColor: tokens.colorNeutralBackground1,
+        boxShadow: tokens.shadow2,
+      },
+      roleCard: {
+        border: `1px solid ${tokens.colorNeutralStroke2}`,
+        borderRadius: "8px",
+        padding: "12px",
+        marginBottom: "16px",
+      },
+      roleGrid: {
+        display: "grid",
+        gap: "12px",
+        gridTemplateColumns: `repeat(${segments.length}, minmax(0,1fr))`,
+      },
+      subTitle: { fontWeight: 600, marginBottom: "12px" },
+      label: { fontSize: "12px", color: tokens.colorNeutralForeground3, marginBottom: "4px" },
+    });
+    const s = useStyles();
     return (
-      <div className="p-4">
-        <div className="font-semibold text-lg mb-4">Baseline Needs</div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className={s.root}>
+        <div className={s.title}>Baseline Needs</div>
+        <div className={s.grid}>
           {groups.map((g:any)=> (
-            <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
-              <div className="font-semibold mb-3">{g.name}</div>
+            <div key={g.id} className={s.card}>
+              <div className={s.subTitle}>{g.name}</div>
               {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
-                <div key={r.id} className="mb-4 border rounded p-3">
-                  <div className="font-medium mb-3">{r.name}</div>
-                  <div
-                    className="space-y-3 sm:grid sm:gap-3 sm:space-y-0"
-                    style={{ gridTemplateColumns: `repeat(${segments.length}, minmax(0,1fr))` }}
-                  >
-                    {segments.map((s) => (
-                      <div key={s.name}>
-                        <div className="text-xs text-slate-500 mb-1">{s.name} Required</div>
-                        <RequiredCell date={null} group={g} role={r} segment={s.name as Segment} />
+                <div key={r.id} className={s.roleCard}>
+                  <div className={s.subTitle}>{r.name}</div>
+                  <div className={s.roleGrid}>
+                    {segments.map((seg) => (
+                      <div key={seg.name}>
+                        <div className={s.label}>{seg.name} Required</div>
+                        <RequiredCell date={null} group={g} role={r} segment={seg.name as Segment} />
                       </div>
                     ))}
                   </div>
@@ -1128,29 +1157,51 @@ function PeopleEditor(){
           <DialogBody>
             <DialogTitle>Needs for {fmtDateMDY(d)}</DialogTitle>
             <DialogContent>
-              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-                {groups.map((g:any)=> (
-                  <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
-                    <div className="font-semibold mb-3">{g.name}</div>
-                    {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
-                      <div key={r.id} className="mb-4 border rounded p-3">
-                        <div className="font-medium mb-3">{r.name}</div>
-                        <div
-                          className="space-y-3 sm:grid sm:gap-3 sm:space-y-0"
-                          style={{ gridTemplateColumns: `repeat(${segments.length}, minmax(0,1fr))` }}
-                        >
-                          {segments.map((s) => (
-                            <div key={s.name}>
-                              <div className="text-xs text-slate-500 mb-1">{s.name} Required</div>
-                              <RequiredCell date={d} group={g} role={r} segment={s.name as Segment} />
+              {(() => {
+                const useStyles = makeStyles({
+                  grid: {
+                    display: "grid",
+                    gridTemplateColumns: "1fr",
+                    gap: "16px",
+                    [`@media (min-width: 1024px)`]: { gridTemplateColumns: "repeat(2, 1fr)" },
+                    [`@media (min-width: 1280px)`]: { gridTemplateColumns: "repeat(3, 1fr)" },
+                  },
+                  card: {
+                    border: `1px solid ${tokens.colorNeutralStroke2}`,
+                    borderRadius: "8px",
+                    padding: "12px",
+                    backgroundColor: tokens.colorNeutralBackground1,
+                    boxShadow: tokens.shadow2,
+                  },
+                  roleCard: { border: `1px solid ${tokens.colorNeutralStroke2}`, borderRadius: "8px", padding: "12px", marginBottom: "16px" },
+                  subTitle: { fontWeight: 600, marginBottom: "12px" },
+                  roleGrid: { display: "grid", gap: "12px", gridTemplateColumns: `repeat(${segments.length}, minmax(0,1fr))` },
+                  label: { fontSize: "12px", color: tokens.colorNeutralForeground3, marginBottom: "4px" },
+                });
+                const s = useStyles();
+                return (
+                  <div className={s.grid}>
+                    {groups.map((g:any)=> (
+                      <div key={g.id} className={s.card}>
+                        <div className={s.subTitle}>{g.name}</div>
+                        {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
+                          <div key={r.id} className={s.roleCard}>
+                            <div className={s.subTitle}>{r.name}</div>
+                            <div className={s.roleGrid}>
+                              {segments.map((seg) => (
+                                <div key={seg.name}>
+                                  <div className={s.label}>{seg.name} Required</div>
+                                  <RequiredCell date={d} group={g} role={r} segment={seg.name as Segment} />
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))}
                       </div>
                     ))}
                   </div>
-                ))}
-              </div>
+                );
+              })()}
             </DialogContent>
             <DialogActions>
               <Button onClick={()=>setShowNeedsEditor(false)}>Close</Button>
