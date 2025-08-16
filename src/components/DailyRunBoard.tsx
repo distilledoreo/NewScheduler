@@ -266,6 +266,7 @@ export default function DailyRunBoard({
                 key={o.id}
                 value={String(o.id)}
                 disabled={o.blocked}
+                text={`${o.label}${o.blocked ? " (Time-off)" : ""}`}
               >
                 {`${o.label}${o.blocked ? " (Time-off)" : ""}`}
               </Option>

@@ -135,7 +135,7 @@ export default function ExportGroupEditor({ all, run, refresh }: ExportGroupEdit
                 onOptionSelect={(_, data) => setForm({ ...form, group_id: Number(data.optionValue ?? data.optionText) })}
               >
                 {available.map((g:any)=>(
-                  <Option key={g.id} value={String(g.id)}>{g.name}</Option>
+                  <Option key={g.id} value={String(g.id)} text={g.name}>{g.name}</Option>
                 ))}
               </Dropdown>
             </Field>

@@ -138,12 +138,17 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
             <Input value={editing.name} onChange={(_, d) => setEditing({ ...editing, name: d.value })} />
           </Field>
           <Field label="Group">
-            <Dropdown value={String(editing.group_id)} onOptionSelect={(_, data) => {
-              const v = Number(data.optionValue ?? data.optionText);
-              setEditing({ ...editing, group_id: v });
-            }}>
+            <Dropdown
+              selectedOptions={[String(editing.group_id)]}
+              onOptionSelect={(_, data) => {
+                const v = Number(data.optionValue ?? data.optionText);
+                setEditing({ ...editing, group_id: v });
+              }}
+            >
               {groups.map((g: any) => (
-                <Option key={g.id} value={String(g.id)}>{g.name}</Option>
+                <Option key={g.id} value={String(g.id)} text={g.name}>
+                  {g.name}
+                </Option>
               ))}
             </Dropdown>
           </Field>

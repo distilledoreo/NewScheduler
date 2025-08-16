@@ -352,6 +352,7 @@ export default function CrewHistoryView({
     const options = roleListForSegment(seg);
     return (
       <Dropdown
+        key={`ch-${personId}-${seg}-${def?.role_id ?? ''}-${options.length}`}
         placeholder="--"
         selectedOptions={def?.role_id != null ? [String(def.role_id)] : []}
         onOptionSelect={(_, data) => {
@@ -361,9 +362,9 @@ export default function CrewHistoryView({
           setDefs(all(`SELECT * FROM monthly_default`));
         }}
       >
-        <Option value="">--</Option>
+        <Option value="" text="--">--</Option>
         {options.map((r: any) => (
-          <Option key={r.id} value={String(r.id)}>{r.name}</Option>
+          <Option key={r.id} value={String(r.id)} text={r.name}>{r.name}</Option>
         ))}
       </Dropdown>
     );
