@@ -10,7 +10,7 @@ import {
   makeStyles,
   tokens,
 } from "@fluentui/react-components";
-import { Presence, Motion, animations } from "@fluentui/react-motion";
+import { Motion, animations } from "@fluentui/react-motion";
 import { Dismiss24Regular } from "@fluentui/react-icons";
 
 interface PersonProfileModalProps {
@@ -68,9 +68,8 @@ export default function PersonProfileModal({ personId, onClose, all }: PersonPro
   const history = all(historySql, [personId]);
 
   return (
-    <Presence>
-      <Motion animations={animations.fade} defaultAnimationState="enter">
-        <Dialog open onOpenChange={(_, d) => { if (!d.open) onClose(); }}>
+    <Motion animations={animations.fade} defaultAnimationState="enter">
+      <Dialog open onOpenChange={(_, d) => { if (!d.open) onClose(); }}>
           <DialogSurface>
             <DialogTitle action={
               <Tooltip content="Close" relationship="label">
@@ -126,7 +125,6 @@ export default function PersonProfileModal({ personId, onClose, all }: PersonPro
         </DialogActions>
           </DialogSurface>
         </Dialog>
-      </Motion>
-    </Presence>
+    </Motion>
   );
 }
