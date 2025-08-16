@@ -2,11 +2,13 @@ import * as React from "react";
 import { Button, Tooltip, makeStyles, tokens, Menu, MenuTrigger, MenuPopover, MenuList, MenuItem, Divider, Text, Switch } from "@fluentui/react-components";
 import {
   CalendarLtr20Regular,
+  CalendarDay20Regular,
   PeopleCommunity20Regular,
   TableSimple20Regular,
   DocumentTable20Regular,
   History20Regular,
   Settings20Regular,
+  Share20Regular,
   MoreVertical20Regular,
 } from "@fluentui/react-icons";
 
@@ -24,11 +26,11 @@ export interface SideRailProps {
 
 const useStyles = makeStyles({
   root: {
-    width: "80px",
-    minWidth: 0,
-    height: "100vh",
-    position: "sticky",
-    top: 0,
+  width: "80px",
+  minWidth: 0,
+  height: "100%",
+  position: "sticky",
+  top: 0,
     padding: tokens.spacingVerticalS,
     display: "flex",
     flexDirection: "column",
@@ -96,12 +98,12 @@ export default function SideRail({
   const [maxVisible, setMaxVisible] = React.useState<number>(5);
 
   const primaryNav: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
-    { key: "RUN", label: "Run", icon: <CalendarLtr20Regular /> },
+    { key: "RUN", label: "Run", icon: <CalendarDay20Regular /> },
     { key: "PEOPLE", label: "People", icon: <PeopleCommunity20Regular /> },
-    { key: "NEEDS", label: "Needs", icon: <TableSimple20Regular /> },
-    { key: "EXPORT", label: "Export", icon: <DocumentTable20Regular /> },
-    { key: "MONTHLY", label: "Monthly", icon: <TableSimple20Regular /> },
-  { key: "HISTORY", label: "History", icon: <History20Regular /> },
+    { key: "NEEDS", label: "Needs", icon: <DocumentTable20Regular /> },
+    { key: "EXPORT", label: "Export", icon: <Share20Regular /> },
+    { key: "MONTHLY", label: "Monthly", icon: <CalendarLtr20Regular /> },
+    { key: "HISTORY", label: "History", icon: <History20Regular /> },
     { key: "ADMIN", label: "Admin", icon: <Settings20Regular /> },
   ];
 
