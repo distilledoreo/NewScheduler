@@ -65,6 +65,80 @@ export const migrate6AddExportGroup: Migration = (db) => {
   }
 };
 
+export const migrate7AllowCustomSegments: Migration = (db) => {
+  const tableMigrations = [
+    {
+      name: 'assignment',
+      create: `CREATE TABLE assignment (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        person_id INTEGER NOT NULL,
+        role_id INTEGER NOT NULL,
+        segment TEXT NOT NULL,
+        FOREIGN KEY (person_id) REFERENCES person(id),
+        FOREIGN KEY (role_id) REFERENCES role(id)
+      );`
+    },
+    {
+      name: 'monthly_default',
+      create: `CREATE TABLE monthly_default (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        month TEXT NOT NULL,
+        person_id INTEGER NOT NULL,
+        segment TEXT NOT NULL,
+        role_id INTEGER NOT NULL,
+        UNIQUE(month, person_id, segment),
+        FOREIGN KEY (person_id) REFERENCES person(id),
+        FOREIGN KEY (role_id) REFERENCES role(id)
+      );`
+    },
+    {
+      name: 'needs_baseline',
+      create: `CREATE TABLE needs_baseline (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id INTEGER NOT NULL,
+        role_id INTEGER NOT NULL,
+        segment TEXT NOT NULL,
+        required INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(group_id, role_id, segment)
+      );`
+    },
+    {
+      name: 'needs_override',
+      create: `CREATE TABLE needs_override (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        group_id INTEGER NOT NULL,
+        role_id INTEGER NOT NULL,
+        segment TEXT NOT NULL,
+        required INTEGER NOT NULL,
+        UNIQUE(date, group_id, role_id, segment)
+      );`
+    },
+    {
+      name: 'monthly_default_day',
+      create: `CREATE TABLE monthly_default_day (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        month TEXT NOT NULL,
+        person_id INTEGER NOT NULL,
+        weekday INTEGER NOT NULL,
+        segment TEXT NOT NULL,
+        role_id INTEGER NOT NULL,
+        UNIQUE(month, person_id, weekday, segment),
+        FOREIGN KEY (person_id) REFERENCES person(id),
+        FOREIGN KEY (role_id) REFERENCES role(id)
+      );`
+    },
+  ];
+
+  for (const t of tableMigrations) {
+    db.run(`ALTER TABLE ${t.name} RENAME TO ${t.name}_old;`);
+    db.run(t.create);
+    db.run(`INSERT INTO ${t.name} SELECT * FROM ${t.name}_old;`);
+    db.run(`DROP TABLE ${t.name}_old;`);
+  }
+};
+
 const migrations: Record<number, Migration> = {
   1: (db) => {
     db.run(`PRAGMA journal_mode=WAL;`);
@@ -196,6 +270,7 @@ const migrations: Record<number, Migration> = {
   4: migrate4AddSegments,
   5: migrate5AddGroupTheme,
   6: migrate6AddExportGroup,
+  7: migrate7AllowCustomSegments,
 };
 
 export function addMigration(version: number, fn: Migration) {
