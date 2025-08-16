@@ -1204,6 +1204,7 @@ function PeopleEditor(){
                   getRequiredFor={getRequiredFor}
                   addAssignment={addAssignment}
                   deleteAssignment={deleteAssignment}
+                  isDark={themeName === "dark"}
                 />
               </Suspense>
             )}

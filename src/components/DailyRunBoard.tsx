@@ -44,6 +44,7 @@ interface DailyRunBoardProps {
     segment: Segment
   ) => void;
   deleteAssignment: (id: number) => void;
+  isDark: boolean;
 }
 
 export default function DailyRunBoard({
@@ -67,6 +68,7 @@ export default function DailyRunBoard({
   getRequiredFor,
   addAssignment,
   deleteAssignment,
+  isDark,
 }: DailyRunBoardProps) {
   const seg: Segment = activeRunSegment;
   const [layout, setLayout] = useState<any[]>([]);
@@ -142,18 +144,16 @@ export default function DailyRunBoard({
 
     const req = getRequiredFor(selectedDateObj, group.id, role.id, seg);
     const assignedCount = assigns.length;
-    const cardBg =
-      assignedCount < req
-        ? tokens.colorPaletteRedBackground2
-        : assignedCount === req
-        ? tokens.colorPaletteGreenBackground2
-        : tokens.colorPaletteYellowBackground2;
-    const badgeBg =
-      assignedCount < req
-        ? tokens.colorPaletteRedBackground3
-        : assignedCount === req
-        ? tokens.colorPaletteGreenBackground3
-        : tokens.colorPaletteYellowBackground3;
+    const cardBg = assignedCount < req
+      ? (isDark ? tokens.colorPaletteRedBackground2 : tokens.colorPaletteRedBackground3)
+      : assignedCount === req
+      ? (isDark ? tokens.colorPaletteGreenBackground2 : tokens.colorPaletteGreenBackground3)
+      : (isDark ? tokens.colorPaletteYellowBackground2 : tokens.colorPaletteYellowBackground3);
+    const badgeBg = assignedCount < req
+      ? (isDark ? tokens.colorPaletteRedBackground3 : tokens.colorPaletteRedBackground1)
+      : assignedCount === req
+      ? (isDark ? tokens.colorPaletteGreenBackground3 : tokens.colorPaletteGreenBackground1)
+      : (isDark ? tokens.colorPaletteYellowBackground3 : tokens.colorPaletteYellowBackground1);
     const isOverstaffed = assignedCount > req;
 
     function handleMove(a: any, targets: any[]) {
@@ -165,7 +165,7 @@ export default function DailyRunBoard({
     const [addSel, setAddSel] = useState<string[]>([]);
 
     return (
-      <div className={"border rounded p-2"} style={{ backgroundColor: cardBg }}>
+  <div className={"border rounded p-2"} style={{ backgroundColor: cardBg, ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1 }}>
         <div className="flex items-center justify-between mb-2">
           <div className="font-medium">{role.name}</div>
           <div className={"text-xs px-2 py-0.5 rounded"} style={{ backgroundColor: badgeBg }}>
@@ -313,13 +313,13 @@ export default function DailyRunBoard({
             return assignedCount >= req;
           });
           const groupBg = groupNeedsMet
-            ? tokens.colorPaletteGreenBackground2
-            : tokens.colorPaletteRedBackground2;
+            ? (isDark ? tokens.colorPaletteGreenBackground2 : tokens.colorPaletteGreenBackground3)
+            : (isDark ? tokens.colorPaletteRedBackground2 : tokens.colorPaletteRedBackground3);
           return (
             <div
               key={String(g.id)}
               className={"border rounded-lg shadow-sm flex flex-col h-full"}
-              style={{ backgroundColor: groupBg }}
+              style={{ backgroundColor: groupBg, ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1 }}
             >
               <div className="font-semibold flex items-center justify-between mb-2 drag-handle px-3 pt-3">
                 <span>{g.name}</span>

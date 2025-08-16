@@ -2,7 +2,7 @@
 .themed-scrollbar {
   /* Firefox */
   scrollbar-width: thin;
-  scrollbar-color: var(--colorNeutralStroke2) transparent;
+  scrollbar-color: var(--scrollbar-thumb, var(--colorNeutralStroke2)) transparent;
 }
 
 /* WebKit (Chromium, Safari, Edge) */
@@ -14,11 +14,11 @@
   background: transparent; /* let the card background show through */
 }
 .themed-scrollbar::-webkit-scrollbar-thumb {
-  background-color: var(--colorNeutralStroke2);
+  background-color: var(--scrollbar-thumb, var(--colorNeutralStroke2));
   border-radius: 8px;
   border: 2px solid transparent; /* creates inset look on any bg */
   background-clip: content-box;
 }
 .themed-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: var(--colorNeutralStroke1);
+  background-color: var(--scrollbar-thumb, var(--colorNeutralStroke1));
 }
