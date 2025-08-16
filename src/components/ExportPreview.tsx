@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { Button } from "@fluentui/react-components";
 
 interface ExportPreviewProps {
   sqlDb: any;
@@ -148,12 +149,7 @@ export default function ExportPreview({
           value={exportEnd}
           onChange={(e) => setExportEnd(e.target.value)}
         />
-        <button
-          className="ml-auto px-3 py-2 bg-emerald-700 text-white rounded"
-          onClick={exportShifts}
-        >
-          Download XLSX
-        </button>
+        <Button appearance="primary" style={{ marginLeft: "auto" }} onClick={exportShifts}>Download XLSX</Button>
       </div>
       <div className="overflow-auto max-h-[60vh] border rounded">
         <table className="min-w-full text-sm">

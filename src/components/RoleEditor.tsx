@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import type { SegmentRow } from "../services/segments";
+import { Button, Field, Input, Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow, Dropdown, Option, Checkbox, Text } from "@fluentui/react-components";
 
 interface RoleEditorProps {
   all: (sql: string, params?: any[]) => any[];
@@ -78,76 +79,66 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="font-semibold text-lg">Roles</div>
-        <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={startAdd}>Add Role</button>
+        <Text weight="semibold">Roles</Text>
+        <Button appearance="primary" onClick={startAdd}>Add Role</Button>
       </div>
 
       <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
-        <table className="min-w-full text-sm divide-y divide-slate-200">
-          <thead className="bg-slate-100 sticky top-0">
-            <tr>
-              <th className="p-2 text-left">Code</th>
-              <th className="p-2 text-left">Name</th>
-              <th className="p-2 text-left">Group</th>
-              <th className="p-2 text-left">Segments</th>
-              <th className="p-2"></th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table aria-label="Roles table">
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell>Code</TableHeaderCell>
+              <TableHeaderCell>Name</TableHeaderCell>
+              <TableHeaderCell>Group</TableHeaderCell>
+              <TableHeaderCell>Segments</TableHeaderCell>
+              <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {roles.map((r: any) => (
-              <tr key={r.id} className="odd:bg-white even:bg-slate-50">
-                <td className="p-2">{r.code}</td>
-                <td className="p-2">{r.name}</td>
-                <td className="p-2">{r.group_name}</td>
-                <td className="p-2">{Array.from(r.segs).join(", ")}</td>
-                <td className="p-2 text-right space-x-2">
-                  <button className="text-blue-600" onClick={() => startEdit(r)}>Edit</button>
-                  <button className="text-red-600" onClick={() => remove(r.id)}>Delete</button>
-                </td>
-              </tr>
+              <TableRow key={r.id}>
+                <TableCell>{r.code}</TableCell>
+                <TableCell>{r.name}</TableCell>
+                <TableCell>{r.group_name}</TableCell>
+                <TableCell>{Array.from(r.segs).join(", ")}</TableCell>
+                <TableCell style={{ textAlign: "right" }}>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <Button size="small" onClick={() => startEdit(r)}>Edit</Button>
+                    <Button size="small" appearance="secondary" onClick={() => remove(r.id)}>Delete</Button>
+                  </div>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {formVisible && editing && (
-        <div className="space-y-2">
-          <input
-            className="border rounded px-2 py-1 w-full"
-            placeholder="Code"
-            value={editing.code}
-            onChange={(e) => setEditing({ ...editing, code: e.target.value })}
-          />
-          <input
-            className="border rounded px-2 py-1 w-full"
-            placeholder="Name"
-            value={editing.name}
-            onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-          />
-          <select
-            className="border rounded px-2 py-1 w-full"
-            value={editing.group_id}
-            onChange={(e) => setEditing({ ...editing, group_id: Number(e.target.value) })}
-          >
-            {groups.map((g: any) => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </select>
-          <div className="flex gap-2">
+        <div className="space-y-3">
+          <Field label="Code" required>
+            <Input value={editing.code} onChange={(_, d) => setEditing({ ...editing, code: d.value })} />
+          </Field>
+          <Field label="Name" required>
+            <Input value={editing.name} onChange={(_, d) => setEditing({ ...editing, name: d.value })} />
+          </Field>
+          <Field label="Group">
+            <Dropdown value={String(editing.group_id)} onOptionSelect={(_, data) => {
+              const v = Number(data.optionValue ?? data.optionText);
+              setEditing({ ...editing, group_id: v });
+            }}>
+              {groups.map((g: any) => (
+                <Option key={g.id} value={String(g.id)}>{g.name}</Option>
+              ))}
+            </Dropdown>
+          </Field>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             {segments.map((s) => (
-              <label key={s.name} className="flex items-center gap-1">
-                <input
-                  type="checkbox"
-                  checked={editing.segs.has(s.name)}
-                  onChange={() => toggleSeg(s.name)}
-                />
-                {s.name}
-              </label>
+              <Checkbox key={s.name} label={s.name} checked={editing.segs.has(s.name)} onChange={() => toggleSeg(s.name)} />
             ))}
           </div>
-          <div className="flex gap-2">
-            <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={save}>Save</button>
-            <button className="px-3 py-2 border rounded" onClick={cancel}>Cancel</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button appearance="primary" onClick={save}>Save</Button>
+            <Button onClick={cancel}>Cancel</Button>
           </div>
         </div>
       )}
