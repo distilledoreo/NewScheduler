@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Tab, TabList, Tooltip, Spinner, Text, makeStyles, tokens } from "@fluentui/react-components";
+import { Button, Tab, TabList, Tooltip, Spinner, Text, Switch, makeStyles, tokens } from "@fluentui/react-components";
 
 type TabKey = "RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "ADMIN";
 
@@ -14,6 +14,8 @@ interface ToolbarProps {
   status: string;
   activeTab: TabKey;
   setActiveTab: (tab: TabKey) => void;
+  themeName: "light" | "dark";
+  setThemeName: (t: "light" | "dark") => void;
 }
 
 const useStyles = makeStyles({
@@ -43,7 +45,13 @@ const useStyles = makeStyles({
   },
   tabList: {
     marginLeft: "8px",
-  }
+  },
+  right: {
+    marginLeft: "auto",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  },
 });
 
 export default function Toolbar({
@@ -57,6 +65,8 @@ export default function Toolbar({
   status,
   activeTab,
   setActiveTab,
+  themeName,
+  setThemeName,
 }: ToolbarProps) {
   const s = useStyles();
 
@@ -87,8 +97,14 @@ export default function Toolbar({
           <Tab value="ADMIN">Admin</Tab>
         </TabList>
       </div>
-
-      <Text size={200} className={s.status}>{status}</Text>
+      <div className={s.right}>
+        <Switch
+          checked={themeName === "dark"}
+          onChange={(_, d) => setThemeName(d.checked ? "dark" : "light")}
+          label="Dark"
+        />
+        <Text size={200} className={s.status}>{status}</Text>
+      </div>
     </div>
   );
 }

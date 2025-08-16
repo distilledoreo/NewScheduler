@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Input, Dropdown, Option, Button, Checkbox } from "@fluentui/react-components";
+import { Input, Dropdown, Option, Button, Checkbox, Table, TableHeader, TableBody, TableRow, TableHeaderCell, TableCell } from "@fluentui/react-components";
 import PersonName from "./PersonName";
 import type { Segment } from "../services/segments";
 
@@ -77,7 +77,7 @@ export default function CrewHistoryView({
     });
     const nm = nextMonth;
     if (!min) min = nm;
-    if (!max || nm > max) max = nm;
+  if (!max || String(nm) > String(max)) max = nm;
     setStartMonth(min);
     setEndMonth(max);
   }, [defs, nextMonth, startMonth, endMonth]);
@@ -358,9 +358,7 @@ export default function CrewHistoryView({
           <Option value="avail_thu">Thu</Option>
           <Option value="avail_fri">Fri</Option>
           {segmentNames.map((seg) => (
-            <Option key={seg} value={seg}>
-              {seg} Role
-            </Option>
+            <Option key={seg} value={seg} text={`${seg} Role`} />
           ))}
         </Dropdown>
         <Button onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}>
@@ -439,58 +437,46 @@ export default function CrewHistoryView({
         </div>
       </div>
       <div className="overflow-auto">
-        <table className="min-w-full text-sm border border-slate-300 border-collapse">
-          <thead className="bg-slate-100">
-            <tr>
-              <th className="p-2 text-left border border-slate-300">Name</th>
-              <th className="p-2 text-left border border-slate-300">Segment</th>
+        <Table size="small" aria-label="Crew history">
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell>Name</TableHeaderCell>
+              <TableHeaderCell>Segment</TableHeaderCell>
               {months.map((m) => (
-                <th key={m} className="p-2 text-left border border-slate-300">
-                  {m}
-                </th>
+                <TableHeaderCell key={m}>{m}</TableHeaderCell>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {filteredPeople.map((p) => {
               const segList = segs;
               return (
                 <React.Fragment key={p.id}>
                   {segList.map((seg, idx) => (
-                    <tr
-                      key={`${p.id}-${seg}`}
-                      className="odd:bg-white even:bg-slate-50"
-                    >
+                    <TableRow key={`${p.id}-${seg}`}>
                       {idx === 0 && (
-                        <td
-                          className="p-2 border border-slate-300"
-                          rowSpan={segList.length}
-                        >
+                        <TableCell rowSpan={segList.length}>
                           <PersonName personId={p.id}>
                             {p.last_name}, {p.first_name}
                           </PersonName>
-                        </td>
+                        </TableCell>
                       )}
-                      <td className="p-2 border border-slate-300">{seg}</td>
+                      <TableCell>{seg}</TableCell>
                       {months.map((m) => {
                         const { content, color } = cellData(m, p.id, seg);
                         return (
-                          <td
-                            key={m}
-                            className="p-2 border border-slate-300"
-                            style={{ backgroundColor: color }}
-                          >
+                          <TableCell key={m} style={{ backgroundColor: color }}>
                             {content}
-                          </td>
+                          </TableCell>
                         );
                       })}
-                    </tr>
+                    </TableRow>
                   ))}
                 </React.Fragment>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

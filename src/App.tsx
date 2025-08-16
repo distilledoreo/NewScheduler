@@ -1,19 +1,16 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { applyMigrations } from "./services/migrations";
 import { listSegments, type Segment, type SegmentRow } from "./services/segments";
 import Toolbar from "./components/Toolbar";
-import DailyRunBoard from "./components/DailyRunBoard";
-import AdminView from "./components/AdminView";
-import GroupEditor from "./components/GroupEditor";
-import RoleEditor from "./components/RoleEditor";
-import ExportGroupEditor from "./components/ExportGroupEditor";
-import SegmentEditor from "./components/SegmentEditor";
-import ExportPreview from "./components/ExportPreview";
+const DailyRunBoard = React.lazy(() => import("./components/DailyRunBoard"));
+const AdminView = React.lazy(() => import("./components/AdminView"));
+const ExportPreview = React.lazy(() => import("./components/ExportPreview"));
 import { exportMonthOneSheetXlsx } from "./excel/export-one-sheet";
 import PersonName from "./components/PersonName";
 import PersonProfileModal from "./components/PersonProfileModal";
 import { ProfileContext } from "./components/ProfileContext";
 import { Button, Checkbox, Dropdown, Input, Option } from "@fluentui/react-components";
+import { FluentProvider, webDarkTheme, webLightTheme } from "@fluentui/react-components";
 import MonthlyDefaults from "./components/MonthlyDefaults";
 import CrewHistoryView from "./components/CrewHistoryView";
 
@@ -101,6 +98,21 @@ async function loadXLSX(){
 }
 
 export default function App() {
+  // Theme
+  const [themeName, setThemeName] = useState<"light" | "dark">(() => {
+    try {
+      const saved = localStorage.getItem("theme");
+      if (saved === "light" || saved === "dark") return saved;
+    } catch {}
+    if (typeof window !== "undefined" && window.matchMedia) {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    return "light";
+  });
+  useEffect(() => {
+    try { localStorage.setItem("theme", themeName); } catch {}
+  }, [themeName]);
+
   const [ready, setReady] = useState(false);
   const [sqlDb, setSqlDb] = useState<any | null>(null);
 
@@ -1135,8 +1147,9 @@ function PeopleEditor(){
   }
 
   return (
-    <ProfileContext.Provider value={{ showProfile: (id: number) => setProfilePersonId(id) }}>
-    <div className="min-h-screen bg-slate-50">
+  <FluentProvider theme={themeName === "dark" ? webDarkTheme : webLightTheme}>
+  <ProfileContext.Provider value={{ showProfile: (id: number) => setProfilePersonId(id) }}>
+  <div className="min-h-screen bg-slate-50">
       <Toolbar
         ready={ready}
         sqlDb={sqlDb}
@@ -1148,6 +1161,8 @@ function PeopleEditor(){
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         canSave={canSave}
+    themeName={themeName}
+    setThemeName={setThemeName}
       />
 
       {!sqlDb && (
@@ -1167,32 +1182,35 @@ function PeopleEditor(){
       {sqlDb && (
         <>
             {activeTab === 'RUN' && (
-              <DailyRunBoard
-                activeRunSegment={activeRunSegment}
-                setActiveRunSegment={setActiveRunSegment}
-                groups={groups}
-                segments={segments}
-                lockEmail={lockEmail}
-                sqlDb={sqlDb}
-                all={all}
-                roleListForSegment={roleListForSegment}
-                selectedDate={selectedDate}
-                selectedDateObj={selectedDateObj}
-                setSelectedDate={setSelectedDate}
-                fmtDateMDY={fmtDateMDY}
-                parseYMD={parseYMD}
-                ymd={ymd}
-                setShowNeedsEditor={setShowNeedsEditor}
-                canEdit={canEdit}
-                peopleOptionsForSegment={peopleOptionsForSegment}
-                getRequiredFor={getRequiredFor}
-                addAssignment={addAssignment}
-                deleteAssignment={deleteAssignment}
-              />
+              <Suspense fallback={<div className="p-4 text-slate-600">Loading Daily Run…</div>}>
+                <DailyRunBoard
+                  activeRunSegment={activeRunSegment}
+                  setActiveRunSegment={setActiveRunSegment}
+                  groups={groups}
+                  segments={segments}
+                  lockEmail={lockEmail}
+                  sqlDb={sqlDb}
+                  all={all}
+                  roleListForSegment={roleListForSegment}
+                  selectedDate={selectedDate}
+                  selectedDateObj={selectedDateObj}
+                  setSelectedDate={setSelectedDate}
+                  fmtDateMDY={fmtDateMDY}
+                  parseYMD={parseYMD}
+                  ymd={ymd}
+                  setShowNeedsEditor={setShowNeedsEditor}
+                  canEdit={canEdit}
+                  peopleOptionsForSegment={peopleOptionsForSegment}
+                  getRequiredFor={getRequiredFor}
+                  addAssignment={addAssignment}
+                  deleteAssignment={deleteAssignment}
+                />
+              </Suspense>
             )}
           {activeTab === 'PEOPLE' && <PeopleEditor />}
           {activeTab === 'NEEDS' && <BaselineView />}
           {activeTab === 'EXPORT' && (
+            <Suspense fallback={<div className="p-4 text-slate-600">Loading Export Preview…</div>}>
               <ExportPreview
                 sqlDb={sqlDb}
                 exportStart={exportStart}
@@ -1208,7 +1226,8 @@ function PeopleEditor(){
                 people={people}
                 roles={roles}
               />
-            )}
+            </Suspense>
+          )}
           {activeTab === 'MONTHLY' && (
             <MonthlyDefaults
               selectedMonth={selectedMonth}
@@ -1245,7 +1264,9 @@ function PeopleEditor(){
             />
           )}
           {activeTab === 'ADMIN' && (
-            <AdminView all={all} run={run} refresh={refreshCaches} segments={segments} />
+            <Suspense fallback={<div className="p-4 text-slate-600">Loading Admin…</div>}>
+              <AdminView all={all} run={run} refresh={refreshCaches} segments={segments} />
+            </Suspense>
           )}
         </>
       )}
@@ -1258,7 +1279,8 @@ function PeopleEditor(){
           all={all}
         />
       )}
-    </div>
-    </ProfileContext.Provider>
+  </div>
+  </ProfileContext.Provider>
+  </FluentProvider>
   );
 }

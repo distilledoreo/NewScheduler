@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Input, Dropdown, Option, Button, Checkbox } from "@fluentui/react-components";
+import { Input, Dropdown, Option, Button, Checkbox, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell } from "@fluentui/react-components";
 import PersonName from "./PersonName";
 import { exportMonthOneSheetXlsx } from "../excel/export-one-sheet";
 import { type Segment, type SegmentRow } from "../services/segments";
@@ -172,7 +172,7 @@ export default function MonthlyDefaults({
           <Option value="avail_thu">Thu</Option>
           <Option value="avail_fri">Fri</Option>
           {segmentNames.map(seg => (
-            <Option key={seg} value={seg}>{seg} Role</Option>
+            <Option key={seg} value={seg} text={`${seg} Role`} />
           ))}
         </Dropdown>
         <Button onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}>{sortDir === 'asc' ? 'Asc' : 'Desc'}</Button>
@@ -180,52 +180,61 @@ export default function MonthlyDefaults({
         <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data) => setCommuterOnly(!!data.checked)} />
       </div>
       <div className="overflow-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-100">
-            <tr>
-              <th className="p-2 text-left">Name</th>
-              {segmentNames.map(seg => (
-                <th key={seg} className="p-2 text-left">{seg}</th>
+        <Table size="small" aria-label="Monthly defaults">
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell>Name</TableHeaderCell>
+              {segmentNames.map((seg) => (
+                <TableHeaderCell key={seg}>{seg}</TableHeaderCell>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {viewPeople.map((p: any) => (
-              <tr key={p.id} className="odd:bg-white even:bg-slate-50">
-                <td className="p-2">
-                  <PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName>
+              <TableRow key={p.id}>
+                <TableCell>
+                  <PersonName personId={p.id}>
+                    {p.last_name}, {p.first_name}
+                  </PersonName>
                   {monthlyEditing && (
-                    <button className="ml-2 text-xs text-slate-600 underline" onClick={() => setWeekdayPerson(p.id)}>
-                      Days{monthlyOverrides.some(o => o.person_id === p.id) ? '*' : ''}
+                    <button
+                      className="ml-2 text-xs text-slate-600 underline"
+                      onClick={() => setWeekdayPerson(p.id)}
+                    >
+                      Days{monthlyOverrides.some((o) => o.person_id === p.id) ? "*" : ""}
                     </button>
                   )}
-                </td>
-                {segmentNames.map(seg => {
-                  const def = monthlyDefaults.find(d => d.person_id === p.id && d.segment === seg);
+                </TableCell>
+                {segmentNames.map((seg) => {
+                  const def = monthlyDefaults.find(
+                    (d) => d.person_id === p.id && d.segment === seg,
+                  );
                   return (
-                    <td key={seg} className="p-2">
+                    <TableCell key={seg}>
                       <select
                         className="border rounded px-2 py-1 w-full"
-                        value={def?.role_id ?? ''}
+                        value={def?.role_id ?? ""}
                         disabled={!monthlyEditing}
                         onChange={(e) => {
                           const val = e.target.value;
-                          const rid = val === '' ? null : Number(val);
+                          const rid = val === "" ? null : Number(val);
                           setMonthlyDefault(p.id, seg, rid);
                         }}
                       >
                         <option value="">--</option>
                         {roleListForSegment(seg).map((r: any) => (
-                          <option key={r.id} value={r.id}>{r.name}</option>
+                          <option key={r.id} value={r.id}>
+                            {r.name}
+                          </option>
                         ))}
                       </select>
-                    </td>
+                    </TableCell>
                   );
                 })}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       {weekdayPerson !== null && (
         <WeeklyOverrideModal personId={weekdayPerson} onClose={() => setWeekdayPerson(null)} />
