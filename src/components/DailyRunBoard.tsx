@@ -3,6 +3,7 @@ import GridLayout, { WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import type { Segment, SegmentRow } from "../services/segments";
+import "../styles/scrollbar.css";
 import PersonName from "./PersonName";
 import { Button, Dropdown, Option, Tab, TabList, Input, tokens } from "@fluentui/react-components";
 
@@ -202,7 +203,7 @@ export default function DailyRunBoard({
             ))}
           </Dropdown>
         </div>
-        <ul className="space-y-1">
+  <ul className="space-y-1 themed-scrollbar" style={{ maxHeight: 240, overflow: "auto" }}>
           {assigns.map((a: any) => (
             <li
               key={a.id}
@@ -326,7 +327,7 @@ export default function DailyRunBoard({
                 <span className="text-xs text-slate-500 ml-2">Color: {g.custom_color || '-'}</span>
               </div>
               <div
-                className="flex-1 grid gap-3 px-3 pb-3 overflow-auto"
+                className="flex-1 grid gap-3 px-3 pb-3 overflow-auto themed-scrollbar"
                 style={{ gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))" }}
               >
                 {rolesForGroup.map((r: any) => (
