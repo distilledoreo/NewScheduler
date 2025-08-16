@@ -29,6 +29,7 @@ import {
   Body1,
   Caption1,
   Title3,
+  Subtitle2,
 } from "@fluentui/react-components";
 
 const Grid = WidthProvider(GridLayout);
@@ -260,11 +261,7 @@ export default function DailyRunBoard({
       <Card className={s.groupCard} style={{ borderColor: groupAccent }}>
         <CardHeader
           className={isDraggable ? "drag-handle" : ""}
-          header={
-            <Body1>
-              <b>{group.name}</b>
-            </Body1>
-          }
+          header={<Title3>{group.name}</Title3>}
           description={
             <Caption1 className={s.groupMeta}>
               {group.theme || "No Theme"}
@@ -331,7 +328,7 @@ export default function DailyRunBoard({
         }}
       >
         <div className={s.roleHeader}>
-          <Subtitle1>{role.name}</Subtitle1>
+          <Subtitle2>{role.name}</Subtitle2>
           <Badge
             appearance="tint"
             color={
@@ -388,12 +385,12 @@ export default function DailyRunBoard({
         <ul className={s.assignmentsList}>
           {assigns.map((a: any) => (
             <li key={a.id} className={s.assignmentItem}>
-              <Body1>
+              <Caption1>
                 <PersonName personId={a.person_id}>
                   {a.last_name}, {a.first_name}
                   {!trainedBefore.has(a.person_id) && " (Untrained)"}
                 </PersonName>
-              </Body1>
+              </Caption1>
               {canEdit && (
                 <div className={s.actionsRow}>
                   {isOverstaffed &&
@@ -448,9 +445,9 @@ export default function DailyRunBoard({
     <div className={s.root}>
       <div className={s.header}>
         <div className={s.headerLeft}>
-          <Title3 as="label" htmlFor="run-date-picker">
-            Date
-          </Title3>
+          <Body1 as="label" htmlFor="run-date-picker">
+            <b>Date</b>
+          </Body1>
           <Input
             id="run-date-picker"
             type="date"
