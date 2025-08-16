@@ -347,6 +347,33 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
   console.log('Migration 8 complete');
 };
 
+// 10. Backfill missing group colors/themes from config defaults for older DBs
+export const migrate10BackfillGroupCustomColor: Migration = (db) => {
+  try {
+    // Ensure columns exist (defensive)
+    try { db.run(`ALTER TABLE grp ADD COLUMN custom_color TEXT;`); } catch {}
+    try { db.run(`ALTER TABLE grp ADD COLUMN theme TEXT;`); } catch {}
+
+    // Get existing groups
+    const res = db.exec(`SELECT id, name, theme, custom_color FROM grp;`);
+    const rows: Array<{ id: number; name: string; theme: string | null; custom_color: string | null }> =
+      (res[0]?.values || []).map((v: any[]) => ({ id: Number(v[0]), name: String(v[1]), theme: v[2] ?? null, custom_color: v[3] ?? null }));
+
+    for (const g of rows) {
+      const cfg = GROUPS[g.name as keyof typeof GROUPS];
+      if (!cfg) continue;
+      const nextTheme = g.theme ?? cfg.theme;
+      const nextColor = g.custom_color ?? cfg.color;
+      // Only write if something is missing to avoid clobbering user customizations
+      if (g.theme == null || g.custom_color == null) {
+        db.run(`UPDATE grp SET theme = COALESCE(theme, ?), custom_color = COALESCE(custom_color, ?) WHERE id = ?;`, [nextTheme, nextColor, g.id]);
+      }
+    }
+  } catch (e) {
+    console.error('migrate10BackfillGroupCustomColor failed:', e);
+  }
+};
+
 const migrations: Record<number, Migration> = {
   1: (db) => {
     db.run(`PRAGMA journal_mode=WAL;`);
@@ -481,6 +508,7 @@ const migrations: Record<number, Migration> = {
   7: migrate7SegmentRefs,
   8: migrate8FixSegmentConstraints,
   9: migrate8FixSegmentConstraints, // Run the same migration again as 9 to fix failed migration 8
+  10: migrate10BackfillGroupCustomColor,
 };
 
 export function addMigration(version: number, fn: Migration) {
