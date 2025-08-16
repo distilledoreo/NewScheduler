@@ -465,39 +465,61 @@ export default function App() {
 
   function setMonthlyDefault(personId: number, segment: Segment, roleId: number | null) {
     if (!sqlDb) return;
-    if (roleId) {
-      run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
+    if (roleId !== null) {
+      run(
+        `INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
            ON CONFLICT(month, person_id, segment) DO UPDATE SET role_id=excluded.role_id`,
-          [selectedMonth, personId, segment, roleId]);
+        [selectedMonth, personId, segment, roleId]
+      );
     } else {
-      run(`DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=?`,
-          [selectedMonth, personId, segment]);
+      run(
+        `DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=?`,
+        [selectedMonth, personId, segment]
+      );
     }
     loadMonthlyDefaults(selectedMonth);
   }
 
-  function setWeeklyOverride(personId: number, weekday: number, segment: Segment, roleId: number | null) {
+  function setWeeklyOverride(
+    personId: number,
+    weekday: number,
+    segment: Segment,
+    roleId: number | null
+  ) {
     if (!sqlDb) return;
-    if (roleId) {
-      run(`INSERT INTO monthly_default_day (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)
+    if (roleId !== null) {
+      run(
+        `INSERT INTO monthly_default_day (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)
            ON CONFLICT(month, person_id, weekday, segment) DO UPDATE SET role_id=excluded.role_id`,
-          [selectedMonth, personId, weekday, segment, roleId]);
+        [selectedMonth, personId, weekday, segment, roleId]
+      );
     } else {
-      run(`DELETE FROM monthly_default_day WHERE month=? AND person_id=? AND weekday=? AND segment=?`,
-          [selectedMonth, personId, weekday, segment]);
+      run(
+        `DELETE FROM monthly_default_day WHERE month=? AND person_id=? AND weekday=? AND segment=?`,
+        [selectedMonth, personId, weekday, segment]
+      );
     }
     loadMonthlyDefaults(selectedMonth);
   }
 
-  function setMonthlyDefaultForMonth(month: string, personId: number, segment: Segment, roleId: number | null) {
+  function setMonthlyDefaultForMonth(
+    month: string,
+    personId: number,
+    segment: Segment,
+    roleId: number | null
+  ) {
     if (!sqlDb) return;
-    if (roleId) {
-      run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
+    if (roleId !== null) {
+      run(
+        `INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
            ON CONFLICT(month, person_id, segment) DO UPDATE SET role_id=excluded.role_id`,
-          [month, personId, segment, roleId]);
+        [month, personId, segment, roleId]
+      );
     } else {
-      run(`DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=?`,
-          [month, personId, segment]);
+      run(
+        `DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=?`,
+        [month, personId, segment]
+      );
     }
   }
 
@@ -546,7 +568,7 @@ export default function App() {
         for (const seg of segments.map(s => s.name as Segment)) {
           let roleId = overrideMap.get(`${person.id}|${wdNum}|${seg}`);
           if (roleId === undefined) roleId = defaultMap.get(`${person.id}|${seg}`);
-          if (!roleId) continue;
+          if (roleId == null) continue;
           let ok = false;
           if (seg === 'AM' || seg === 'Early') ok = avail === 'AM' || avail === 'B';
           else if (seg === 'PM') ok = avail === 'PM' || avail === 'B';
@@ -1006,12 +1028,21 @@ async function exportShifts() {
                       const ov = monthlyOverrides.find(o=>o.person_id===personId && o.weekday===w && o.segment===seg);
                       return (
                         <td key={w} className="p-1">
-                          <select className="border rounded px-2 py-1" value={ov?.role_id || ''} onChange={(e)=>{
-                            const rid = Number(e.target.value);
-                            setWeeklyOverride(personId, w, seg, rid||null);
-                          }}>
+                          <select
+                            className="border rounded px-2 py-1"
+                            value={ov?.role_id ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const rid = val === '' ? null : Number(val);
+                              setWeeklyOverride(personId, w, seg, rid);
+                            }}
+                          >
                             <option value="">(default)</option>
-                            {roleListForSegment(seg).map((r:any)=>(<option key={r.id} value={r.id}>{r.name}</option>))}
+                            {roleListForSegment(seg).map((r: any) => (
+                              <option key={r.id} value={r.id}>
+                                {r.name}
+                              </option>
+                            ))}
                           </select>
                         </td>
                       );
@@ -1092,16 +1123,19 @@ async function exportShifts() {
                         <td key={seg} className="p-2">
                           <select
                             className="border rounded px-2 py-1 w-full"
-                            value={def?.role_id || ""}
+                            value={def?.role_id ?? ''}
                             disabled={!monthlyEditing}
                             onChange={(e) => {
-                              const rid = Number(e.target.value);
-                              setMonthlyDefault(p.id, seg, rid || null);
+                              const val = e.target.value;
+                              const rid = val === '' ? null : Number(val);
+                              setMonthlyDefault(p.id, seg, rid);
                             }}
                           >
                             <option value="">--</option>
                             {roleListForSegment(seg).map((r: any) => (
-                              <option key={r.id} value={r.id}>{r.name}</option>
+                              <option key={r.id} value={r.id}>
+                                {r.name}
+                              </option>
                             ))}
                           </select>
                         </td>
@@ -1296,18 +1330,23 @@ async function exportShifts() {
         <select
           ref={ref}
           className="border rounded px-2 py-1 w-full"
-          value={def?.role_id||""}
+          value={def?.role_id ?? ''}
           onFocus={showNames}
           onBlur={showCode}
-          onChange={(e)=>{
-            const rid = Number(e.target.value);
-            setMonthlyDefaultForMonth(month, personId, seg, rid||null);
+          onChange={(e) => {
+            const val = e.target.value;
+            const rid = val === '' ? null : Number(val);
+            setMonthlyDefaultForMonth(month, personId, seg, rid);
             setDefs(all(`SELECT * FROM monthly_default`));
             showCode();
           }}
         >
           <option value=""></option>
-          {options.map((r:any)=>(<option key={r.id} value={r.id}>{r.name}</option>))}
+          {options.map((r: any) => (
+            <option key={r.id} value={r.id}>
+              {r.name}
+            </option>
+          ))}
         </select>
       );
     }
