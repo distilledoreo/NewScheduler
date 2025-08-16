@@ -4,6 +4,7 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import type { Segment, SegmentRow } from "../services/segments";
 import PersonName from "./PersonName";
+import { Button, Dropdown, Option, Tab, TabList, Input } from "@fluentui/react-components";
 
 const Grid = WidthProvider(GridLayout);
 
@@ -105,6 +106,23 @@ export default function DailyRunBoard({
     } catch {}
   }
 
+  const roles = roleListForSegment(seg);
+  const assignedCountRows = all(
+    `SELECT role_id, COUNT(*) as c FROM assignment WHERE date=? AND segment=? GROUP BY role_id`,
+    [ymd(selectedDateObj), seg]
+  );
+  const assignedCountMap = new Map<number, number>(
+    assignedCountRows.map((r: any) => [r.role_id, r.c])
+  );
+  const groupMap = new Map(groups.map((g: any) => [g.id, g]));
+  const deficitRoles = roles
+    .map((r: any) => {
+      const assigned = assignedCountMap.get(r.id) || 0;
+      const req = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
+      return assigned < req ? { role: r, group: groupMap.get(r.group_id) } : null;
+    })
+    .filter(Boolean) as Array<{ role: any; group: any }>;
+
   function RoleCard({ group, role }: { group: any; role: any }) {
     const assigns = all(
       `SELECT a.id, p.first_name, p.last_name, p.id as person_id FROM assignment a JOIN person p ON p.id=a.person_id WHERE a.date=? AND a.role_id=? AND a.segment=? ORDER BY p.last_name,p.first_name`,
@@ -143,6 +161,8 @@ export default function DailyRunBoard({
       setMoveTargetId(null);
     }
 
+    const [addSel, setAddSel] = useState<string[]>([]);
+
     return (
       <div className={`border rounded p-2 ${cardColor}`}>
         <div className="flex items-center justify-between mb-2">
@@ -151,30 +171,32 @@ export default function DailyRunBoard({
         </div>
 
         <div className="flex items-center gap-2 mb-2">
-          <select
-            className="border rounded w-full px-2 py-1"
-            defaultValue=""
+          <Dropdown
+            placeholder={canEdit ? "+ Add person…" : "Add person…"}
             disabled={!canEdit}
-            onChange={(e) => {
-              const pid = Number(e.target.value);
-              if (!pid) return;
+            selectedOptions={addSel}
+            onOptionSelect={(_, data) => {
+              const val = data.optionValue ?? '';
+              if (!val) return;
+              const pid = Number(val);
               const sel = opts.find((o) => o.id === pid);
               if (sel?.blocked) {
                 alert("Blocked by time-off for this segment.");
+                setAddSel([]);
                 return;
               }
               addAssignment(selectedDate, pid, role.id, seg);
-              (e.target as HTMLSelectElement).value = "";
+              setAddSel([]);
             }}
+            style={{ width: "100%" }}
           >
-            <option value="">{canEdit ? "+ Add person…" : "Add person…"}</option>
             {opts.map((o) => (
-              <option key={o.id} value={o.id} disabled={o.blocked}>
+              <Option key={o.id} value={String(o.id)} disabled={o.blocked}>
                 {o.label}
                 {o.blocked ? " (Time-off)" : ""}
-              </option>
+              </Option>
             ))}
-          </select>
+          </Dropdown>
         </div>
         <ul className="space-y-1">
           {assigns.map((a: any) => (
@@ -194,21 +216,15 @@ export default function DailyRunBoard({
                         );
                       });
                       return targets.length ? (
-                        <button
-                          className="text-blue-600 text-sm"
-                          onClick={() => handleMove(a, targets)}
-                        >
+                        <Button size="small" appearance="secondary" onClick={() => handleMove(a, targets)}>
                           Move
-                        </button>
+                        </Button>
                       ) : null;
                     })()
                   )}
-                  <button
-                    className="text-red-600 text-sm"
-                    onClick={() => deleteAssignment(a.id)}
-                  >
+                  <Button size="small" appearance="secondary" onClick={() => deleteAssignment(a.id)}>
                     Remove
-                  </button>
+                  </Button>
                 </div>
               )}
             </li>
@@ -217,23 +233,6 @@ export default function DailyRunBoard({
       </div>
     );
   }
-
-  const roles = roleListForSegment(seg);
-  const assignedCountRows = all(
-    `SELECT role_id, COUNT(*) as c FROM assignment WHERE date=? AND segment=? GROUP BY role_id`,
-    [ymd(selectedDateObj), seg]
-  );
-  const assignedCountMap = new Map<number, number>(
-    assignedCountRows.map((r: any) => [r.role_id, r.c])
-  );
-  const groupMap = new Map(groups.map((g: any) => [g.id, g]));
-  const deficitRoles = roles
-    .map((r: any) => {
-      const assigned = assignedCountMap.get(r.id) || 0;
-      const req = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
-      return assigned < req ? { role: r, group: groupMap.get(r.group_id) } : null;
-    })
-    .filter(Boolean) as Array<{ role: any; group: any }>;
 
   function confirmMove() {
     if (!moveContext || moveTargetId == null) return;
@@ -261,36 +260,31 @@ export default function DailyRunBoard({
       <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 mb-4">
         <div className="flex items-center gap-2">
           <label className="text-sm whitespace-nowrap">Date</label>
-          <input
+          <Input
             type="date"
-            className="border rounded px-2 py-1 min-w-0"
             value={ymd(selectedDateObj)}
-            onChange={(e) => {
-              const v = e.target.value;
+            onChange={(_, data) => {
+              const v = data.value;
               if (v) setSelectedDate(fmtDateMDY(parseYMD(v)));
             }}
           />
         </div>
-        <div className="flex gap-2">
-          {segments.map((s) => (
-            <button
-              key={s.name}
-              className={`px-3 py-1 rounded text-sm ${
-                activeRunSegment === s.name ? "bg-indigo-600 text-white" : "bg-slate-200"
-              }`}
-              onClick={() => setActiveRunSegment(s.name as Segment)}
-            >
-              {s.name}
-            </button>
-          ))}
+        <div>
+          <TabList
+            selectedValue={activeRunSegment}
+            onTabSelect={(_, data) => setActiveRunSegment(data.value as Segment)}
+          >
+            {segments.map((s) => (
+              <Tab key={s.name} value={s.name}>
+                {s.name}
+              </Tab>
+            ))}
+          </TabList>
         </div>
         <div className="flex flex-wrap gap-2 lg:ml-auto">
-          <button
-            className="px-3 py-2 bg-slate-200 rounded text-sm"
-            onClick={() => setShowNeedsEditor(true)}
-          >
+          <Button appearance="secondary" onClick={() => setShowNeedsEditor(true)}>
             Edit Needs for This Day
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -339,34 +333,26 @@ export default function DailyRunBoard({
             <div className="mb-2 font-medium">
               Move {moveContext.assignment.last_name}, {moveContext.assignment.first_name} to:
             </div>
-            <select
-              className="border rounded w-full px-2 py-1 mb-4"
-              value={moveTargetId ?? ""}
-              onChange={(e) =>
-                setMoveTargetId(e.target.value ? Number(e.target.value) : null)
-              }
+            <Dropdown
+              placeholder="Select destination"
+              selectedOptions={moveTargetId != null ? [String(moveTargetId)] : []}
+              onOptionSelect={(_, data) => {
+                const v = data.optionValue ?? data.optionText;
+                setMoveTargetId(v ? Number(v) : null);
+              }}
+              style={{ width: "100%", marginBottom: 12 }}
             >
-              <option value="">Select destination</option>
               {moveContext.targets.map((t) => (
-                <option key={t.role.id} value={t.role.id}>
+                <Option key={t.role.id} value={String(t.role.id)}>
                   {t.group.name} - {t.role.name}
-                </option>
+                </Option>
               ))}
-            </select>
+            </Dropdown>
             <div className="flex justify-end gap-2">
-              <button
-                className="px-3 py-1 text-sm bg-slate-200 rounded"
-                onClick={cancelMove}
-              >
-                Cancel
-              </button>
-              <button
-                className="px-3 py-1 text-sm bg-blue-600 text-white rounded disabled:opacity-50"
-                disabled={moveTargetId == null}
-                onClick={confirmMove}
-              >
+              <Button onClick={cancelMove}>Cancel</Button>
+              <Button appearance="primary" disabled={moveTargetId == null} onClick={confirmMove}>
                 Move
-              </button>
+              </Button>
             </div>
           </div>
         </div>

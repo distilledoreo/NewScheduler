@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Button, Field, Input, Dropdown, Option, Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow, Text } from "@fluentui/react-components";
 
 interface ExportGroupEditorProps {
   all: (sql: string, params?: any[]) => any[];
@@ -74,79 +75,67 @@ export default function ExportGroupEditor({ all, run, refresh }: ExportGroupEdit
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="font-semibold text-lg">Export Groups</div>
-        <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={startAdd}>
-          Add Export Group
-        </button>
+        <Text weight="semibold">Export Groups</Text>
+        <Button appearance="primary" onClick={startAdd}>Add Export Group</Button>
       </div>
       <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
-        <table className="min-w-full text-sm divide-y divide-slate-200">
-          <thead className="bg-slate-100 sticky top-0">
-            <tr>
-              <th className="p-2 text-left">Group</th>
-              <th className="p-2 text-left">Code</th>
-              <th className="p-2 text-left">Color</th>
-              <th className="p-2 text-left">Column Group</th>
-              <th className="p-2"></th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table aria-label="Export groups table">
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell>Group</TableHeaderCell>
+              <TableHeaderCell>Code</TableHeaderCell>
+              <TableHeaderCell>Color</TableHeaderCell>
+              <TableHeaderCell>Column Group</TableHeaderCell>
+              <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((r: any) => (
-              <tr key={r.group_id} className="odd:bg-white even:bg-slate-50">
-                <td className="p-2">{r.group_name}</td>
-                <td className="p-2">{r.code}</td>
-                <td className="p-2">{r.color}</td>
-                <td className="p-2">{r.column_group}</td>
-                <td className="p-2 text-right space-x-2">
-                  <button className="text-blue-600" onClick={() => startEdit(r)}>Edit</button>
-                  <button className="text-red-600" onClick={() => remove(r.group_id)}>Delete</button>
-                </td>
-              </tr>
+              <TableRow key={r.group_id}>
+                <TableCell>{r.group_name}</TableCell>
+                <TableCell>{r.code}</TableCell>
+                <TableCell>{r.color}</TableCell>
+                <TableCell>{r.column_group}</TableCell>
+                <TableCell style={{ textAlign: "right" }}>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <Button size="small" onClick={() => startEdit(r)}>Edit</Button>
+                    <Button size="small" appearance="secondary" onClick={() => remove(r.group_id)}>Delete</Button>
+                  </div>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       {formVisible && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {editing ? (
-            <div>{rows.find((r:any)=>r.group_id===editing.group_id)?.group_name}</div>
+            <div>{rows.find((rr:any)=>rr.group_id===editing.group_id)?.group_name}</div>
           ) : (
-            <select
-              className="border rounded px-2 py-1 w-full"
-              value={form.group_id}
-              onChange={(e) => setForm({ ...form, group_id: e.target.value })}
-            >
-              <option value="">Select group...</option>
-              {available.map((g:any)=>(
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
+            <Field label="Group" required>
+              <Dropdown
+                placeholder="Select group…"
+                selectedOptions={form.group_id ? [String(form.group_id)] : []}
+                onOptionSelect={(_, data) => setForm({ ...form, group_id: Number(data.optionValue ?? data.optionText) })}
+              >
+                {available.map((g:any)=>(
+                  <Option key={g.id} value={String(g.id)}>{g.name}</Option>
+                ))}
+              </Dropdown>
+            </Field>
           )}
-          <input
-            className="border rounded px-2 py-1 w-full"
-            placeholder="Code"
-            value={form.code}
-            onChange={(e) => setForm({ ...form, code: e.target.value })}
-          />
-          <input
-            className="border rounded px-2 py-1 w-full"
-            placeholder="Color"
-            value={form.color}
-            onChange={(e) => setForm({ ...form, color: e.target.value })}
-          />
-          <input
-            className="border rounded px-2 py-1 w-full"
-            placeholder="Column Group"
-            value={form.column_group}
-            onChange={(e) => setForm({ ...form, column_group: e.target.value })}
-          />
-          <div className="flex gap-2">
-            <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={save}>
-              Save
-            </button>
-            <button className="px-3 py-2 border rounded" onClick={cancel}>
-              Cancel
-            </button>
+          <Field label="Code" required>
+            <Input value={form.code} onChange={(_, d) => setForm({ ...form, code: d.value })} />
+          </Field>
+          <Field label="Color">
+            <Input value={form.color} onChange={(_, d) => setForm({ ...form, color: d.value })} />
+          </Field>
+          <Field label="Column Group">
+            <Input value={form.column_group} onChange={(_, d) => setForm({ ...form, column_group: d.value })} />
+          </Field>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button appearance="primary" onClick={save}>Save</Button>
+            <Button onClick={cancel}>Cancel</Button>
           </div>
         </div>
       )}
