@@ -25,15 +25,15 @@ const useStyles = makeStyles({
     zIndex: 10,
     display: "flex",
     alignItems: "center",
-    gap: "12px",
-    padding: "12px 16px",
+  gap: tokens.spacingHorizontalM,
+  padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
     borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
     backgroundColor: tokens.colorNeutralBackground1,
   },
   left: {
     display: "flex",
     alignItems: "center",
-    gap: "8px",
+  gap: tokens.spacingHorizontalS,
   },
   status: {
     color: tokens.colorNeutralForeground2,
@@ -44,14 +44,15 @@ const useStyles = makeStyles({
     textOverflow: "ellipsis",
   },
   tabList: {
-    marginLeft: "8px",
+    marginLeft: tokens.spacingHorizontalS,
   },
   right: {
     marginLeft: "auto",
     display: "flex",
     alignItems: "center",
-    gap: "8px",
+    gap: tokens.spacingHorizontalS,
   },
+  actions: { display: 'flex', gap: tokens.spacingHorizontalS },
 });
 
 export default function Toolbar({
@@ -75,7 +76,7 @@ export default function Toolbar({
       <div className={s.left}>
         <Text weight="semibold">Scheduler</Text>
         {!sqlDb && <Tooltip content="No database loaded" relationship="label"><Spinner size="tiny" /></Tooltip>}
-        <div style={{ display: "flex", gap: 8 }}>
+  <div className={s.actions}>
           <Button appearance="primary" onClick={createNewDb}>New DB</Button>
           <Button onClick={openDbFromFile}>Open DB</Button>
           <Button onClick={saveDb} disabled={!canSave}>Save</Button>
