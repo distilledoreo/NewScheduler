@@ -1,5 +1,74 @@
 import React, { useEffect, useState } from "react";
+import {
+  Button,
+  Card,
+  Checkbox,
+  Dropdown,
+  Input,
+  Option,
+  Table,
+  TableHeader,
+  TableRow,
+  TableBody,
+  TableCell,
+  TableHeaderCell,
+  makeStyles,
+  shorthands,
+  tokens,
+} from "@fluentui/react-components";
 import type { SegmentRow } from "../services/segments";
+
+const useStyles = makeStyles({
+  root: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: tokens.spacingVerticalL,
+  },
+  header: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  addButton: {
+    backgroundColor: tokens.colorBrandBackground,
+    color: tokens.colorNeutralForegroundOnBrand,
+    ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    ...shorthands.padding(tokens.spacingVerticalS, tokens.spacingHorizontalM),
+  },
+  tableContainer: {
+    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke1),
+    ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    maxHeight: "40vh",
+    overflowY: "auto",
+  },
+  rowActionCell: {
+    display: "flex",
+    justifyContent: "flex-end",
+    columnGap: tokens.spacingHorizontalS,
+  },
+  editButton: {
+    color: tokens.colorPaletteBlueForeground1,
+  },
+  deleteButton: {
+    color: tokens.colorPaletteRedForeground1,
+  },
+  form: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: tokens.spacingVerticalS,
+  },
+  actions: {
+    display: "flex",
+    columnGap: tokens.spacingHorizontalS,
+  },
+  input: {
+    width: "100%",
+  },
+  segmentList: {
+    display: "flex",
+    columnGap: tokens.spacingHorizontalS,
+  },
+});
 
 interface RoleEditorProps {
   all: (sql: string, params?: any[]) => any[];
@@ -13,6 +82,7 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
   const [groups, setGroups] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
   const [formVisible, setFormVisible] = useState(false);
+  const styles = useStyles();
 
   function load() {
     setRoles(
@@ -76,81 +146,91 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="font-semibold text-lg">Roles</div>
-        <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={startAdd}>Add Role</button>
+    <Card className={styles.root}>
+      <div className={styles.header}>
+        <div>Roles</div>
+        <Button className={styles.addButton} onClick={startAdd}>
+          Add Role
+        </Button>
       </div>
 
-      <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
-        <table className="min-w-full text-sm divide-y divide-slate-200">
-          <thead className="bg-slate-100 sticky top-0">
-            <tr>
-              <th className="p-2 text-left">Code</th>
-              <th className="p-2 text-left">Name</th>
-              <th className="p-2 text-left">Group</th>
-              <th className="p-2 text-left">Segments</th>
-              <th className="p-2"></th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className={styles.tableContainer}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell>Code</TableHeaderCell>
+              <TableHeaderCell>Name</TableHeaderCell>
+              <TableHeaderCell>Group</TableHeaderCell>
+              <TableHeaderCell>Segments</TableHeaderCell>
+              <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {roles.map((r: any) => (
-              <tr key={r.id} className="odd:bg-white even:bg-slate-50">
-                <td className="p-2">{r.code}</td>
-                <td className="p-2">{r.name}</td>
-                <td className="p-2">{r.group_name}</td>
-                <td className="p-2">{Array.from(r.segs).join(", ")}</td>
-                <td className="p-2 text-right space-x-2">
-                  <button className="text-blue-600" onClick={() => startEdit(r)}>Edit</button>
-                  <button className="text-red-600" onClick={() => remove(r.id)}>Delete</button>
-                </td>
-              </tr>
+              <TableRow key={r.id}>
+                <TableCell>{r.code}</TableCell>
+                <TableCell>{r.name}</TableCell>
+                <TableCell>{r.group_name}</TableCell>
+                <TableCell>{Array.from(r.segs).join(", ")}</TableCell>
+                <TableCell className={styles.rowActionCell}>
+                  <Button appearance="subtle" className={styles.editButton} onClick={() => startEdit(r)}>
+                    Edit
+                  </Button>
+                  <Button appearance="subtle" className={styles.deleteButton} onClick={() => remove(r.id)}>
+                    Delete
+                  </Button>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {formVisible && editing && (
-        <div className="space-y-2">
-          <input
-            className="border rounded px-2 py-1 w-full"
+        <div className={styles.form}>
+          <Input
+            className={styles.input}
             placeholder="Code"
             value={editing.code}
-            onChange={(e) => setEditing({ ...editing, code: e.target.value })}
+            onChange={(_, data) => setEditing({ ...editing, code: data.value })}
           />
-          <input
-            className="border rounded px-2 py-1 w-full"
+          <Input
+            className={styles.input}
             placeholder="Name"
             value={editing.name}
-            onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+            onChange={(_, data) => setEditing({ ...editing, name: data.value })}
           />
-          <select
-            className="border rounded px-2 py-1 w-full"
-            value={editing.group_id}
-            onChange={(e) => setEditing({ ...editing, group_id: Number(e.target.value) })}
+          <Dropdown
+            className={styles.input}
+            selectedOptions={[String(editing.group_id)]}
+            onOptionSelect={(_, data) => setEditing({ ...editing, group_id: Number(data.optionValue) })}
           >
             {groups.map((g: any) => (
-              <option key={g.id} value={g.id}>{g.name}</option>
+              <Option key={g.id} value={String(g.id)}>
+                {g.name}
+              </Option>
             ))}
-          </select>
-          <div className="flex gap-2">
+          </Dropdown>
+          <div className={styles.segmentList}>
             {segments.map((s) => (
-              <label key={s.name} className="flex items-center gap-1">
-                <input
-                  type="checkbox"
-                  checked={editing.segs.has(s.name)}
-                  onChange={() => toggleSeg(s.name)}
-                />
-                {s.name}
-              </label>
+              <Checkbox
+                key={s.name}
+                label={s.name}
+                checked={editing.segs.has(s.name)}
+                onChange={() => toggleSeg(s.name)}
+              />
             ))}
           </div>
-          <div className="flex gap-2">
-            <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={save}>Save</button>
-            <button className="px-3 py-2 border rounded" onClick={cancel}>Cancel</button>
+          <div className={styles.actions}>
+            <Button appearance="primary" onClick={save}>
+              Save
+            </Button>
+            <Button appearance="secondary" onClick={cancel}>
+              Cancel
+            </Button>
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
