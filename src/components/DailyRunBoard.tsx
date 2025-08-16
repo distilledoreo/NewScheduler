@@ -5,7 +5,7 @@ import "react-resizable/css/styles.css";
 import type { Segment, SegmentRow } from "../services/segments";
 import "../styles/scrollbar.css";
 import PersonName from "./PersonName";
-import { Button, Dropdown, Option, Tab, TabList, Input, tokens, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, DialogTrigger } from "@fluentui/react-components";
+import { Button, Dropdown, Option, Tab, TabList, Input, tokens, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, DialogTrigger, makeStyles } from "@fluentui/react-components";
 
 const Grid = WidthProvider(GridLayout);
 
@@ -70,6 +70,23 @@ export default function DailyRunBoard({
   deleteAssignment,
   isDark,
 }: DailyRunBoardProps) {
+  const useStyles = makeStyles({
+    root: { padding: "16px" },
+    header: {
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "flex-start",
+      gap: "16px",
+      marginBottom: "16px",
+      [`@media (min-width: 1024px)`]: {
+        flexDirection: "row",
+        alignItems: "center",
+      },
+    },
+    headerLeft: { display: "flex", alignItems: "center", gap: "8px" },
+    headerRight: { display: "flex", flexWrap: "wrap", gap: "8px", marginLeft: "auto" },
+  });
+  const s = useStyles();
   const seg: Segment = activeRunSegment;
   const [layout, setLayout] = useState<any[]>([]);
   const [layoutLoaded, setLayoutLoaded] = useState(false);
@@ -265,9 +282,9 @@ export default function DailyRunBoard({
   }
 
   return (
-    <div className="p-4">
-      <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 mb-4">
-        <div className="flex items-center gap-2">
+    <div className={s.root}>
+      <div className={s.header}>
+        <div className={s.headerLeft}>
           <label className="text-sm whitespace-nowrap">Date</label>
           <Input
             type="date"
@@ -290,7 +307,7 @@ export default function DailyRunBoard({
             ))}
           </TabList>
         </div>
-        <div className="flex flex-wrap gap-2 lg:ml-auto">
+        <div className={s.headerRight}>
           <Button appearance="secondary" onClick={() => setShowNeedsEditor(true)}>
             Edit Needs for This Day
           </Button>

@@ -3,6 +3,7 @@ import {
   Button,
   Field,
   Input,
+  makeStyles,
   Table,
   TableHeader,
   TableHeaderCell,
@@ -48,6 +49,24 @@ export default function ExportPreview({
   people,
   roles,
 }: ExportPreviewProps) {
+  const useStyles = makeStyles({
+    root: { padding: "16px" },
+    controls: {
+      display: "flex",
+      alignItems: "end",
+      gap: "12px",
+      marginBottom: "16px",
+    },
+    spacer: { marginLeft: "auto" },
+    tableWrapper: {
+      overflow: "auto",
+      maxHeight: "60vh",
+      border: `1px solid ${tokens.colorNeutralStroke2}`,
+      borderRadius: "6px",
+    },
+    rowsText: { color: "GrayText", marginTop: "8px" },
+  });
+  const s = useStyles();
   function pad2(n: number) {
     return n < 10 ? `0${n}` : `${n}`;
   }
@@ -145,18 +164,18 @@ export default function ExportPreview({
   }, [sqlDb, exportStart, exportEnd, people.length, roles.length]);
 
   return (
-    <div style={{ padding: 16 }}>
-      <div style={{ display: "flex", alignItems: "end", gap: 12, marginBottom: 16 }}>
+    <div className={s.root}>
+      <div className={s.controls}>
         <Field label="Start">
           <Input type="date" value={exportStart} onChange={(_, d) => setExportStart(d.value)} />
         </Field>
         <Field label="End">
           <Input type="date" value={exportEnd} onChange={(_, d) => setExportEnd(d.value)} />
         </Field>
-        <div style={{ marginLeft: "auto" }} />
+        <div className={s.spacer} />
         <Button appearance="primary" onClick={exportShifts}>Download XLSX</Button>
       </div>
-  <div style={{ overflow: "auto", maxHeight: "60vh", border: `1px solid ${tokens.colorNeutralStroke2}`, borderRadius: 6 }}>
+      <div className={s.tableWrapper}>
         <Table aria-label="Export preview table">
           <TableHeader>
             <TableRow>
@@ -186,7 +205,7 @@ export default function ExportPreview({
           </TableBody>
         </Table>
       </div>
-      <Text size={200} style={{ color: "GrayText", marginTop: 8 }}>Rows: {previewRows.length}</Text>
+  <Text size={200} className={s.rowsText}>Rows: {previewRows.length}</Text>
     </div>
   );
 }

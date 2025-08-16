@@ -9,7 +9,7 @@ import { exportMonthOneSheetXlsx } from "./excel/export-one-sheet";
 import PersonName from "./components/PersonName";
 import PersonProfileModal from "./components/PersonProfileModal";
 import { ProfileContext } from "./components/ProfileContext";
-import { Button, Checkbox, Dropdown, Input, Option, Table, TableHeader, TableHeaderCell, TableRow, TableBody, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions } from "@fluentui/react-components";
+import { Button, Checkbox, Dropdown, Input, Option, Table, TableHeader, TableHeaderCell, TableRow, TableBody, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, makeStyles, tokens } from "@fluentui/react-components";
 import { FluentProvider, webDarkTheme, webLightTheme } from "@fluentui/react-components";
 import MonthlyDefaults from "./components/MonthlyDefaults";
 import CrewHistoryView from "./components/CrewHistoryView";
@@ -983,15 +983,30 @@ function PeopleEditor(){
     closeModal();
   }
 
+  const useStyles = makeStyles({
+    root: { padding: "16px" },
+    tableWrap: {
+      border: `1px solid ${tokens.colorNeutralStroke2}`,
+      borderRadius: "8px",
+      overflow: "auto",
+      maxHeight: "40vh",
+      width: "100%",
+      boxShadow: tokens.shadow2,
+    },
+    header: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" },
+    actions: { display: "flex", gap: "8px" },
+  });
+  const s = useStyles();
+
   return (
-    <div className="p-4">
+    <div className={s.root}>
       <div className="w-full">
-        <div className="flex items-center justify-between mb-3">
+        <div className={s.header}>
           <div className="font-semibold text-lg">People</div>
           <Button appearance="primary" onClick={()=>openModal()}>Add Person</Button>
         </div>
 
-        <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
+        <div className={s.tableWrap}>
           <Table aria-label="People table">
             <TableHeader>
               <TableRow>
