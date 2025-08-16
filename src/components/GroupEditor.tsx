@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Button,
+  Card,
   Field,
   Input,
   Table,
@@ -34,23 +35,48 @@ const useStyles = makeStyles({
   },
   header: {
     display: "flex",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
   },
-  tableWrapper: {
-    maxHeight: "40vh",
-    overflow: "auto",
+  addButton: {
+    backgroundColor: tokens.colorBrandBackground,
+    color: tokens.colorNeutralForegroundOnBrand,
     ...shorthands.borderRadius(tokens.borderRadiusMedium),
-    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke1),
+    ...shorthands.padding(tokens.spacingVerticalS, tokens.spacingHorizontalM),
   },
-  actionRow: {
+  tableContainer: {
+    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke1),
+    ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    maxHeight: "40vh",
+    overflowY: "auto",
+  },
+  rowActionCell: {
+    display: "flex",
+    justifyContent: "flex-end",
+    columnGap: tokens.spacingHorizontalS,
+  },
+  editButton: {
+    color: tokens.colorPaletteBlueForeground1,
+  },
+  deleteButton: {
+    color: tokens.colorPaletteRedForeground1,
+  },
+  form: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: tokens.spacingVerticalM,
+  },
+  actions: {
     display: "flex",
     columnGap: tokens.spacingHorizontalS,
+  },
+  input: {
+    width: "100%",
   },
 });
 
 export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
-  const classes = useStyles();
+  const styles = useStyles();
   const empty = { name: "", theme: "", custom_color: "" };
   const [groups, setGroups] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
@@ -118,18 +144,18 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
   }
 
   return (
-    <div className={classes.root}>
+    <Card className={styles.root}>
       <Toaster toasterId={toasterId} position="bottom" />
-      <div className={classes.header}>
+      <div className={styles.header}>
         <Text weight="semibold" size={500}>
           Groups
         </Text>
-        <Button appearance="primary" onClick={startAdd}>
+        <Button className={styles.addButton} onClick={startAdd}>
           Add Group
         </Button>
       </div>
 
-      <div className={classes.tableWrapper}>
+      <div className={styles.tableContainer}>
         <Table size="small">
           <TableHeader>
             <TableRow>
@@ -145,15 +171,13 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
                 <TableCell>{g.name}</TableCell>
                 <TableCell>{g.theme || ""}</TableCell>
                 <TableCell>{g.custom_color || ""}</TableCell>
-                <TableCell>
-                  <div className={classes.actionRow}>
-                    <Button appearance="subtle" onClick={() => startEdit(g)}>
-                      Edit
-                    </Button>
-                    <Button appearance="subtle" onClick={() => remove(g.id)}>
-                      Delete
-                    </Button>
-                  </div>
+                <TableCell className={styles.rowActionCell}>
+                  <Button appearance="subtle" className={styles.editButton} onClick={() => startEdit(g)}>
+                    Edit
+                  </Button>
+                  <Button appearance="subtle" className={styles.deleteButton} onClick={() => remove(g.id)}>
+                    Delete
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -162,35 +186,38 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
       </div>
 
       {formVisible && (
-        <div className={classes.root}>
-          <Field label="Name">
+        <div className={styles.form}>
+          <Field label="Name" required>
             <Input
+              className={styles.input}
               value={form.name}
               onChange={(_, data) => setForm({ ...form, name: data.value })}
             />
           </Field>
           <Field label="Theme">
             <Input
+              className={styles.input}
               value={form.theme}
               onChange={(_, data) => setForm({ ...form, theme: data.value })}
             />
           </Field>
           <Field label="Custom Color">
             <Input
+              className={styles.input}
               value={form.custom_color}
-              onChange={(_, data) =>
-                setForm({ ...form, custom_color: data.value })
-              }
+              onChange={(_, data) => setForm({ ...form, custom_color: data.value })}
             />
           </Field>
-          <div className={classes.actionRow}>
+          <div className={styles.actions}>
             <Button appearance="primary" onClick={save}>
               Save
             </Button>
-            <Button onClick={cancel}>Cancel</Button>
+            <Button appearance="secondary" onClick={cancel}>
+              Cancel
+            </Button>
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 }

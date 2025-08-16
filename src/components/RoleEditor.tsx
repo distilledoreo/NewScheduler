@@ -1,35 +1,29 @@
 import React, { useEffect, useState } from "react";
-import type { SegmentRow } from "../services/segments";
 import {
   Button,
+  Card,
   Checkbox,
   Dropdown,
-  Field,
   Input,
   Option,
   Table,
   TableHeader,
   TableRow,
-  TableHeaderCell,
   TableBody,
   TableCell,
+  TableHeaderCell,
+  makeStyles,
+  shorthands,
+  tokens,
+  Field,
   Text,
   Toaster,
   Toast,
   ToastTitle,
   useId,
   useToastController,
-  makeStyles,
-  shorthands,
-  tokens,
 } from "@fluentui/react-components";
-
-interface RoleEditorProps {
-  all: (sql: string, params?: any[]) => any[];
-  run: (sql: string, params?: any[]) => void;
-  refresh: () => void;
-  segments: SegmentRow[];
-}
+import type { SegmentRow } from "../services/segments";
 
 const useStyles = makeStyles({
   root: {
@@ -39,14 +33,14 @@ const useStyles = makeStyles({
   },
   header: {
     display: "flex",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
   },
   tableWrapper: {
-    maxHeight: "40vh",
-    overflow: "auto",
-    ...shorthands.borderRadius(tokens.borderRadiusMedium),
     ...shorthands.border("1px", "solid", tokens.colorNeutralStroke1),
+    ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    maxHeight: "40vh",
+    overflowY: "auto",
   },
   actionRow: {
     display: "flex",
@@ -57,7 +51,19 @@ const useStyles = makeStyles({
     columnGap: tokens.spacingHorizontalS,
     flexWrap: "wrap",
   },
+  form: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: tokens.spacingVerticalS,
+  },
 });
+
+interface RoleEditorProps {
+  all: (sql: string, params?: any[]) => any[];
+  run: (sql: string, params?: any[]) => void;
+  refresh: () => void;
+  segments: SegmentRow[];
+}
 
 export default function RoleEditor({ all, run, refresh, segments }: RoleEditorProps) {
   const classes = useStyles();
@@ -139,7 +145,7 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
   }
 
   return (
-    <div className={classes.root}>
+    <Card className={classes.root}>
       <Toaster toasterId={toasterId} position="bottom" />
       <div className={classes.header}>
         <Text weight="semibold" size={500}>
@@ -185,7 +191,7 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
       </div>
 
       {formVisible && editing && (
-        <div className={classes.root}>
+        <div className={classes.form}>
           <Field label="Code">
             <Input
               value={editing.code}
@@ -200,13 +206,11 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
           </Field>
           <Field label="Group">
             <Dropdown
-              selectedOptions={[editing.group_id.toString()]}
-              onOptionSelect={(_, data) =>
-                setEditing({ ...editing, group_id: Number(data.optionValue) })
-              }
+              selectedOptions={[String(editing.group_id)]}
+              onOptionSelect={(_, data) => setEditing({ ...editing, group_id: Number(data.optionValue) })}
             >
               {groups.map((g: any) => (
-                <Option key={g.id} value={g.id.toString()}>
+                <Option key={g.id} value={String(g.id)}>
                   {g.name}
                 </Option>
               ))}
@@ -226,10 +230,12 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
             <Button appearance="primary" onClick={save}>
               Save
             </Button>
-            <Button onClick={cancel}>Cancel</Button>
+            <Button onClick={cancel}>
+              Cancel
+            </Button>
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
