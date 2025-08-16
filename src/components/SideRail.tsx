@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Button, Tooltip, makeStyles, tokens, Menu, MenuTrigger, MenuPopover, MenuList, MenuItem, Divider, Text, Switch } from "@fluentui/react-components";
+import { Button, Tooltip, makeStyles, tokens, Menu, MenuTrigger, MenuPopover, MenuList, MenuItem } from "@fluentui/react-components";
 import {
   CalendarLtr20Regular,
   CalendarDay20Regular,
@@ -99,19 +99,33 @@ export default function SideRail({
   const navRef = React.useRef<HTMLDivElement | null>(null);
   const [maxVisible, setMaxVisible] = React.useState<number>(5);
 
-  const primaryNav: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
-    { key: "RUN", label: "Run", icon: <CalendarDay20Regular /> },
-    { key: "PEOPLE", label: "People", icon: <PeopleCommunity20Regular /> },
-    { key: "NEEDS", label: "Needs", icon: <DocumentTable20Regular /> },
-    { key: "EXPORT", label: "Export", icon: <Share20Regular /> },
-    { key: "MONTHLY", label: "Monthly", icon: <CalendarLtr20Regular /> },
-    { key: "HISTORY", label: "History", icon: <History20Regular /> },
-    { key: "ADMIN", label: "Admin", icon: <Settings20Regular /> },
+  type NavItem =
+    | { type: "page"; key: TabKey; label: string; icon: React.ReactElement }
+    | { type: "action"; id: "THEME"; label: string; icon: React.ReactElement; onClick: () => void };
+
+  const baseNav: NavItem[] = [
+    { type: "page", key: "RUN", label: "Run", icon: <CalendarDay20Regular /> },
+    { type: "page", key: "PEOPLE", label: "People", icon: <PeopleCommunity20Regular /> },
+    { type: "page", key: "NEEDS", label: "Needs", icon: <DocumentTable20Regular /> },
+    { type: "page", key: "EXPORT", label: "Export", icon: <Share20Regular /> },
+    { type: "page", key: "MONTHLY", label: "Monthly", icon: <CalendarLtr20Regular /> },
+    { type: "page", key: "HISTORY", label: "History", icon: <History20Regular /> },
+    { type: "page", key: "ADMIN", label: "Admin", icon: <Settings20Regular /> },
   ];
 
-  // Determine how many nav items fit dynamically; reserve space for More
-  const visible = primaryNav.slice(0, maxVisible);
-  const overflow = primaryNav.slice(maxVisible);
+  const themeItem: NavItem = {
+    type: "action",
+    id: "THEME",
+    label: themeName === "dark" ? "Dark" : "Light",
+    icon: themeName === "dark" ? <WeatherMoon20Regular /> : <WeatherSunny20Regular />,
+    onClick: () => setThemeName(themeName === "dark" ? "light" : "dark"),
+  };
+
+  const allItems: NavItem[] = [...baseNav, themeItem];
+
+  // Determine how many items fit dynamically; reserve space for More only if needed
+  const visible = allItems.slice(0, maxVisible);
+  const overflow = allItems.slice(maxVisible);
 
   React.useEffect(() => {
     const measure = () => {
@@ -127,7 +141,7 @@ export default function SideRail({
       const topH = topSection ? topSection.offsetHeight : 0;
       let dividerH = 0; dividers.forEach(d => dividerH += (d as HTMLElement).offsetHeight);
       const padding = 16; // rough extra
-      const available = railRect.height - bottomH - topH - dividerH - padding;
+  const available = railRect.height - bottomH - topH - dividerH - padding;
 
       // Estimate per-item height using the first child (icon+label stack)
       const first = nav.firstElementChild as HTMLElement | null;
@@ -137,14 +151,15 @@ export default function SideRail({
 
       // First, try without reserving space for More
       const possibleNoMore = Math.floor(available / itemH);
-      if (possibleNoMore >= primaryNav.length) {
-        setMaxVisible(primaryNav.length);
+      if (possibleNoMore >= allItems.length) {
+        setMaxVisible(allItems.length);
         return;
       }
 
       // Otherwise, reserve space for More and recompute
-      const possibleWithMore = Math.max(1, Math.floor((available - moreH) / itemH));
-      setMaxVisible(Math.min(primaryNav.length - 1, possibleWithMore));
+      const possibleWithMore = Math.floor((available - moreH) / itemH);
+      const clamped = Math.max(1, Math.min(allItems.length, possibleWithMore));
+      setMaxVisible(clamped);
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -155,14 +170,38 @@ export default function SideRail({
       ro.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [primaryNav.length]);
+  }, [allItems.length]);
 
   return (
     <aside className={s.root} aria-label="App navigation" ref={railRef}>
       <div className={`${s.section} ${s.grow}`} ref={navRef}>
-        {visible.map(it => (
-          <RailItem key={it.key} icon={it.icon} label={it.label} active={activeTab===it.key} onClick={()=>setActiveTab(it.key)} />
-        ))}
+        {visible.map((it, idx) => {
+          if (it.type === "page") {
+            return (
+              <RailItem
+                key={`page-${it.key}`}
+                icon={it.icon}
+                label={it.label}
+                active={activeTab === it.key}
+                onClick={() => setActiveTab(it.key)}
+              />
+            );
+          }
+          // action (theme toggle)
+          return (
+            <Tooltip key={`action-${it.id}`} content={themeName === 'dark' ? 'Switch to Light' : 'Switch to Dark'} relationship="label">
+              <div
+                className={s.item}
+                role="button"
+                aria-label={themeName === 'dark' ? 'Switch to Light theme' : 'Switch to Dark theme'}
+                onClick={it.onClick}
+              >
+                {it.icon}
+                <span className={s.label}>{it.label}</span>
+              </div>
+            </Tooltip>
+          );
+        })}
 
         {overflow.length > 0 && (
           <Menu>
@@ -171,29 +210,24 @@ export default function SideRail({
             </MenuTrigger>
             <MenuPopover>
               <MenuList>
-                {overflow.map(it => (
-                  <MenuItem key={it.key} onClick={()=>setActiveTab(it.key)}>
-                    {it.label}
-                  </MenuItem>
-                ))}
+                {overflow.map((it) => {
+                  if (it.type === 'page') {
+                    return (
+                      <MenuItem key={`page-${it.key}`} onClick={() => setActiveTab(it.key)} icon={it.icon}>
+                        {it.label}
+                      </MenuItem>
+                    );
+                  }
+                  return (
+                    <MenuItem key={`action-${it.id}`} onClick={it.onClick} icon={it.icon}>
+                      {themeName === 'dark' ? 'Switch to Light' : 'Switch to Dark'}
+                    </MenuItem>
+                  );
+                })}
               </MenuList>
             </MenuPopover>
           </Menu>
         )}
-      </div>
-
-  <div className={s.section} data-rail-bottom>
-        <Tooltip content={themeName === 'dark' ? 'Switch to Light' : 'Switch to Dark'} relationship="label">
-          <div
-            className={s.item}
-            role="button"
-            aria-label={themeName === 'dark' ? 'Switch to Light theme' : 'Switch to Dark theme'}
-            onClick={() => setThemeName(themeName === 'dark' ? 'light' : 'dark')}
-          >
-            {themeName === 'dark' ? <WeatherMoon20Regular /> : <WeatherSunny20Regular />}
-            <span className={s.label}>{themeName === 'dark' ? 'Dark' : 'Light'}</span>
-          </div>
-        </Tooltip>
       </div>
     </aside>
   );
