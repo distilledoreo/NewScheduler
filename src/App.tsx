@@ -884,19 +884,14 @@ async function exportShifts() {
     useEffect(()=>setVal(req),[req]);
     return (
       <div className="flex items-center gap-2">
-        <input 
-          type="number" 
-          className="flex-1 min-w-0 border rounded px-2 py-1 text-sm" 
-          value={val} 
-          min={0} 
-          onChange={(e)=>setVal(parseInt(e.target.value||'0',10))} 
+        <Input
+          type="number"
+          value={String(val)}
+          onChange={(_, d)=>setVal(parseInt(d.value||'0',10))}
         />
-        <button 
-          className="px-2 py-1 bg-blue-600 text-white rounded text-sm whitespace-nowrap hover:bg-blue-700" 
-          onClick={()=>setRequired(date, group.id, role.id, segment, val)}
-        >
+        <Button appearance="primary" onClick={()=>setRequired(date, group.id, role.id, segment, val)}>
           Save
-        </button>
+        </Button>
       </div>
     );
   }
@@ -981,7 +976,7 @@ function PeopleEditor(){
       <div className="w-full">
         <div className="flex items-center justify-between mb-3">
           <div className="font-semibold text-lg">People</div>
-          <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={()=>openModal()}>Add Person</button>
+          <Button appearance="primary" onClick={()=>openModal()}>Add Person</Button>
         </div>
 
         <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
@@ -1015,8 +1010,8 @@ function PeopleEditor(){
                   <td className="p-2">{p.avail_thu}</td>
                   <td className="p-2">{p.avail_fri}</td>
                   <td className="p-2 flex gap-2">
-                    <button className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded" onClick={()=>openModal(p)}>Edit</button>
-                    <button className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded" onClick={()=>{ if(confirm('Delete?')) deletePerson(p.id); }}>Delete</button>
+                    <Button size="small" onClick={()=>openModal(p)}>Edit</Button>
+                    <Button size="small" appearance="secondary" onClick={()=>{ if(confirm('Delete?')) deletePerson(p.id); }}>Delete</Button>
                   </td>
                 </tr>
               ))}
@@ -1031,31 +1026,43 @@ function PeopleEditor(){
             <div className="bg-white w-full max-w-3xl max-h-[85vh] overflow-auto rounded-xl p-4 shadow-xl">
               <div className="flex items-center justify-between mb-4">
                 <div className="font-semibold text-lg">{editing ? 'Edit Person' : 'Add Person'}</div>
-                <button className="text-slate-600 hover:text-slate-800 px-2 py-1" onClick={closeModal}>Close</button>
+                <Button onClick={closeModal}>Close</Button>
               </div>
 
               <div className="grid grid-cols-12 gap-2 mb-3">
-                <input className="border rounded px-2 py-1 col-span-3" placeholder="Last Name" value={form.last_name||''} onChange={e=>setForm({...form,last_name:e.target.value})} />
-                <input className="border rounded px-2 py-1 col-span-3" placeholder="First Name" value={form.first_name||''} onChange={e=>setForm({...form,first_name:e.target.value})} />
-                <input className="border rounded px-2 py-1 col-span-4" placeholder="Work Email" value={form.work_email||''} onChange={e=>setForm({...form,work_email:e.target.value})} />
-                <select className="border rounded px-2 py-1 col-span-2" value={form.brother_sister||'Brother'} onChange={e=>setForm({...form,brother_sister:e.target.value})}>
-                  <option>Brother</option>
-                  <option>Sister</option>
-                </select>
-                <label className="col-span-2 flex items-center gap-2"><input type="checkbox" checked={!!form.commuter} onChange={e=>setForm({...form,commuter:e.target.checked})}/> Commuter</label>
-                <label className="col-span-2 flex items-center gap-2"><input type="checkbox" checked={form.active!==false} onChange={e=>setForm({...form,active:e.target.checked})}/> Active</label>
+                <Input className="col-span-3" placeholder="Last Name" value={form.last_name||''} onChange={(_,d)=>setForm({...form,last_name:d.value})} />
+                <Input className="col-span-3" placeholder="First Name" value={form.first_name||''} onChange={(_,d)=>setForm({...form,first_name:d.value})} />
+                <Input className="col-span-4" placeholder="Work Email" value={form.work_email||''} onChange={(_,d)=>setForm({...form,work_email:d.value})} />
+                <div className="col-span-2">
+                  <Dropdown
+                    selectedOptions={[form.brother_sister || 'Brother']}
+                    onOptionSelect={(_, data)=> setForm({...form, brother_sister: String(data.optionValue ?? data.optionText)})}
+                  >
+                    <Option value="Brother">Brother</Option>
+                    <Option value="Sister">Sister</Option>
+                  </Dropdown>
+                </div>
+                <div className="col-span-2 flex items-center">
+                  <Checkbox label="Commuter" checked={!!form.commuter} onChange={(_,data)=>setForm({...form,commuter:!!data.checked})} />
+                </div>
+                <div className="col-span-2 flex items-center">
+                  <Checkbox label="Active" checked={form.active!==false} onChange={(_,data)=>setForm({...form,active:!!data.checked})} />
+                </div>
                 {WEEKDAYS.map((w,idx)=> (
                   <div key={w} className="col-span-2">
-                    <div className="text-xs text-slate-500">{w} Availability</div>
-                    <select className="border rounded px-2 py-1 w-full" value={form[["avail_mon","avail_tue","avail_wed","avail_thu","avail_fri"][idx]]||'U'} onChange={(e)=>{
-                      const key = ["avail_mon","avail_tue","avail_wed","avail_thu","avail_fri"][idx];
-                      setForm({...form,[key]:e.target.value});
-                    }}>
-                      <option value="U">Unavailable</option>
-                      <option value="AM">AM</option>
-                      <option value="PM">PM</option>
-                      <option value="B">Both</option>
-                    </select>
+                    <div className="text-xs text-slate-500 mb-1">{w} Availability</div>
+                    <Dropdown
+                      selectedOptions={[form[["avail_mon","avail_tue","avail_wed","avail_thu","avail_fri"][idx]]||'U']}
+                      onOptionSelect={(_, data)=>{
+                        const key = ["avail_mon","avail_tue","avail_wed","avail_thu","avail_fri"][idx] as keyof typeof form;
+                        setForm({...form,[key]: String(data.optionValue ?? data.optionText)});
+                      }}
+                    >
+                      <Option value="U">Unavailable</Option>
+                      <Option value="AM">AM</Option>
+                      <Option value="PM">PM</Option>
+                      <Option value="B">Both</Option>
+                    </Dropdown>
                   </div>
                 ))}
               </div>
@@ -1064,20 +1071,21 @@ function PeopleEditor(){
                 <div className="text-xs text-slate-500 mb-1">Qualified Roles</div>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 max-h-40 overflow-auto border rounded p-2">
                   {roles.map((r:any)=>(
-                    <label key={r.id} className="flex items-center gap-1 text-xs">
-                      <input type="checkbox" checked={qualifications.has(r.id)} onChange={e => {
+                    <Checkbox key={r.id}
+                      label={r.name}
+                      checked={qualifications.has(r.id)}
+                      onChange={(_, data) => {
                         const next = new Set(qualifications);
-                        if(e.target.checked) next.add(r.id); else next.delete(r.id);
+                        if (data.checked) next.add(r.id); else next.delete(r.id);
                         setQualifications(next);
-                      }} />
-                      {r.name}
-                    </label>
+                      }}
+                    />
                   ))}
                 </div>
               </div>
 
               <div className="flex gap-2">
-                <button className={`px-3 py-2 text-white rounded ${editing? 'bg-blue-700' : 'bg-emerald-700'}`} onClick={save}>{editing ? 'Save Changes' : 'Add Person'}</button>
+                <Button appearance="primary" onClick={save}>{editing ? 'Save Changes' : 'Add Person'}</Button>
               </div>
             </div>
           </div>
@@ -1095,7 +1103,7 @@ function PeopleEditor(){
           <div className="bg-white w-full max-w-6xl max-h-[85vh] overflow-auto rounded-xl p-4 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <div className="font-semibold text-lg">Needs for {fmtDateMDY(d)}</div>
-              <button className="text-slate-600 hover:text-slate-800 px-2 py-1" onClick={()=>setShowNeedsEditor(false)}>Close</button>
+              <Button onClick={()=>setShowNeedsEditor(false)}>Close</Button>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
               {groups.map((g:any)=> (
