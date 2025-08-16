@@ -70,6 +70,16 @@ export default function DailyRunBoard({
   deleteAssignment,
   isDark,
 }: DailyRunBoardProps) {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const useStyles = makeStyles({
     root: { padding: "16px" },
     header: {
@@ -197,6 +207,35 @@ export default function DailyRunBoard({
       return assigned < req ? { role: r, group: groupMap.get(r.group_id) } : null;
     })
     .filter(Boolean) as Array<{ role: any; group: any }>;
+
+  function GroupCard({ group, isDraggable }: { group: any; isDraggable: boolean }) {
+    const rolesForGroup = roles.filter((r) => r.group_id === group.id);
+    const groupNeedsMet = rolesForGroup.every((r: any) => {
+      const assignedCount = assignedCountMap.get(r.id) || 0;
+      const req = getRequiredFor(selectedDateObj, group.id, r.id, seg);
+      return assignedCount >= req;
+    });
+    const groupAccent = groupNeedsMet
+      ? (isDark ? tokens.colorPaletteGreenBackground2 : tokens.colorPaletteGreenBackground3)
+      : (isDark ? tokens.colorPaletteRedBackground2 : tokens.colorPaletteRedBackground3);
+    return (
+      <div
+        className={s.groupCard}
+        style={{ borderLeft: `4px solid ${groupAccent}`, ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1 }}
+      >
+        <div className={`${s.groupHeader} ${isDraggable ? "drag-handle" : ""}`}>
+          <span style={{ fontWeight: 600 }}>{group.name}</span>
+          <span className={s.groupMeta}>Theme: {group.theme || "-"}</span>
+          <span className={s.groupMeta}>Color: {group.custom_color || "-"}</span>
+        </div>
+        <div className={s.rolesGrid} style={{ gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))" }}>
+          {rolesForGroup.map((r: any) => (
+            <RoleCard key={r.id} group={group} role={r} />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   function RoleCard({ group, role }: { group: any; role: any }) {
     const assigns = all(
@@ -363,44 +402,28 @@ export default function DailyRunBoard({
         </div>
       </div>
 
-      <Grid
-        className="layout"
-        layout={layout}
-        cols={12}
-        rowHeight={80}
-        onLayoutChange={handleLayoutChange}
-        draggableHandle=".drag-handle"
-      >
-        {groups.map((g: any) => {
-          const rolesForGroup = roles.filter((r) => r.group_id === g.id);
-          const groupNeedsMet = rolesForGroup.every((r: any) => {
-            const assignedCount = assignedCountMap.get(r.id) || 0;
-            const req = getRequiredFor(selectedDateObj, g.id, r.id, seg);
-            return assignedCount >= req;
-          });
-          const groupAccent = groupNeedsMet
-            ? (isDark ? tokens.colorPaletteGreenBackground2 : tokens.colorPaletteGreenBackground3)
-            : (isDark ? tokens.colorPaletteRedBackground2 : tokens.colorPaletteRedBackground3);
-          return (
-            <div
-              key={String(g.id)}
-              className={s.groupCard}
-              style={{ borderLeft: `4px solid ${groupAccent}`, ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1 }}
-            >
-              <div className={`${s.groupHeader} drag-handle`}>
-                <span style={{ fontWeight: 600 }}>{g.name}</span>
-                <span className={s.groupMeta}>Theme: {g.theme || '-'}</span>
-                <span className={s.groupMeta}>Color: {g.custom_color || '-'}</span>
-              </div>
-              <div className={s.rolesGrid} style={{ gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))" }}>
-                {rolesForGroup.map((r: any) => (
-                  <RoleCard key={r.id} group={g} role={r} />
-                ))}
-              </div>
+      {isMobile ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {groups.map((g: any) => (
+            <GroupCard key={g.id} group={g} isDraggable={false} />
+          ))}
+        </div>
+      ) : (
+        <Grid
+          className="layout"
+          layout={layout}
+          cols={12}
+          rowHeight={80}
+          onLayoutChange={handleLayoutChange}
+          draggableHandle=".drag-handle"
+        >
+          {groups.map((g: any) => (
+            <div key={String(g.id)}>
+              <GroupCard group={g} isDraggable={true} />
             </div>
-          );
-        })}
-      </Grid>
+          ))}
+        </Grid>
+      )}
 
       {moveContext && (
         <Dialog open onOpenChange={(_, data) => { if (!data.open) cancelMove(); }}>
