@@ -10,6 +10,8 @@ import {
   Settings20Regular,
   Share20Regular,
   MoreVertical20Regular,
+  WeatherSunny20Regular,
+  WeatherMoon20Regular,
 } from "@fluentui/react-icons";
 
 export type TabKey = "RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "ADMIN";
@@ -130,10 +132,19 @@ export default function SideRail({
       // Estimate per-item height using the first child (icon+label stack)
       const first = nav.firstElementChild as HTMLElement | null;
       const itemH = first ? first.offsetHeight + 6 : 48; // add gap
-      const moreH = 36; // More button height
-      if (itemH <= 0) return;
-      const possible = Math.max(1, Math.floor((available - moreH) / itemH));
-      setMaxVisible(Math.min(primaryNav.length, possible));
+      const moreH = 36; // approx More button height
+      if (itemH <= 0 || available <= 0) return;
+
+      // First, try without reserving space for More
+      const possibleNoMore = Math.floor(available / itemH);
+      if (possibleNoMore >= primaryNav.length) {
+        setMaxVisible(primaryNav.length);
+        return;
+      }
+
+      // Otherwise, reserve space for More and recompute
+      const possibleWithMore = Math.max(1, Math.floor((available - moreH) / itemH));
+      setMaxVisible(Math.min(primaryNav.length - 1, possibleWithMore));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -172,7 +183,17 @@ export default function SideRail({
       </div>
 
   <div className={s.section} data-rail-bottom>
-        <Switch checked={themeName === "dark"} onChange={(_, d)=> setThemeName(d.checked ? "dark" : "light")} label={themeName === 'dark' ? 'Dark' : 'Light'} />
+        <Tooltip content={themeName === 'dark' ? 'Switch to Light' : 'Switch to Dark'} relationship="label">
+          <div
+            className={s.item}
+            role="button"
+            aria-label={themeName === 'dark' ? 'Switch to Light theme' : 'Switch to Dark theme'}
+            onClick={() => setThemeName(themeName === 'dark' ? 'light' : 'dark')}
+          >
+            {themeName === 'dark' ? <WeatherMoon20Regular /> : <WeatherSunny20Regular />}
+            <span className={s.label}>{themeName === 'dark' ? 'Dark' : 'Light'}</span>
+          </div>
+        </Tooltip>
       </div>
     </aside>
   );
