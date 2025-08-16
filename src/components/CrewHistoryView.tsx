@@ -352,18 +352,18 @@ export default function CrewHistoryView({
     const options = roleListForSegment(seg);
     return (
       <Dropdown
-        placeholder=""
+        placeholder="--"
         selectedOptions={def?.role_id != null ? [String(def.role_id)] : []}
         onOptionSelect={(_, data) => {
-          const v = data.optionValue ?? data.optionText;
+          const v = data.optionValue;
           const rid = v ? Number(v) : null;
           setMonthlyDefaultForMonth(month, personId, seg, rid);
           setDefs(all(`SELECT * FROM monthly_default`));
         }}
       >
-        <Option value="" text=""></Option>
+        <Option value="">--</Option>
         {options.map((r: any) => (
-          <Option key={r.id} value={String(r.id)} text={r.name}>{r.name}</Option>
+          <Option key={r.id} value={String(r.id)}>{r.name}</Option>
         ))}
       </Dropdown>
     );
@@ -400,19 +400,19 @@ export default function CrewHistoryView({
           </div>
           <div className={styles.controlCell}>
             <Dropdown className={styles.full} selectedOptions={[sortField]} onOptionSelect={(_, data) => setSortField(data.optionValue as any)}>
-            <Option value="last" text="Last Name">Last Name</Option>
-            <Option value="first" text="First Name">First Name</Option>
-            <Option value="brother_sister" text="B/S">B/S</Option>
-            <Option value="commuter" text="Commute">Commute</Option>
-            <Option value="active" text="Active">Active</Option>
-            <Option value="avail_mon" text="Mon">Mon</Option>
-            <Option value="avail_tue" text="Tue">Tue</Option>
-            <Option value="avail_wed" text="Wed">Wed</Option>
-            <Option value="avail_thu" text="Thu">Thu</Option>
-            <Option value="avail_fri" text="Fri">Fri</Option>
-            {segmentNames.map((seg) => (
-              <Option key={seg} value={seg} text={`${seg} Role`} />
-            ))}
+              <Option value="last">Last Name</Option>
+              <Option value="first">First Name</Option>
+              <Option value="brother_sister">B/S</Option>
+              <Option value="commuter">Commute</Option>
+              <Option value="active">Active</Option>
+              <Option value="avail_mon">Mon</Option>
+              <Option value="avail_tue">Tue</Option>
+              <Option value="avail_wed">Wed</Option>
+              <Option value="avail_thu">Thu</Option>
+              <Option value="avail_fri">Fri</Option>
+              {segmentNames.map((seg) => (
+                <Option key={seg} value={seg}>{`${seg} Role`}</Option>
+              ))}
             </Dropdown>
           </div>
           <div className={styles.controlCell}>
@@ -420,23 +420,23 @@ export default function CrewHistoryView({
           </div>
           <div className={styles.controlCell}>
             <Dropdown className={styles.full} selectedOptions={[bsFilter]} onOptionSelect={(_, data) => setBsFilter(data.optionValue as string)}>
-            <Option value="" text="All B/S">All B/S</Option>
-            <Option value="Brother" text="Brother">Brother</Option>
-            <Option value="Sister" text="Sister">Sister</Option>
+              <Option value="">All B/S</Option>
+              <Option value="Brother">Brother</Option>
+              <Option value="Sister">Sister</Option>
             </Dropdown>
           </div>
           <div className={styles.controlCell}>
             <Dropdown className={styles.full} multiselect placeholder="All Groups" selectedOptions={groupFilter} onOptionSelect={(_, data) => setGroupFilter(data.selectedOptions as string[])}>
-            {groups.map((g) => (
-              <Option key={g.name} value={g.name} text={g.name}>{g.name}</Option>
-            ))}
+              {groups.map((g) => (
+                <Option key={g.name} value={g.name}>{g.name}</Option>
+              ))}
             </Dropdown>
           </div>
           <div className={styles.controlCell}>
             <Dropdown className={styles.full} selectedOptions={filterMonth ? [filterMonth] : []} onOptionSelect={(_, data) => setFilterMonth(data.optionValue as string)}>
-            {months.map((m) => (
-              <Option key={m} value={m} text={m}>{m}</Option>
-            ))}
+              {months.map((m) => (
+                <Option key={m} value={m}>{m}</Option>
+              ))}
             </Dropdown>
           </div>
           <div className={styles.controlCell}>

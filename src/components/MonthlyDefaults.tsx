@@ -165,9 +165,9 @@ export default function MonthlyDefaults({
                                 setWeeklyOverride(personId, w, seg, rid);
                               }}
                             >
-                              <Option value="" text="(default)">(default)</Option>
+                              <Option value="">(default)</Option>
                               {roleListForSegment(seg).map((r: any) => (
-                                <Option key={r.id} value={String(r.id)} text={r.name}>{r.name}</Option>
+                                <Option key={r.id} value={String(r.id)}>{r.name}</Option>
                               ))}
                             </Dropdown>
                           </TableCell>
@@ -205,18 +205,18 @@ export default function MonthlyDefaults({
         <Button onClick={() => exportMonthOneSheetXlsx(selectedMonth).catch((err) => alert(err.message))}>Export .xlsx</Button>
         <Input placeholder="Filter" value={filterText} onChange={(_, data) => setFilterText(data.value)} />
         <Dropdown selectedOptions={[sortKey]} onOptionSelect={(_, data) => setSortKey(data.optionValue as any)}>
-          <Option value="name" text="Name">Name</Option>
-          <Option value="email" text="Email">Email</Option>
-          <Option value="brother_sister" text="B/S">B/S</Option>
-          <Option value="commuter" text="Commute">Commute</Option>
-          <Option value="active" text="Active">Active</Option>
-          <Option value="avail_mon" text="Mon">Mon</Option>
-          <Option value="avail_tue" text="Tue">Tue</Option>
-          <Option value="avail_wed" text="Wed">Wed</Option>
-          <Option value="avail_thu" text="Thu">Thu</Option>
-          <Option value="avail_fri" text="Fri">Fri</Option>
+          <Option value="name">Name</Option>
+          <Option value="email">Email</Option>
+          <Option value="brother_sister">B/S</Option>
+          <Option value="commuter">Commute</Option>
+          <Option value="active">Active</Option>
+          <Option value="avail_mon">Mon</Option>
+          <Option value="avail_tue">Tue</Option>
+          <Option value="avail_wed">Wed</Option>
+          <Option value="avail_thu">Thu</Option>
+          <Option value="avail_fri">Fri</Option>
           {segmentNames.map(seg => (
-            <Option key={seg} value={seg} text={`${seg} Role`} />
+            <Option key={seg} value={seg}>{`${seg} Role`}</Option>
           ))}
         </Dropdown>
         <Button onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}>{sortDir === 'asc' ? 'Asc' : 'Desc'}</Button>
@@ -262,9 +262,9 @@ export default function MonthlyDefaults({
                           setMonthlyDefault(p.id, seg, rid);
                         }}
                       >
-                        <Option value="" text="--">--</Option>
+                        <Option value="">--</Option>
                         {roleListForSegment(seg).map((r: any) => (
-                          <Option key={r.id} value={String(r.id)} text={r.name}>{r.name}</Option>
+                          <Option key={r.id} value={String(r.id)}>{r.name}</Option>
                         ))}
                       </Dropdown>
                     </TableCell>

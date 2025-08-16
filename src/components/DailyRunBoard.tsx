@@ -266,8 +266,9 @@ export default function DailyRunBoard({
                 key={o.id}
                 value={String(o.id)}
                 disabled={o.blocked}
-                text={`${o.label}${o.blocked ? " (Time-off)" : ""}`}
-              />
+              >
+                {`${o.label}${o.blocked ? " (Time-off)" : ""}`}
+              </Option>
             ))}
           </Dropdown>
         </div>
@@ -419,7 +420,9 @@ export default function DailyRunBoard({
                   style={{ width: "100%" }}
                 >
                   {moveContext.targets.map((t) => (
-                    <Option key={t.role.id} value={String(t.role.id)} text={`${t.group.name} - ${t.role.name}`} />
+                    <Option key={t.role.id} value={String(t.role.id)}>
+                      {`${t.group.name} - ${t.role.name}`}
+                    </Option>
                   ))}
                 </Dropdown>
               </DialogContent>
