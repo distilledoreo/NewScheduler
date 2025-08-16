@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Button, Field, Input, Dropdown, Option, Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow, Text } from "@fluentui/react-components";
+import { Button, Field, Input, Dropdown, Option, Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow, Text, makeStyles, tokens } from "@fluentui/react-components";
 
 interface ExportGroupEditorProps {
   all: (sql: string, params?: any[]) => any[];
@@ -72,13 +72,27 @@ export default function ExportGroupEditor({ all, run, refresh }: ExportGroupEdit
     refresh();
   }
 
+  const useStyles = makeStyles({
+    section: { display: "flex", flexDirection: "column", rowGap: "12px" },
+    header: { display: "flex", alignItems: "center", justifyContent: "space-between" },
+    tableWrap: {
+      border: `1px solid ${tokens.colorNeutralStroke2}`,
+      borderRadius: "8px",
+      overflow: "auto",
+      maxHeight: "40vh",
+      width: "100%",
+      boxShadow: tokens.shadow2,
+    },
+    row: { display: "flex", columnGap: "8px" },
+  });
+  const s = useStyles();
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className={s.section}>
+      <div className={s.header}>
         <Text weight="semibold">Export Groups</Text>
         <Button appearance="primary" onClick={startAdd}>Add Export Group</Button>
       </div>
-      <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
+      <div className={s.tableWrap}>
         <Table aria-label="Export groups table">
           <TableHeader>
             <TableRow>
@@ -108,7 +122,7 @@ export default function ExportGroupEditor({ all, run, refresh }: ExportGroupEdit
         </Table>
       </div>
       {formVisible && (
-        <div className="space-y-3">
+        <div className={s.section}>
           {editing ? (
             <div>{rows.find((rr:any)=>rr.group_id===editing.group_id)?.group_name}</div>
           ) : (
@@ -133,7 +147,7 @@ export default function ExportGroupEditor({ all, run, refresh }: ExportGroupEdit
           <Field label="Column Group">
             <Input value={form.column_group} onChange={(_, d) => setForm({ ...form, column_group: d.value })} />
           </Field>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className={s.row}>
             <Button appearance="primary" onClick={save}>Save</Button>
             <Button onClick={cancel}>Cancel</Button>
           </div>

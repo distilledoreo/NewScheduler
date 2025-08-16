@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Button, Field, Input, Table, TableHeader, TableHeaderCell, TableRow, TableBody, TableCell, Text } from "@fluentui/react-components";
+import { Button, Field, Input, Table, TableHeader, TableHeaderCell, TableRow, TableBody, TableCell, Text, makeStyles, tokens } from "@fluentui/react-components";
 
 interface SegmentEditorProps {
   all: (sql: string, params?: any[]) => any[];
@@ -66,13 +66,27 @@ export default function SegmentEditor({ all, run, refresh }: SegmentEditorProps)
     refresh();
   }
 
+  const useStyles = makeStyles({
+    section: { display: "flex", flexDirection: "column", rowGap: "12px" },
+    header: { display: "flex", alignItems: "center", justifyContent: "space-between" },
+    tableWrap: {
+      border: `1px solid ${tokens.colorNeutralStroke2}`,
+      borderRadius: "8px",
+      overflow: "auto",
+      maxHeight: "40vh",
+      width: "100%",
+      boxShadow: tokens.shadow2,
+    },
+    row: { display: "flex", columnGap: "8px" },
+  });
+  const s = useStyles();
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className={s.section}>
+      <div className={s.header}>
         <Text weight="semibold">Segments</Text>
         <Button appearance="primary" onClick={startAdd}>Add Segment</Button>
       </div>
-      <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
+      <div className={s.tableWrap}>
         <Table aria-label="Segments table">
           <TableHeader>
             <TableRow>
@@ -102,11 +116,11 @@ export default function SegmentEditor({ all, run, refresh }: SegmentEditorProps)
         </Table>
       </div>
       {formVisible && (
-        <div className="space-y-3">
+        <div className={s.section}>
           <Field label="Name" required>
             <Input value={form.name} onChange={(_, d) => setForm({ ...form, name: d.value })} />
           </Field>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className={s.row}>
             <Field label="Start (HH:MM)" style={{ flex: 1 }}>
               <Input value={form.start_time} onChange={(_, d) => setForm({ ...form, start_time: d.value })} />
             </Field>
@@ -117,7 +131,7 @@ export default function SegmentEditor({ all, run, refresh }: SegmentEditorProps)
               <Input type="number" value={String(form.ordering)} onChange={(_, d) => setForm({ ...form, ordering: Number(d.value || 0) })} />
             </Field>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className={s.row}>
             <Button appearance="primary" onClick={save}>Save</Button>
             <Button onClick={cancel}>Cancel</Button>
           </div>
