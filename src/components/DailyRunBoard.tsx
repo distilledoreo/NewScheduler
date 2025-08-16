@@ -5,7 +5,31 @@ import "react-resizable/css/styles.css";
 import type { Segment, SegmentRow } from "../services/segments";
 import "../styles/scrollbar.css";
 import PersonName from "./PersonName";
-import { Button, Dropdown, Option, Tab, TabList, Input, tokens, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, DialogTrigger, makeStyles, Badge } from "@fluentui/react-components";
+import {
+  Button,
+  Dropdown,
+  Option,
+  Tab,
+  TabList,
+  Input,
+  tokens,
+  Dialog,
+  DialogSurface,
+  DialogBody,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  DialogTrigger,
+  makeStyles,
+  Badge,
+  Card,
+  CardHeader,
+  CardPreview,
+  Subtitle1,
+  Body1,
+  Caption1,
+  Title3,
+} from "@fluentui/react-components";
 
 const Grid = WidthProvider(GridLayout);
 
@@ -81,75 +105,81 @@ export default function DailyRunBoard({
   }, []);
 
   const useStyles = makeStyles({
-    root: { padding: "16px" },
+    root: {
+      padding: tokens.spacingHorizontalL,
+      backgroundColor: tokens.colorNeutralBackground2,
+      minHeight: "100%",
+    },
     header: {
       display: "flex",
       flexDirection: "column",
       alignItems: "flex-start",
-      gap: "16px",
-      marginBottom: "16px",
+      gap: tokens.spacingHorizontalL,
+      marginBottom: tokens.spacingHorizontalL,
       [`@media (min-width: 1024px)`]: {
         flexDirection: "row",
         alignItems: "center",
       },
     },
-    headerLeft: { display: "flex", alignItems: "center", gap: "8px" },
-    headerRight: { display: "flex", flexWrap: "wrap", gap: "8px", marginLeft: "auto" },
-    label: { fontSize: tokens.fontSizeBase300, color: tokens.colorNeutralForeground2, whiteSpace: 'nowrap' },
+    headerLeft: { display: "flex", alignItems: "center", gap: tokens.spacingHorizontalS },
+    headerRight: { display: "flex", flexWrap: "wrap", gap: tokens.spacingHorizontalS, marginLeft: "auto" },
+    label: {
+      fontSize: tokens.fontSizeBase300,
+      color: tokens.colorNeutralForeground2,
+      whiteSpace: "nowrap",
+    },
     groupCard: {
-      border: `1px solid ${tokens.colorNeutralStroke2}`,
-      borderRadius: tokens.borderRadiusMedium,
-      boxShadow: tokens.shadow2,
-      backgroundColor: tokens.colorNeutralBackground1,
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
+      height: "100%",
+      display: "flex",
+      flexDirection: "column",
     },
     groupHeader: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM} 0 ${tokens.spacingHorizontalM}`,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
     },
-    groupMeta: { fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3 },
+    groupMeta: {
+      fontSize: tokens.fontSizeBase200,
+      color: tokens.colorNeutralForeground3,
+    },
     rolesGrid: {
       flex: 1,
-      display: 'grid',
-      gap: tokens.spacingHorizontalS,
-      padding: `0 ${tokens.spacingHorizontalM} ${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
-      overflow: 'auto',
+      display: "grid",
+      gap: tokens.spacingHorizontalM,
+      paddingTop: tokens.spacingVerticalM,
+      overflow: "auto",
     },
     roleCard: {
-      border: `1px solid ${tokens.colorNeutralStroke2}`,
-      borderLeftWidth: '4px',
-      borderRadius: tokens.borderRadiusMedium,
-      backgroundColor: tokens.colorNeutralBackground1,
-      padding: tokens.spacingHorizontalS,
+      borderLeftWidth: "4px",
+      padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
     },
     roleHeader: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: tokens.spacingVerticalXS,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: tokens.spacingVerticalS,
     },
     assignmentsList: {
-      listStyleType: 'none',
+      listStyleType: "none",
       padding: 0,
       margin: 0,
-      maxHeight: '240px',
-      overflow: 'auto',
-      display: 'grid',
-      rowGap: tokens.spacingVerticalXS,
+      maxHeight: "240px",
+      overflow: "auto",
+      display: "grid",
+      rowGap: tokens.spacingVerticalS,
     },
     assignmentItem: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
       backgroundColor: tokens.colorNeutralBackground2,
-      borderRadius: tokens.borderRadiusSmall,
-      padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
+      borderRadius: tokens.borderRadiusMedium,
+      padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
     },
-    actionsRow: { display: 'flex', columnGap: tokens.spacingHorizontalS },
+    actionsRow: {
+      display: "flex",
+      columnGap: tokens.spacingHorizontalS,
+    },
   });
   const s = useStyles();
   const seg: Segment = activeRunSegment;
@@ -216,24 +246,35 @@ export default function DailyRunBoard({
       return assignedCount >= req;
     });
     const groupAccent = groupNeedsMet
-      ? (isDark ? tokens.colorPaletteGreenBackground2 : tokens.colorPaletteGreenBackground3)
-      : (isDark ? tokens.colorPaletteRedBackground2 : tokens.colorPaletteRedBackground3);
+      ? tokens.colorPaletteGreenBorderActive
+      : tokens.colorPaletteRedBorderActive;
     return (
-      <div
-        className={s.groupCard}
-        style={{ borderLeft: `4px solid ${groupAccent}`, ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1 }}
-      >
-        <div className={`${s.groupHeader} ${isDraggable ? "drag-handle" : ""}`}>
-          <span style={{ fontWeight: 600 }}>{group.name}</span>
-          <span className={s.groupMeta}>Theme: {group.theme || "-"}</span>
-          <span className={s.groupMeta}>Color: {group.custom_color || "-"}</span>
-        </div>
-        <div className={s.rolesGrid} style={{ gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))" }}>
+      <Card className={s.groupCard} style={{ borderColor: groupAccent }}>
+        <CardHeader
+          className={isDraggable ? "drag-handle" : ""}
+          header={
+            <Body1>
+              <b>{group.name}</b>
+            </Body1>
+          }
+          description={
+            <Caption1 className={s.groupMeta}>
+              {group.theme || "No Theme"}
+            </Caption1>
+          }
+        />
+        <div
+          className={s.rolesGrid}
+          style={{
+            gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))",
+            ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1,
+          }}
+        >
           {rolesForGroup.map((r: any) => (
             <RoleCard key={r.id} group={group} role={r} />
           ))}
         </div>
-      </div>
+      </Card>
     );
   }
 
@@ -255,12 +296,14 @@ export default function DailyRunBoard({
 
     const req = getRequiredFor(selectedDateObj, group.id, role.id, seg);
     const assignedCount = assigns.length;
-    const status: 'under' | 'exact' | 'over' = assignedCount < req ? 'under' : assignedCount === req ? 'exact' : 'over';
-    const accentColor = status === 'under'
-      ? (isDark ? tokens.colorPaletteRedBackground2 : tokens.colorPaletteRedBackground3)
-      : status === 'exact'
-      ? (isDark ? tokens.colorPaletteGreenBackground2 : tokens.colorPaletteGreenBackground3)
-      : (isDark ? tokens.colorPaletteYellowBackground2 : tokens.colorPaletteYellowBackground3);
+    const status: "under" | "exact" | "over" =
+      assignedCount < req ? "under" : assignedCount === req ? "exact" : "over";
+    const accentColor =
+      status === "under"
+        ? tokens.colorPaletteRedBorderActive
+        : status === "exact"
+        ? tokens.colorPaletteGreenBorderActive
+        : tokens.colorPaletteYellowBorderActive;
     const isOverstaffed = assignedCount > req;
 
     function handleMove(a: any, targets: any[]) {
@@ -272,15 +315,37 @@ export default function DailyRunBoard({
     const [addSel, setAddSel] = useState<string[]>([]);
 
     return (
-      <div className={s.roleCard} style={{ borderLeftColor: accentColor, ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1 }}>
+      <Card
+        className={s.roleCard}
+        style={{
+          borderLeftColor: accentColor,
+          ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1,
+        }}
+      >
         <div className={s.roleHeader}>
-          <div style={{ fontWeight: 600 }}>{role.name}</div>
-          <Badge appearance="tint" color={status === 'under' ? 'danger' : status === 'exact' ? 'success' : 'warning'}>
+          <Subtitle1>{role.name}</Subtitle1>
+          <Badge
+            appearance="tint"
+            color={
+              status === "under"
+                ? "danger"
+                : status === "exact"
+                ? "success"
+                : "warning"
+            }
+          >
             {assignedCount}/{req}
           </Badge>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: tokens.spacingVerticalXS }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: tokens.spacingVerticalS,
+          }}
+        >
           <Dropdown
             placeholder={canEdit ? "+ Add person…" : "Add person…"}
             disabled={!canEdit}
@@ -315,13 +380,15 @@ export default function DailyRunBoard({
         <ul className={s.assignmentsList}>
           {assigns.map((a: any) => (
             <li key={a.id} className={s.assignmentItem}>
-              <PersonName personId={a.person_id}>
-                {a.last_name}, {a.first_name}
-                {!trainedBefore.has(a.person_id) && " (Untrained)"}
-              </PersonName>
+              <Body1>
+                <PersonName personId={a.person_id}>
+                  {a.last_name}, {a.first_name}
+                  {!trainedBefore.has(a.person_id) && " (Untrained)"}
+                </PersonName>
+              </Body1>
               {canEdit && (
                 <div className={s.actionsRow}>
-                  {isOverstaffed && (
+                  {isOverstaffed &&
                     (() => {
                       const targets = deficitRoles.filter((d: any) => {
                         const opts = peopleOptionsForSegment(selectedDateObj, seg, d.role);
@@ -335,7 +402,7 @@ export default function DailyRunBoard({
                         </Button>
                       ) : null;
                     })()
-                  )}
+                  }
                   <Button size="small" appearance="secondary" onClick={() => deleteAssignment(a.id)}>
                     Remove
                   </Button>
@@ -344,7 +411,7 @@ export default function DailyRunBoard({
             </li>
           ))}
         </ul>
-      </div>
+      </Card>
     );
   }
 
@@ -373,8 +440,11 @@ export default function DailyRunBoard({
     <div className={s.root}>
       <div className={s.header}>
         <div className={s.headerLeft}>
-          <span className={s.label}>Date</span>
+          <Title3 as="label" htmlFor="run-date-picker">
+            Date
+          </Title3>
           <Input
+            id="run-date-picker"
             type="date"
             value={ymd(selectedDateObj)}
             onChange={(_, data) => {
@@ -403,7 +473,7 @@ export default function DailyRunBoard({
       </div>
 
       {isMobile ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: tokens.spacingHorizontalL }}>
           {groups.map((g: any) => (
             <GroupCard key={g.id} group={g} isDraggable={false} />
           ))}
@@ -413,7 +483,15 @@ export default function DailyRunBoard({
           className="layout"
           layout={layout}
           cols={12}
-          rowHeight={80}
+          rowHeight={30}
+          margin={[
+            parseInt(tokens.spacingHorizontalL),
+            parseInt(tokens.spacingHorizontalL),
+          ]}
+          containerPadding={[
+            parseInt(tokens.spacingHorizontalL),
+            parseInt(tokens.spacingHorizontalL),
+          ]}
           onLayoutChange={handleLayoutChange}
           draggableHandle=".drag-handle"
         >
