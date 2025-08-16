@@ -130,6 +130,7 @@ export default function ExportGroupEditor({ all, run, refresh }: ExportGroupEdit
           ) : (
             <Field label="Group" required>
               <Dropdown
+                key={`export-group-${available.map((g:any)=>`${g.id}:${g.name}`).join(',')}-${form.group_id}`}
                 placeholder="Select group…"
                 selectedOptions={form.group_id ? [String(form.group_id)] : []}
                 onOptionSelect={(_, data) => setForm({ ...form, group_id: Number(data.optionValue ?? data.optionText) })}

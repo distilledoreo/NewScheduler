@@ -139,6 +139,7 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
           </Field>
           <Field label="Group">
             <Dropdown
+              key={`role-group-${editing?.id ?? 'new'}-${groups.map((g:any)=>`${g.id}:${g.name}`).join(',')}-${editing.group_id}`}
               selectedOptions={[String(editing.group_id)]}
               onOptionSelect={(_, data) => {
                 const v = Number(data.optionValue ?? data.optionText);

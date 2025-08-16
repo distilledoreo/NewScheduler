@@ -349,10 +349,11 @@ export default function CrewHistoryView({
     seg: Segment;
     def: any;
   }) {
-    const options = roleListForSegment(seg);
+  const options = roleListForSegment(seg);
+  const optionsKey = options.map((r: any) => `${r.id}:${r.name}`).join(',');
     return (
       <Dropdown
-        key={`ch-${personId}-${seg}-${def?.role_id ?? ''}-${options.length}`}
+    key={`ch-${personId}-${seg}-${def?.role_id ?? ''}-${optionsKey}`}
         placeholder="--"
         selectedOptions={def?.role_id != null ? [String(def.role_id)] : []}
         onOptionSelect={(_, data) => {

@@ -154,10 +154,12 @@ export default function MonthlyDefaults({
                       <TableCell>{seg}</TableCell>
                       {weekdays.map(w => {
                         const ov = monthlyOverrides.find(o => o.person_id === personId && o.weekday === w && o.segment === seg);
+                        const options = roleListForSegment(seg);
+                        const optionsKey = options.map((r: any) => `${r.id}:${r.name}`).join(',');
                         return (
                           <TableCell key={w}>
                             <Dropdown
-                              key={`wk-${personId}-${seg}-${w}-${ov?.role_id ?? ''}-${roleListForSegment(seg).length}`}
+                              key={`wk-${personId}-${seg}-${w}-${ov?.role_id ?? ''}-${optionsKey}`}
                               placeholder="(default)"
                               selectedOptions={ov?.role_id != null ? [String(ov.role_id)] : []}
                               onOptionSelect={(_, data) => {
@@ -167,7 +169,7 @@ export default function MonthlyDefaults({
                               }}
                             >
                               <Option value="">(default)</Option>
-                              {roleListForSegment(seg).map((r: any) => (
+                              {options.map((r: any) => (
                                 <Option key={r.id} value={String(r.id)}>{r.name}</Option>
                               ))}
                             </Dropdown>
@@ -251,10 +253,12 @@ export default function MonthlyDefaults({
                   const def = monthlyDefaults.find(
                     (d) => d.person_id === p.id && d.segment === seg,
                   );
+                  const options = roleListForSegment(seg);
+                  const optionsKey = options.map((r: any) => `${r.id}:${r.name}`).join(',');
                   return (
                     <TableCell key={seg}>
                       <Dropdown
-                        key={`md-${p.id}-${seg}-${def?.role_id ?? ''}-${roleListForSegment(seg).length}`}
+                        key={`md-${p.id}-${seg}-${def?.role_id ?? ''}-${optionsKey}`}
                         placeholder="--"
                         selectedOptions={def?.role_id != null ? [String(def.role_id)] : []}
                         disabled={!monthlyEditing}
@@ -265,7 +269,7 @@ export default function MonthlyDefaults({
                         }}
                       >
                         <Option value="" text="--">--</Option>
-                        {roleListForSegment(seg).map((r: any) => (
+                        {options.map((r: any) => (
                           <Option key={r.id} value={String(r.id)} text={r.name}>{r.name}</Option>
                         ))}
                       </Dropdown>
