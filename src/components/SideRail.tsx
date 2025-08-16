@@ -39,12 +39,6 @@ const useStyles = makeStyles({
     overflow: "hidden",
     boxSizing: "border-box",
   },
-  appTitle: {
-    fontWeight: tokens.fontWeightSemibold,
-    textAlign: "center",
-    fontSize: tokens.fontSizeBase300,
-    paddingBlockEnd: tokens.spacingVerticalS,
-  },
   section: {
     display: "flex",
     flexDirection: "column",
@@ -52,7 +46,7 @@ const useStyles = makeStyles({
     gap: tokens.spacingVerticalXS,
   },
   grow: { flex: 1, minHeight: 0, overflow: "hidden" },
-  navScroll: { overflowY: "auto", overflowX: "hidden", minHeight: 0 },
+  navScroll: { },
   item: {
     display: "flex",
     flexDirection: "column",
@@ -152,13 +146,7 @@ export default function SideRail({
 
   return (
     <aside className={s.root} aria-label="App navigation" ref={railRef}>
-      <div className={s.section} data-rail-top>
-        <Text align="center" className={s.appTitle}>Sched</Text>
-      </div>
-
-      <Divider />
-
-      <div className={`${s.section} ${s.grow} ${s.navScroll}`} ref={navRef}>
+      <div className={`${s.section} ${s.grow}`} ref={navRef}>
         {visible.map(it => (
           <RailItem key={it.key} icon={it.icon} label={it.label} active={activeTab===it.key} onClick={()=>setActiveTab(it.key)} />
         ))}
@@ -181,11 +169,8 @@ export default function SideRail({
         )}
       </div>
 
-      <Divider />
-
   <div className={s.section} data-rail-bottom>
         <Switch checked={themeName === "dark"} onChange={(_, d)=> setThemeName(d.checked ? "dark" : "light")} label={themeName === 'dark' ? 'Dark' : 'Light'} />
-        <Text size={200} title={status}>{status}</Text>
       </div>
     </aside>
   );
