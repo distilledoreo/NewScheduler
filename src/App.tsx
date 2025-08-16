@@ -13,7 +13,7 @@ import { exportMonthOneSheetXlsx } from "./excel/export-one-sheet";
 import PersonName from "./components/PersonName";
 import PersonProfileModal from "./components/PersonProfileModal";
 import { ProfileContext } from "./components/ProfileContext";
-import { Button, Checkbox, Dropdown, Input, Option } from "@fluentui/react-components";
+import { Button, Checkbox, Dropdown, Input, Option, tokens } from "@fluentui/react-components";
 import MonthlyDefaults from "./components/MonthlyDefaults";
 import CrewHistoryView from "./components/CrewHistoryView";
 
@@ -1129,7 +1129,7 @@ function PeopleEditor(){
 
   return (
     <ProfileContext.Provider value={{ showProfile: (id: number) => setProfilePersonId(id) }}>
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen" style={{ backgroundColor: tokens.colorNeutralBackground1 }}>
       <Toolbar
         ready={ready}
         sqlDb={sqlDb}

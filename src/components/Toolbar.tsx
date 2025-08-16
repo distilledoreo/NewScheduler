@@ -1,5 +1,6 @@
 import React from "react";
 import { Button, Tab, TabList, Tooltip, Spinner, Text, makeStyles, tokens } from "@fluentui/react-components";
+import { useTheme } from "./ThemeProvider";
 
 type TabKey = "RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "ADMIN";
 
@@ -59,6 +60,7 @@ export default function Toolbar({
   setActiveTab,
 }: ToolbarProps) {
   const s = useStyles();
+  const { themeName, toggleTheme } = useTheme();
 
   return (
     <div className={s.root}>
@@ -88,6 +90,9 @@ export default function Toolbar({
         </TabList>
       </div>
 
+      <Button onClick={toggleTheme} appearance="subtle">
+        {themeName === "light" ? "Dark" : "Light"} theme
+      </Button>
       <Text size={200} className={s.status}>{status}</Text>
     </div>
   );
