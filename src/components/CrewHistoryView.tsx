@@ -318,7 +318,8 @@ export default function CrewHistoryView({
       (d: any) => d.month === month && d.person_id === personId && d.segment === seg,
     );
     const role = roles.find((r: any) => r.id === def?.role_id);
-    const color = role ? role.group_color : undefined;
+    const group = role ? groups.find((g: any) => g.id === role.group_id) : null;
+    const color = group?.custom_color || undefined;
     if (month === nextMonth || editPast) {
       return {
         content: (
