@@ -166,15 +166,15 @@ export default function DailyRunBoard({
       maxHeight: "240px",
       overflow: "auto",
       display: "grid",
-      rowGap: tokens.spacingVerticalS,
+      rowGap: tokens.spacingVerticalXS,
     },
     assignmentItem: {
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
       backgroundColor: tokens.colorNeutralBackground2,
-      borderRadius: tokens.borderRadiusMedium,
-      padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+      borderRadius: tokens.borderRadiusSmall,
+      padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
     },
     actionsRow: {
       display: "flex",
@@ -231,21 +231,34 @@ export default function DailyRunBoard({
     } catch {}
   }
 
-  const assignedCountRows = all(
-    `SELECT role_id, COUNT(*) as c FROM assignment WHERE date=? AND segment=? GROUP BY role_id`,
-    [ymd(selectedDateObj), seg]
+  const assignedCountMap = useMemo(() => {
+    const assignedCountRows = all(
+      `SELECT role_id, COUNT(*) as c FROM assignment WHERE date=? AND segment=? GROUP BY role_id`,
+      [ymd(selectedDateObj), seg]
+    );
+    return new Map<number, number>(
+      assignedCountRows.map((r: any) => [r.role_id, r.c])
+    );
+  }, [all, ymd, selectedDateObj, seg]);
+
+  const groupMap = useMemo(
+    () => new Map(groups.map((g: any) => [g.id, g])),
+    [groups]
   );
-  const assignedCountMap = new Map<number, number>(
-    assignedCountRows.map((r: any) => [r.role_id, r.c])
+
+  const deficitRoles = useMemo(
+    () =>
+      roles
+        .map((r: any) => {
+          const assigned = assignedCountMap.get(r.id) || 0;
+          const req = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
+          return assigned < req
+            ? { role: r, group: groupMap.get(r.group_id) }
+            : null;
+        })
+        .filter(Boolean) as Array<{ role: any; group: any }>,
+    [roles, assignedCountMap, getRequiredFor, selectedDateObj, seg, groupMap]
   );
-  const groupMap = new Map(groups.map((g: any) => [g.id, g]));
-  const deficitRoles = roles
-    .map((r: any) => {
-      const assigned = assignedCountMap.get(r.id) || 0;
-      const req = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
-      return assigned < req ? { role: r, group: groupMap.get(r.group_id) } : null;
-    })
-    .filter(Boolean) as Array<{ role: any; group: any }>;
 
   function GroupCard({ group, isDraggable }: { group: any; isDraggable: boolean }) {
     const rolesForGroup = roles.filter((r) => r.group_id === group.id);
@@ -492,7 +505,7 @@ export default function DailyRunBoard({
           className="layout"
           layout={layout}
           cols={12}
-          rowHeight={120}
+          rowHeight={80}
           onLayoutChange={handleLayoutChange}
           draggableHandle=".drag-handle"
         >
