@@ -65,6 +65,62 @@ export const migrate6AddExportGroup: Migration = (db) => {
   }
 };
 
+export const migrate7RemoveSegmentChecks: Migration = (db) => {
+  const tableDefs: Record<string, string> = {
+    assignment:
+      `id INTEGER PRIMARY KEY AUTOINCREMENT,
+       date TEXT NOT NULL,
+       person_id INTEGER NOT NULL,
+       role_id INTEGER NOT NULL,
+       segment TEXT NOT NULL,
+       FOREIGN KEY (person_id) REFERENCES person(id),
+       FOREIGN KEY (role_id) REFERENCES role(id)`,
+    monthly_default:
+      `id INTEGER PRIMARY KEY AUTOINCREMENT,
+       month TEXT NOT NULL,
+       person_id INTEGER NOT NULL,
+       segment TEXT NOT NULL,
+       role_id INTEGER NOT NULL,
+       UNIQUE(month, person_id, segment),
+       FOREIGN KEY (person_id) REFERENCES person(id),
+       FOREIGN KEY (role_id) REFERENCES role(id)`,
+    monthly_default_day:
+      `id INTEGER PRIMARY KEY AUTOINCREMENT,
+       month TEXT NOT NULL,
+       person_id INTEGER NOT NULL,
+       weekday INTEGER NOT NULL,
+       segment TEXT NOT NULL,
+       role_id INTEGER NOT NULL,
+       UNIQUE(month, person_id, weekday, segment),
+       FOREIGN KEY (person_id) REFERENCES person(id),
+       FOREIGN KEY (role_id) REFERENCES role(id)`,
+    needs_baseline:
+      `id INTEGER PRIMARY KEY AUTOINCREMENT,
+       group_id INTEGER NOT NULL,
+       role_id INTEGER NOT NULL,
+       segment TEXT NOT NULL,
+       required INTEGER NOT NULL DEFAULT 0,
+       UNIQUE(group_id, role_id, segment)`,
+    needs_override:
+      `id INTEGER PRIMARY KEY AUTOINCREMENT,
+       date TEXT NOT NULL,
+       group_id INTEGER NOT NULL,
+       role_id INTEGER NOT NULL,
+       segment TEXT NOT NULL,
+       required INTEGER NOT NULL,
+       UNIQUE(date, group_id, role_id, segment)`
+  };
+
+  db.run('PRAGMA foreign_keys=OFF;');
+  for (const [table, cols] of Object.entries(tableDefs)) {
+    db.run(`ALTER TABLE ${table} RENAME TO ${table}_old;`);
+    db.run(`CREATE TABLE ${table} (${cols});`);
+    db.run(`INSERT INTO ${table} SELECT * FROM ${table}_old;`);
+    db.run(`DROP TABLE ${table}_old;`);
+  }
+  db.run('PRAGMA foreign_keys=ON;');
+};
+
 const migrations: Record<number, Migration> = {
   1: (db) => {
     db.run(`PRAGMA journal_mode=WAL;`);
@@ -133,7 +189,7 @@ const migrations: Record<number, Migration> = {
       date TEXT NOT NULL, -- YYYY-MM-DD
       person_id INTEGER NOT NULL,
       role_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      segment TEXT NOT NULL,
       FOREIGN KEY (person_id) REFERENCES person(id),
       FOREIGN KEY (role_id) REFERENCES role(id)
     );`);
@@ -142,7 +198,7 @@ const migrations: Record<number, Migration> = {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       month TEXT NOT NULL, -- YYYY-MM
       person_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      segment TEXT NOT NULL,
       role_id INTEGER NOT NULL,
       UNIQUE(month, person_id, segment),
       FOREIGN KEY (person_id) REFERENCES person(id),
@@ -153,7 +209,7 @@ const migrations: Record<number, Migration> = {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       group_id INTEGER NOT NULL,
       role_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      segment TEXT NOT NULL,
       required INTEGER NOT NULL DEFAULT 0,
       UNIQUE(group_id, role_id, segment)
     );`);
@@ -163,7 +219,7 @@ const migrations: Record<number, Migration> = {
       date TEXT NOT NULL,
       group_id INTEGER NOT NULL,
       role_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      segment TEXT NOT NULL,
       required INTEGER NOT NULL,
       UNIQUE(date, group_id, role_id, segment)
     );`);
@@ -185,7 +241,7 @@ const migrations: Record<number, Migration> = {
       month TEXT NOT NULL,
       person_id INTEGER NOT NULL,
       weekday INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      segment TEXT NOT NULL,
       role_id INTEGER NOT NULL,
       UNIQUE(month, person_id, weekday, segment),
       FOREIGN KEY (person_id) REFERENCES person(id),
@@ -196,6 +252,7 @@ const migrations: Record<number, Migration> = {
   4: migrate4AddSegments,
   5: migrate5AddGroupTheme,
   6: migrate6AddExportGroup,
+  7: migrate7RemoveSegmentChecks,
 };
 
 export function addMigration(version: number, fn: Migration) {

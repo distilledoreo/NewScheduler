@@ -138,10 +138,9 @@ export default function App() {
 
   useEffect(() => {
     if (segments.length && !segments.find(s => s.name === activeRunSegment)) {
-      const first = segments.find(s => s.name !== "Early") || segments[0];
-      if (first) setActiveRunSegment(first.name as Segment);
+      setActiveRunSegment(segments[0].name as Segment);
     }
-  }, [segments]);
+  }, [segments, activeRunSegment]);
 
   useEffect(() => {
     if (sqlDb) loadMonthlyDefaults(selectedMonth);
@@ -195,8 +194,8 @@ export default function App() {
     if (!SQL) return;
     const db = new SQL.Database();
     applyMigrations(db);
-    const segRows = listSegments(db);
-    const segmentCheck = segRows.map(s => `'${s.name}'`).join(',');
+    // Ensure default segments exist
+    listSegments(db);
     // Schema
     db.run(`PRAGMA journal_mode=WAL;`);
     db.run(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);`);
@@ -246,7 +245,7 @@ export default function App() {
       date TEXT NOT NULL, -- YYYY-MM-DD
       person_id INTEGER NOT NULL,
       role_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
+      segment TEXT NOT NULL,
       FOREIGN KEY (person_id) REFERENCES person(id),
       FOREIGN KEY (role_id) REFERENCES role(id)
     );`);
@@ -255,7 +254,7 @@ export default function App() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       month TEXT NOT NULL, -- YYYY-MM
       person_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
+      segment TEXT NOT NULL,
       role_id INTEGER NOT NULL,
       UNIQUE(month, person_id, segment),
       FOREIGN KEY (person_id) REFERENCES person(id),
@@ -267,7 +266,7 @@ export default function App() {
       month TEXT NOT NULL,
       person_id INTEGER NOT NULL,
       weekday INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
+      segment TEXT NOT NULL,
       role_id INTEGER NOT NULL,
       UNIQUE(month, person_id, weekday, segment),
       FOREIGN KEY (person_id) REFERENCES person(id),
@@ -278,7 +277,7 @@ export default function App() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       group_id INTEGER NOT NULL,
       role_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
+      segment TEXT NOT NULL,
       required INTEGER NOT NULL DEFAULT 0,
       UNIQUE(group_id, role_id, segment)
     );`);
@@ -288,7 +287,7 @@ export default function App() {
       date TEXT NOT NULL,
       group_id INTEGER NOT NULL,
       role_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
+      segment TEXT NOT NULL,
       required INTEGER NOT NULL,
       UNIQUE(date, group_id, role_id, segment)
     );`);
@@ -322,13 +321,12 @@ export default function App() {
       const buf = await file.arrayBuffer();
       const db = new SQL.Database(new Uint8Array(buf));
       applyMigrations(db);
-      const segRows = listSegments(db);
-      const segmentCheck = segRows.map(s => `'${s.name}'`).join(',');
+      listSegments(db);
       db.run(`CREATE TABLE IF NOT EXISTS monthly_default (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         month TEXT NOT NULL,
         person_id INTEGER NOT NULL,
-        segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
+        segment TEXT NOT NULL,
         role_id INTEGER NOT NULL,
         UNIQUE(month, person_id, segment),
         FOREIGN KEY (person_id) REFERENCES person(id),
@@ -340,7 +338,7 @@ export default function App() {
         month TEXT NOT NULL,
         person_id INTEGER NOT NULL,
         weekday INTEGER NOT NULL,
-        segment TEXT CHECK(segment IN (${segmentCheck})) NOT NULL,
+        segment TEXT NOT NULL,
         role_id INTEGER NOT NULL,
         UNIQUE(month, person_id, weekday, segment),
         FOREIGN KEY (person_id) REFERENCES person(id),
@@ -597,7 +595,7 @@ export default function App() {
     setMonthlyOverrides(ov);
   }
 
-  function setMonthlyDefault(personId: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
+  function setMonthlyDefault(personId: number, segment: Segment, roleId: number | null) {
     if (!sqlDb) return;
     if (roleId) {
       run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
@@ -610,7 +608,7 @@ export default function App() {
     loadMonthlyDefaults(selectedMonth);
   }
 
-  function setWeeklyOverride(personId: number, weekday: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
+  function setWeeklyOverride(personId: number, weekday: number, segment: Segment, roleId: number | null) {
     if (!sqlDb) return;
     if (roleId) {
       run(`INSERT INTO monthly_default_day (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)
@@ -623,7 +621,7 @@ export default function App() {
     loadMonthlyDefaults(selectedMonth);
   }
 
-  function setMonthlyDefaultForMonth(month: string, personId: number, segment: Exclude<Segment,'Early'>, roleId: number | null) {
+  function setMonthlyDefaultForMonth(month: string, personId: number, segment: Segment, roleId: number | null) {
     if (!sqlDb) return;
     if (roleId) {
       run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
@@ -669,6 +667,7 @@ export default function App() {
     for (const ov of monthlyOverrides) {
       overrideMap.set(`${ov.person_id}|${ov.weekday}|${ov.segment}`, ov.role_id);
     }
+    const segNames = segments.map(s => s.name as Segment);
     for (const person of people) {
       for (let day=1; day<=days; day++) {
         const d = new Date(y, m-1, day);
@@ -677,15 +676,11 @@ export default function App() {
         const wdNum = d.getDay(); // 1=Mon..5=Fri
         const availField = wdName === 'Monday'? 'avail_mon' : wdName === 'Tuesday'? 'avail_tue' : wdName === 'Wednesday'? 'avail_wed' : wdName === 'Thursday'? 'avail_thu' : 'avail_fri';
         const avail = person[availField];
-        for (const seg of ['AM','Lunch','PM'] as const) {
+        for (const seg of segNames) {
           let roleId = overrideMap.get(`${person.id}|${wdNum}|${seg}`);
           if (roleId === undefined) roleId = defaultMap.get(`${person.id}|${seg}`);
           if (!roleId) continue;
-          let ok = false;
-          if (seg === 'AM') ok = avail === 'AM' || avail === 'B';
-          else if (seg === 'PM') ok = avail === 'PM' || avail === 'B';
-          else if (seg === 'Lunch') ok = avail === 'AM' || avail === 'PM' || avail === 'B';
-          if (!ok) continue;
+          if (!availabilityAllows(avail, seg)) continue;
           if (isSegmentBlockedByTimeOff(person.id, d, seg)) continue;
           run(`INSERT OR REPLACE INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`,
               [ymd(d), person.id, roleId, seg]);
@@ -699,7 +694,9 @@ export default function App() {
   async function exportMonthlyDefaults(month: string) {
     if (!sqlDb) return;
     const headers = [
-      'Last Name','First Name','AM Role','Lunch Role','PM Role','B/S','Commute','Active',
+      'Last Name','First Name',
+      ...segments.map(s=>`${s.name} Role`),
+      'B/S','Commute','Active',
       'Mon','Tue','Wed','Thu','Fri'
     ];
 
@@ -723,8 +720,8 @@ export default function App() {
 
     const headerHtml = headers.map(h => `<th>${escapeHtml(h)}</th>`).join('');
     const bodyHtml = people.map((p:any) => {
-      const roleTds = ['AM','Lunch','PM'].map(seg => {
-        const def = monthlyDefaults.find(d => d.person_id===p.id && d.segment===seg);
+      const roleTds = segments.map(s => {
+        const def = monthlyDefaults.find(d => d.person_id===p.id && d.segment===s.name);
         const role = roles.find(r => r.id===def?.role_id);
         const group = groups.find(g => g.id === role?.group_id);
         const bg = group?.custom_color || '';
@@ -931,7 +928,19 @@ async function exportShifts() {
   const canSave = !!sqlDb && (!lockedBy || lockedBy === lockEmail);
   const selectedDateObj = useMemo(()=>parseMDY(selectedDate),[selectedDate]);
 
-  function peopleOptionsForSegment(date: Date, segment: Exclude<Segment, "Early">, role: any) {
+  function availabilityAllows(avail: string, segment: Segment) {
+    if (avail === 'B') return true;
+    const seg = segments.find(s=>s.name===segment);
+    if (!seg) return true;
+    const start = parseInt(seg.start_time.slice(0,2))*60 + parseInt(seg.start_time.slice(3));
+    const end = parseInt(seg.end_time.slice(0,2))*60 + parseInt(seg.end_time.slice(3));
+    const spansNoon = start < 720 && end > 720;
+    if (segment === 'Lunch' || spansNoon) return avail === 'AM' || avail === 'PM' || avail === 'B';
+    if (end <= 720) return avail === 'AM';
+    return avail === 'PM';
+  }
+
+  function peopleOptionsForSegment(date: Date, segment: Segment, role: any) {
     // Determine weekday availability field
     const wd = weekdayName(date);
     const availField =
@@ -959,14 +968,8 @@ async function exportShifts() {
     return rows
       .filter((p: any) => {
         const avail = p[availField] as "U" | "AM" | "PM" | "B";
-        const availOk =
-          (segment === "AM" && (avail === "AM" || avail === "B")) ||
-          (segment === "PM" && (avail === "PM" || avail === "B")) ||
-          (segment === "Lunch" && (avail === "AM" || avail === "PM" || avail === "B"));
-        if (!availOk) return false;
-
-        if (segment !== "Early" && isSegmentBlockedByTimeOff(p.id, date, segment)) return false;
-
+        if (!availabilityAllows(avail, segment)) return false;
+        if (isSegmentBlockedByTimeOff(p.id, date, segment)) return false;
         return true;
       })
       .map((p: any) => {
@@ -1023,11 +1026,7 @@ async function exportShifts() {
     );
   }
     function MonthlyView(){
-    const [sortKey, setSortKey] = useState<
-      'name' | 'email' | 'brother_sister' | 'commuter' | 'active' |
-      'avail_mon' | 'avail_tue' | 'avail_wed' | 'avail_thu' | 'avail_fri' |
-      'AM' | 'Lunch' | 'PM'
-    >('name');
+    const [sortKey, setSortKey] = useState<string>('name');
     const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc');
     const [filterText, setFilterText] = useState('');
     const [weekdayPerson, setWeekdayPerson] = useState<number|null>(null);
@@ -1040,8 +1039,8 @@ async function exportShifts() {
         .filter((p:any)=>!activeOnly || p.active)
         .filter((p:any)=>!commuterOnly || p.commuter)
         .filter((p:any)=>{
-          const roleNames = ['AM','Lunch','PM'].map(seg=>{
-            const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
+          const roleNames = segments.map(s=>{
+            const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===s.name);
             const role = roles.find(r=>r.id===def?.role_id);
             return role?.name || '';
           });
@@ -1085,15 +1084,14 @@ async function exportShifts() {
           case 'avail_wed': av = a.avail_wed; bv = b.avail_wed; break;
           case 'avail_thu': av = a.avail_thu; bv = b.avail_thu; break;
           case 'avail_fri': av = a.avail_fri; bv = b.avail_fri; break;
-          case 'AM':
-          case 'Lunch':
-          case 'PM':
-            const defA = monthlyDefaults.find(d=>d.person_id===a.id && d.segment===field);
-            const defB = monthlyDefaults.find(d=>d.person_id===b.id && d.segment===field);
-            const roleA = roles.find(r=>r.id===defA?.role_id)?.name || '';
-            const roleB = roles.find(r=>r.id===defB?.role_id)?.name || '';
-            av = roleA; bv = roleB; break;
           default:
+            if (segments.some(s=>s.name===field)) {
+              const defA = monthlyDefaults.find(d=>d.person_id===a.id && d.segment===field);
+              const defB = monthlyDefaults.find(d=>d.person_id===b.id && d.segment===field);
+              const roleA = roles.find(r=>r.id===defA?.role_id)?.name || '';
+              const roleB = roles.find(r=>r.id===defB?.role_id)?.name || '';
+              av = roleA; bv = roleB; break;
+            }
             av = ''; bv = ''; break;
         }
         if (av < bv) return sortDir === 'asc' ? -1 : 1;
@@ -1107,7 +1105,7 @@ async function exportShifts() {
       const person = people.find(p=>p.id===personId);
       if (!person) return null;
       const weekdays = [1,2,3,4,5];
-      const segments = ['AM','Lunch','PM'] as const;
+      const segList = segments.map(s => s.name as Segment);
       return (
         <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center" onClick={onClose}>
           <div className="bg-white rounded shadow-lg p-4" onClick={e=>e.stopPropagation()}>
@@ -1125,7 +1123,7 @@ async function exportShifts() {
                 </tr>
               </thead>
               <tbody>
-                {segments.map(seg=> (
+                {segList.map(seg=> (
                   <tr key={seg}>
                     <td className="p-1 font-medium">{seg}</td>
                     {weekdays.map(w => {
@@ -1183,9 +1181,9 @@ async function exportShifts() {
             <Option value="avail_wed">Wed</Option>
             <Option value="avail_thu">Thu</Option>
             <Option value="avail_fri">Fri</Option>
-            <Option value="AM">AM Role</Option>
-            <Option value="Lunch">Lunch Role</Option>
-            <Option value="PM">PM Role</Option>
+            {segments.map(s => (
+              <Option key={s.name} value={s.name}>{s.name} Role</Option>
+            ))}
           </Dropdown>
           <Button onClick={()=>setSortDir(sortDir==='asc'?'desc':'asc')}>{sortDir==='asc'?'Asc':'Desc'}</Button>
           <Checkbox label="Active" checked={activeOnly} onChange={(_, data)=>setActiveOnly(!!data.checked)} />
@@ -1196,8 +1194,8 @@ async function exportShifts() {
             <thead className="bg-slate-100">
               <tr>
                 <th className="p-2 text-left">Name</th>
-                {(['AM','Lunch','PM'] as const).map(seg=> (
-                  <th key={seg} className="p-2 text-left">{seg}</th>
+                {segments.map(s=> (
+                  <th key={s.name} className="p-2 text-left">{s.name}</th>
                 ))}
               </tr>
             </thead>
@@ -1212,7 +1210,8 @@ async function exportShifts() {
                       </button>
                     )}
                   </td>
-                  {(['AM','Lunch','PM'] as const).map(seg => {
+                  {segments.map(s => {
+                    const seg = s.name as Segment;
                     const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
                     return (
                       <td key={seg} className="p-2">
@@ -1241,16 +1240,12 @@ async function exportShifts() {
   function CrewHistoryView(){
     const [defs, setDefs] = useState<any[]>([]);
     const [filter, setFilter] = useState("");
-    const [showSeg, setShowSeg] = useState({ AM: true, Lunch: true, PM: true });
+    const [showSeg, setShowSeg] = useState<Record<Segment, boolean>>({});
     const [activeOnly, setActiveOnly] = useState(false);
     const [commuterOnly, setCommuterOnly] = useState(false);
     const [bsFilter, setBsFilter] = useState("");
     const [groupFilter, setGroupFilter] = useState<string[]>([]);
-    const [sortField, setSortField] = useState<
-      'last'|'first'|'brother_sister'|'commuter'|'active'|
-      'avail_mon'|'avail_tue'|'avail_wed'|'avail_thu'|'avail_fri'|
-      'AM'|'Lunch'|'PM'
-    >('last');
+    const [sortField, setSortField] = useState<string>('last');
     const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc');
     const [startMonth, setStartMonth] = useState<string>("");
     const [endMonth, setEndMonth] = useState<string>("");
@@ -1262,6 +1257,16 @@ async function exportShifts() {
         setDefs(all(`SELECT * FROM monthly_default`));
       }
     }, [sqlDb, monthlyDefaults]);
+
+    useEffect(() => {
+      setShowSeg(prev => {
+        const next: Record<string, boolean> = {};
+        segments.forEach(s => {
+          next[s.name] = prev[s.name] ?? true;
+        });
+        return next;
+      });
+    }, [segments]);
 
     const nextMonth = useMemo(() => {
       const now = new Date();
@@ -1314,7 +1319,7 @@ async function exportShifts() {
         .filter((p:any) => {
           if (groupFilter.length === 0) return true;
           return monthsToCheck.some(m => (
-            ['AM','Lunch','PM'] as const).some(seg => {
+            segments.map(s=>s.name as Segment).some(seg => {
               const def = defs.find(d=>d.month===m && d.person_id===p.id && d.segment===seg);
               const role = roles.find(r=>r.id===def?.role_id);
               return role && groupFilter.includes(role.group_name);
@@ -1323,7 +1328,7 @@ async function exportShifts() {
         })
         .filter((p:any) => {
           const roleNames = monthsToCheck.flatMap(m => (
-            ['AM','Lunch','PM'] as const).map(seg => {
+            segments.map(s=>s.name as Segment).map(seg => {
               const def = defs.find(d=>d.month===m && d.person_id===p.id && d.segment===seg);
               const role = roles.find(r=>r.id===def?.role_id);
               return role?.name || '';
@@ -1362,16 +1367,15 @@ async function exportShifts() {
             case 'avail_wed': av = a.avail_wed; bv = b.avail_wed; break;
             case 'avail_thu': av = a.avail_thu; bv = b.avail_thu; break;
             case 'avail_fri': av = a.avail_fri; bv = b.avail_fri; break;
-            case 'AM':
-            case 'Lunch':
-            case 'PM':
-              const month = filterMonth || months[0];
-              const defA = defs.find(d=>d.month===month && d.person_id===a.id && d.segment===sortField);
-              const defB = defs.find(d=>d.month===month && d.person_id===b.id && d.segment===sortField);
-              const roleA = roles.find(r=>r.id===defA?.role_id)?.name || '';
-              const roleB = roles.find(r=>r.id===defB?.role_id)?.name || '';
-              av = roleA; bv = roleB; break;
             default:
+              if (segments.some(s=>s.name===sortField)) {
+                const month = filterMonth || months[0];
+                const defA = defs.find(d=>d.month===month && d.person_id===a.id && d.segment===sortField);
+                const defB = defs.find(d=>d.month===month && d.person_id===b.id && d.segment===sortField);
+                const roleA = roles.find(r=>r.id===defA?.role_id)?.name || '';
+                const roleB = roles.find(r=>r.id===defB?.role_id)?.name || '';
+                av = roleA; bv = roleB; break;
+              }
               av = ''; bv = ''; break;
           }
           if(av < bv) return sortDir==='asc' ? -1 : 1;
@@ -1380,12 +1384,9 @@ async function exportShifts() {
         });
     }, [people, defs, roles, months, filter, activeOnly, commuterOnly, bsFilter, groupFilter, sortField, sortDir, filterMonth]);
 
-    const segs = ([] as Exclude<Segment,'Early'>[]);
-    if (showSeg.AM) segs.push('AM');
-    if (showSeg.Lunch) segs.push('Lunch');
-    if (showSeg.PM) segs.push('PM');
+    const segs = segments.map(s=>s.name as Segment).filter(seg => showSeg[seg]);
 
-    function RoleSelect({ month, personId, seg, def }: { month: string; personId: number; seg: Exclude<Segment,'Early'>; def: any }){
+    function RoleSelect({ month, personId, seg, def }: { month: string; personId: number; seg: Segment; def: any }){
       const ref = useRef<HTMLSelectElement>(null);
       const options = roleListForSegment(seg);
 
@@ -1428,7 +1429,7 @@ async function exportShifts() {
       );
     }
 
-    function cellData(month:string, personId:number, seg:Exclude<Segment,'Early'>){
+    function cellData(month:string, personId:number, seg:Segment){
       const def = defs.find((d:any)=>d.month===month && d.person_id===personId && d.segment===seg);
       const role = roles.find((r:any)=>r.id===def?.role_id);
       const color = role ? role.group_color : undefined;
@@ -1453,9 +1454,9 @@ async function exportShifts() {
             <Option value="avail_wed">Wed</Option>
             <Option value="avail_thu">Thu</Option>
             <Option value="avail_fri">Fri</Option>
-            <Option value="AM">AM Role</Option>
-            <Option value="Lunch">Lunch Role</Option>
-            <Option value="PM">PM Role</Option>
+            {segments.map(s => (
+              <Option key={s.name} value={s.name}>{s.name} Role</Option>
+            ))}
           </Dropdown>
           <Button onClick={()=>setSortDir(sortDir==='asc'?'desc':'asc')}>{sortDir==='asc'?'Asc':'Desc'}</Button>
           <Dropdown selectedOptions={[bsFilter]} onOptionSelect={(_, data)=>setBsFilter(data.optionValue as string)}>
@@ -1483,9 +1484,9 @@ async function exportShifts() {
           </Dropdown>
           <Checkbox label="Active" checked={activeOnly} onChange={(_, data)=>setActiveOnly(!!data.checked)} />
           <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data)=>setCommuterOnly(!!data.checked)} />
-          <Checkbox label="AM" checked={showSeg.AM} onChange={(_, data)=>setShowSeg({...showSeg, AM:!!data.checked})} />
-          <Checkbox label="Lunch" checked={showSeg.Lunch} onChange={(_, data)=>setShowSeg({...showSeg, Lunch:!!data.checked})} />
-          <Checkbox label="PM" checked={showSeg.PM} onChange={(_, data)=>setShowSeg({...showSeg, PM:!!data.checked})} />
+          {segments.map(s => (
+            <Checkbox key={s.name} label={s.name} checked={showSeg[s.name as Segment]} onChange={(_, data)=>setShowSeg({...showSeg, [s.name]:!!data.checked})} />
+          ))}
           <Checkbox label="Edit past months" checked={editPast} onChange={(_, data)=>setEditPast(!!data.checked)} />
           <div className="flex items-center gap-1">
             <label className="text-sm">From</label>
@@ -1557,19 +1558,16 @@ async function exportShifts() {
               {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
                 <div key={r.id} className="mb-4 border rounded p-3">
                   <div className="font-medium mb-3">{r.name}</div>
-                  <div className="space-y-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">AM Required</div>
-                      <RequiredCell date={null} group={g} role={r} segment={'AM'} />
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">Lunch Required</div>
-                      <RequiredCell date={null} group={g} role={r} segment={'Lunch'} />
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">PM Required</div>
-                      <RequiredCell date={null} group={g} role={r} segment={'PM'} />
-                    </div>
+                  <div
+                    className="space-y-3 sm:grid sm:gap-3 sm:space-y-0"
+                    style={{ gridTemplateColumns: `repeat(${segments.length}, minmax(0,1fr))` }}
+                  >
+                    {segments.map(s => (
+                      <div key={s.name}>
+                        <div className="text-xs text-slate-500 mb-1">{s.name} Required</div>
+                        <RequiredCell date={null} group={g} role={r} segment={s.name as Segment} />
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
@@ -1859,19 +1857,16 @@ function PeopleEditor(){
                   {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
                     <div key={r.id} className="mb-4 border rounded p-3">
                       <div className="font-medium mb-3">{r.name}</div>
-                      <div className="space-y-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:space-y-0">
-                        <div>
-                          <div className="text-xs text-slate-500 mb-1">AM Required</div>
-                          <RequiredCell date={d} group={g} role={r} segment={'AM'} />
-                        </div>
-                        <div>
-                          <div className="text-xs text-slate-500 mb-1">Lunch Required</div>
-                          <RequiredCell date={d} group={g} role={r} segment={'Lunch'} />
-                        </div>
-                        <div>
-                          <div className="text-xs text-slate-500 mb-1">PM Required</div>
-                          <RequiredCell date={d} group={g} role={r} segment={'PM'} />
-                        </div>
+                      <div
+                        className="space-y-3 sm:grid sm:gap-3 sm:space-y-0"
+                        style={{ gridTemplateColumns: `repeat(${segments.length}, minmax(0,1fr))` }}
+                      >
+                        {segments.map(s => (
+                          <div key={s.name}>
+                            <div className="text-xs text-slate-500 mb-1">{s.name} Required</div>
+                            <RequiredCell date={d} group={g} role={r} segment={s.name as Segment} />
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))}

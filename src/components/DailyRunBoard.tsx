@@ -8,8 +8,8 @@ import PersonName from "./PersonName";
 const Grid = WidthProvider(GridLayout);
 
 interface DailyRunBoardProps {
-  activeRunSegment: Exclude<Segment, "Early">;
-  setActiveRunSegment: (seg: Exclude<Segment, "Early">) => void;
+  activeRunSegment: Segment;
+  setActiveRunSegment: (seg: Segment) => void;
   groups: any[];
   segments: SegmentRow[];
   lockEmail: string;
@@ -26,7 +26,7 @@ interface DailyRunBoardProps {
   canEdit: boolean;
   peopleOptionsForSegment: (
     date: Date,
-    segment: Exclude<Segment, "Early">,
+    segment: Segment,
     role: any
   ) => Array<{ id: number; label: string; blocked: boolean }>;
   getRequiredFor: (
@@ -66,7 +66,7 @@ export default function DailyRunBoard({
   addAssignment,
   deleteAssignment,
 }: DailyRunBoardProps) {
-  const seg: Exclude<Segment, "Early"> = activeRunSegment;
+  const seg: Segment = activeRunSegment;
   const [layout, setLayout] = useState<any[]>([]);
   const [layoutLoaded, setLayoutLoaded] = useState(false);
   const [moveContext, setMoveContext] = useState<{
@@ -272,19 +272,17 @@ export default function DailyRunBoard({
           />
         </div>
         <div className="flex gap-2">
-          {segments
-            .filter((s) => s.name !== "Early")
-            .map((s) => (
-              <button
-                key={s.name}
-                className={`px-3 py-1 rounded text-sm ${
-                  activeRunSegment === s.name ? "bg-indigo-600 text-white" : "bg-slate-200"
-                }`}
-                onClick={() => setActiveRunSegment(s.name as Exclude<Segment, "Early">)}
-              >
-                {s.name}
-              </button>
-            ))}
+          {segments.map((s) => (
+            <button
+              key={s.name}
+              className={`px-3 py-1 rounded text-sm ${
+                activeRunSegment === s.name ? "bg-indigo-600 text-white" : "bg-slate-200"
+              }`}
+              onClick={() => setActiveRunSegment(s.name as Segment)}
+            >
+              {s.name}
+            </button>
+          ))}
         </div>
         <div className="flex flex-wrap gap-2 lg:ml-auto">
           <button
