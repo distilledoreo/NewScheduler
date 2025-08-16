@@ -30,7 +30,7 @@ const useStyles = makeStyles({
   root: {
   width: "80px",
   minWidth: 0,
-  height: "100%",
+  height: "100vh",
   position: "sticky",
   top: 0,
     padding: tokens.spacingVerticalS,
@@ -144,8 +144,8 @@ export default function SideRail({
   const available = railRect.height - bottomH - topH - dividerH - padding;
 
       // Estimate per-item height using the first child (icon+label stack)
-      const first = nav.firstElementChild as HTMLElement | null;
-      const itemH = first ? first.offsetHeight + 6 : 48; // add gap
+  const firstItem = nav.querySelector(`.${s.item}`) as HTMLElement | null;
+  const itemH = firstItem ? firstItem.offsetHeight + 6 : 56; // add gap
       const moreH = 36; // approx More button height
       if (itemH <= 0 || available <= 0) return;
 
