@@ -15,6 +15,8 @@ interface ToolbarProps {
   status: string;
   activeTab: TabKey;
   setActiveTab: (tab: TabKey) => void;
+  theme: "light" | "dark";
+  toggleTheme: () => void;
 }
 
 const useStyles = makeStyles({
@@ -58,6 +60,8 @@ export default function Toolbar({
   status,
   activeTab,
   setActiveTab,
+  theme,
+  toggleTheme,
 }: ToolbarProps) {
   const s = useStyles();
   const { themeName, toggleTheme } = useTheme();
@@ -72,6 +76,7 @@ export default function Toolbar({
           <Button onClick={openDbFromFile}>Open DB</Button>
           <Button onClick={saveDb} disabled={!canSave}>Save</Button>
           <Button onClick={saveDbAs} disabled={!sqlDb}>Save As</Button>
+          <Button onClick={toggleTheme}>{theme === "light" ? "Dark" : "Light"} Mode</Button>
         </div>
       </div>
 
