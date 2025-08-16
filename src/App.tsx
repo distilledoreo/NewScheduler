@@ -1236,7 +1236,6 @@ function PeopleEditor(){
               all={all}
             />
           )}
-          {activeTab === 'ADMIN' && <AdminView />}
           {activeTab === 'ADMIN' && (
             <AdminView all={all} run={run} refresh={refreshCaches} segments={segments} />
           )}
