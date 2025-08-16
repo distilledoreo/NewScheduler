@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import GridLayout, { WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -33,6 +33,91 @@ import {
 } from "@fluentui/react-components";
 
 const Grid = WidthProvider(GridLayout);
+
+// Styles moved outside the component to avoid recreating style objects on each render
+const useStyles = makeStyles({
+  root: {
+    padding: tokens.spacingHorizontalL,
+    backgroundColor: tokens.colorNeutralBackground2,
+    minHeight: "100%",
+  },
+  header: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: tokens.spacingHorizontalL,
+    marginBottom: tokens.spacingHorizontalL,
+    [`@media (min-width: 1024px)`]: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+  },
+  headerLeft: { display: "flex", alignItems: "center", gap: tokens.spacingHorizontalS },
+  headerRight: { display: "flex", flexWrap: "wrap", gap: tokens.spacingHorizontalS, marginLeft: "auto" },
+  label: {
+    fontSize: tokens.fontSizeBase300,
+    color: tokens.colorNeutralForeground2,
+    whiteSpace: "nowrap",
+  },
+  groupCard: {
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+  },
+  groupHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  groupMeta: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  rolesGrid: {
+    flex: 1,
+    display: "grid",
+    gap: tokens.spacingHorizontalM,
+    paddingTop: tokens.spacingVerticalM,
+    overflow: "auto",
+  },
+  roleCard: {
+    borderLeftWidth: "4px",
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+  },
+  roleHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: tokens.spacingVerticalS,
+  },
+  assignmentsList: {
+    listStyleType: "none",
+    padding: 0,
+    margin: 0,
+    overflow: "auto",
+    display: "grid",
+    rowGap: tokens.spacingVerticalS,
+  },
+  assignmentItem: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: tokens.colorNeutralBackground2,
+    borderRadius: tokens.borderRadiusSmall,
+    padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalM}`,
+    columnGap: tokens.spacingHorizontalM,
+  },
+  assignmentName: {
+    flex: 1,
+    overflowWrap: "anywhere",
+    wordBreak: "break-word",
+  },
+  actionsRow: {
+    display: "flex",
+    columnGap: tokens.spacingHorizontalS,
+    flexShrink: 0,
+  },
+});
 
 interface DailyRunBoardProps {
   activeRunSegment: Segment;
@@ -107,89 +192,6 @@ export default function DailyRunBoard({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const useStyles = makeStyles({
-    root: {
-      padding: tokens.spacingHorizontalL,
-      backgroundColor: tokens.colorNeutralBackground2,
-      minHeight: "100%",
-    },
-    header: {
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "flex-start",
-      gap: tokens.spacingHorizontalL,
-      marginBottom: tokens.spacingHorizontalL,
-      [`@media (min-width: 1024px)`]: {
-        flexDirection: "row",
-        alignItems: "center",
-      },
-    },
-    headerLeft: { display: "flex", alignItems: "center", gap: tokens.spacingHorizontalS },
-    headerRight: { display: "flex", flexWrap: "wrap", gap: tokens.spacingHorizontalS, marginLeft: "auto" },
-    label: {
-      fontSize: tokens.fontSizeBase300,
-      color: tokens.colorNeutralForeground2,
-      whiteSpace: "nowrap",
-    },
-    groupCard: {
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-    },
-    groupHeader: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    groupMeta: {
-      fontSize: tokens.fontSizeBase200,
-      color: tokens.colorNeutralForeground3,
-    },
-    rolesGrid: {
-      flex: 1,
-      display: "grid",
-      gap: tokens.spacingHorizontalM,
-      paddingTop: tokens.spacingVerticalM,
-      overflow: "auto",
-    },
-    roleCard: {
-      borderLeftWidth: "4px",
-      padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
-    },
-    roleHeader: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: tokens.spacingVerticalS,
-    },
-    assignmentsList: {
-      listStyleType: "none",
-      padding: 0,
-      margin: 0,
-      overflow: "auto",
-      display: "grid",
-      rowGap: tokens.spacingVerticalS,
-    },
-    assignmentItem: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      backgroundColor: tokens.colorNeutralBackground2,
-      borderRadius: tokens.borderRadiusSmall,
-      padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalM}`,
-      columnGap: tokens.spacingHorizontalM,
-    },
-    assignmentName: {
-      flex: 1,
-      overflowWrap: "anywhere",
-      wordBreak: "break-word",
-    },
-    actionsRow: {
-      display: "flex",
-      columnGap: tokens.spacingHorizontalS,
-      flexShrink: 0,
-    },
-  });
   const s = useStyles();
   const seg: Segment = activeRunSegment;
   const [layout, setLayout] = useState<any[]>([]);
@@ -249,23 +251,29 @@ export default function DailyRunBoard({
     } catch {}
   }
 
-  const assignedCountRows = all(
-    `SELECT role_id, COUNT(*) as c FROM assignment WHERE date=? AND segment=? GROUP BY role_id`,
-    [ymd(selectedDateObj), seg]
-  );
-  const assignedCountMap = new Map<number, number>(
-    assignedCountRows.map((r: any) => [r.role_id, r.c])
-  );
-  const groupMap = new Map(groups.map((g: any) => [g.id, g]));
-  const deficitRoles = roles
-    .map((r: any) => {
-      const assigned = assignedCountMap.get(r.id) || 0;
-      const req = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
-      return assigned < req ? { role: r, group: groupMap.get(r.group_id) } : null;
-    })
-    .filter(Boolean) as Array<{ role: any; group: any }>;
+  const assignedCountMap = useMemo(() => {
+    const rows = all(
+      `SELECT role_id, COUNT(*) as c FROM assignment WHERE date=? AND segment=? GROUP BY role_id`,
+      [ymd(selectedDateObj), seg]
+    );
+    return new Map<number, number>(rows.map((r: any) => [r.role_id, r.c]));
+  }, [all, selectedDateObj, seg, ymd]);
 
-  function GroupCard({ group, isDraggable }: { group: any; isDraggable: boolean }) {
+  const groupMap = useMemo(() => new Map(groups.map((g: any) => [g.id, g])), [groups]);
+
+  const deficitRoles = useMemo(() => {
+    return (
+      roles
+        .map((r: any) => {
+          const assigned = assignedCountMap.get(r.id) || 0;
+          const req = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
+          return assigned < req ? { role: r, group: groupMap.get(r.group_id) } : null;
+        })
+        .filter(Boolean) as Array<{ role: any; group: any }>
+    );
+  }, [roles, assignedCountMap, getRequiredFor, selectedDateObj, seg, groupMap]);
+
+  const GroupCard = React.memo(function GroupCard({ group, isDraggable }: { group: any; isDraggable: boolean }) {
     const rolesForGroup = roles.filter((r) => r.group_id === group.id);
     const groupNeedsMet = rolesForGroup.every((r: any) => {
       const assignedCount = assignedCountMap.get(r.id) || 0;
@@ -299,23 +307,34 @@ export default function DailyRunBoard({
         </div>
       </Card>
     );
-  }
+  });
 
-  function RoleCard({ group, role }: { group: any; role: any }) {
-    const assigns = all(
-      `SELECT a.id, p.first_name, p.last_name, p.id as person_id FROM assignment a JOIN person p ON p.id=a.person_id WHERE a.date=? AND a.role_id=? AND a.segment=? ORDER BY p.last_name,p.first_name`,
-      [ymd(selectedDateObj), role.id, seg]
+  const RoleCard = React.memo(function RoleCard({ group, role }: { group: any; role: any }) {
+    const assigns = useMemo(
+      () =>
+        all(
+          `SELECT a.id, p.first_name, p.last_name, p.id as person_id FROM assignment a JOIN person p ON p.id=a.person_id WHERE a.date=? AND a.role_id=? AND a.segment=? ORDER BY p.last_name,p.first_name`,
+          [ymd(selectedDateObj), role.id, seg]
+        ),
+      [all, selectedDateObj, role.id, seg, ymd]
     );
-    const trainedBefore = new Set([
-      ...all(`SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`, [role.id]).map(
-        (r: any) => r.person_id
-      ),
-      ...all(
+
+    const trainedBefore = useMemo(() => {
+      const qualified = all(
+        `SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`,
+        [role.id]
+      ).map((r: any) => r.person_id);
+      const priorAssigned = all(
         `SELECT DISTINCT person_id FROM assignment WHERE role_id=? AND date < ?`,
         [role.id, ymd(selectedDateObj)]
-      ).map((r: any) => r.person_id),
-    ]);
-    const opts = peopleOptionsForSegment(selectedDateObj, seg, role);
+      ).map((r: any) => r.person_id);
+      return new Set([...qualified, ...priorAssigned]);
+    }, [all, role.id, selectedDateObj, ymd]);
+
+    const opts = useMemo(
+      () => peopleOptionsForSegment(selectedDateObj, seg, role),
+      [peopleOptionsForSegment, selectedDateObj, seg, role]
+    );
 
     const req = getRequiredFor(selectedDateObj, group.id, role.id, seg);
     const assignedCount = assigns.length;
@@ -329,13 +348,25 @@ export default function DailyRunBoard({
         : tokens.colorPaletteYellowBorderActive;
     const isOverstaffed = assignedCount > req;
 
-    function handleMove(a: any, targets: any[]) {
-      if (!targets.length) return;
-      setMoveContext({ assignment: a, targets });
-      setMoveTargetId(null);
-    }
+    const handleMove = useCallback(
+      (a: any) => {
+        // Compute eligible targets on demand to avoid per-row heavy checks
+        const targets = deficitRoles.filter((d: any) => {
+          const candidateOpts = peopleOptionsForSegment(selectedDateObj, seg, d.role);
+          return candidateOpts.some((o) => o.id === a.person_id && !o.blocked);
+        });
+        if (!targets.length) {
+          alert("No eligible destinations for this person.");
+          return;
+        }
+        setMoveContext({ assignment: a, targets });
+        setMoveTargetId(null);
+      },
+      [deficitRoles, peopleOptionsForSegment, selectedDateObj, seg]
+    );
 
     const [addSel, setAddSel] = useState<string[]>([]);
+    const [openAdd, setOpenAdd] = useState(false);
 
     return (
       <Card
@@ -372,6 +403,8 @@ export default function DailyRunBoard({
           <Dropdown
             placeholder={canEdit ? "+ Add person…" : "Add person…"}
             disabled={!canEdit}
+            open={openAdd}
+            onOpenChange={(_, d) => setOpenAdd(Boolean(d.open))}
             selectedOptions={addSel}
             onOptionSelect={(_, data) => {
               const val = data.optionValue ?? '';
@@ -388,16 +421,17 @@ export default function DailyRunBoard({
             }}
             style={{ width: "100%" }}
           >
-            {opts.map((o) => (
-              <Option
-                key={o.id}
-                value={String(o.id)}
-                disabled={o.blocked}
-                text={`${o.label}${o.blocked ? " (Time-off)" : ""}`}
-              >
-                {`${o.label}${o.blocked ? " (Time-off)" : ""}`}
-              </Option>
-            ))}
+            {openAdd &&
+              opts.map((o) => (
+                <Option
+                  key={o.id}
+                  value={String(o.id)}
+                  disabled={o.blocked}
+                  text={`${o.label}${o.blocked ? " (Time-off)" : ""}`}
+                >
+                  {`${o.label}${o.blocked ? " (Time-off)" : ""}`}
+                </Option>
+              ))}
           </Dropdown>
         </div>
     <ul className={s.assignmentsList}>
@@ -411,21 +445,11 @@ export default function DailyRunBoard({
       </Body1>
               {canEdit && (
                 <div className={s.actionsRow}>
-                  {isOverstaffed &&
-                    (() => {
-                      const targets = deficitRoles.filter((d: any) => {
-                        const opts = peopleOptionsForSegment(selectedDateObj, seg, d.role);
-                        return opts.some(
-                          (o) => o.id === a.person_id && !o.blocked
-                        );
-                      });
-                      return targets.length ? (
-                        <Button size="small" appearance="secondary" onClick={() => handleMove(a, targets)}>
-                          Move
-                        </Button>
-                      ) : null;
-                    })()
-                  }
+                  {isOverstaffed && (
+                    <Button size="small" appearance="secondary" onClick={() => handleMove(a)}>
+                      Move
+                    </Button>
+                  )}
                   <Button size="small" appearance="secondary" onClick={() => deleteAssignment(a.id)}>
                     Remove
                   </Button>
@@ -436,7 +460,7 @@ export default function DailyRunBoard({
         </ul>
       </Card>
     );
-  }
+  });
 
   function confirmMove() {
     if (!moveContext || moveTargetId == null) return;
