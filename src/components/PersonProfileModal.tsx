@@ -6,9 +6,12 @@ import {
   DialogBody,
   DialogActions,
   Button,
+  Tooltip,
   makeStyles,
   tokens,
 } from "@fluentui/react-components";
+import { Presence, Motion, animations } from "@fluentui/react-motion";
+import { Dismiss24Regular } from "@fluentui/react-icons";
 
 interface PersonProfileModalProps {
   personId: number;
@@ -65,9 +68,23 @@ export default function PersonProfileModal({ personId, onClose, all }: PersonPro
   const history = all(historySql, [personId]);
 
   return (
-    <Dialog open onOpenChange={(_, d) => { if (!d.open) onClose(); }}>
-      <DialogSurface aria-describedby={undefined}>
-        <DialogTitle>{person.first_name} {person.last_name}</DialogTitle>
+    <Presence>
+      <Motion animations={animations.fade} defaultAnimationState="enter">
+        <Dialog open onOpenChange={(_, d) => { if (!d.open) onClose(); }}>
+          <DialogSurface>
+            <DialogTitle action={
+              <Tooltip content="Close" relationship="label">
+                <Button
+                  appearance="subtle"
+                  aria-label="Close dialog"
+                  icon={<Dismiss24Regular />}
+                  onClick={onClose}
+                  style={{ color: tokens.colorNeutralForeground1 }}
+                />
+              </Tooltip>
+            }>
+              {person.first_name} {person.last_name}
+            </DialogTitle>
         <DialogBody>
           <div className={s.sectionTitle}>Info</div>
           <div className={s.grid}>
@@ -107,7 +124,9 @@ export default function PersonProfileModal({ personId, onClose, all }: PersonPro
         <DialogActions>
           <Button appearance="primary" onClick={onClose}>Close</Button>
         </DialogActions>
-      </DialogSurface>
-    </Dialog>
+          </DialogSurface>
+        </Dialog>
+      </Motion>
+    </Presence>
   );
 }
