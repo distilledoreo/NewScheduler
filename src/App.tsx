@@ -4,11 +4,17 @@ import { listSegments, type Segment, type SegmentRow } from "./services/segments
 import Toolbar from "./components/Toolbar";
 import DailyRunBoard from "./components/DailyRunBoard";
 import AdminView from "./components/AdminView";
+import GroupEditor from "./components/GroupEditor";
+import RoleEditor from "./components/RoleEditor";
+import ExportGroupEditor from "./components/ExportGroupEditor";
+import SegmentEditor from "./components/SegmentEditor";
+import ExportPreview from "./components/ExportPreview";
 import { exportMonthOneSheetXlsx } from "./excel/export-one-sheet";
 import PersonName from "./components/PersonName";
 import PersonProfileModal from "./components/PersonProfileModal";
 import { ProfileContext } from "./components/ProfileContext";
 import { Button, Checkbox, Dropdown, Input, Option } from "@fluentui/react-components";
+import MonthlyDefaults from "./components/MonthlyDefaults";
 
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
@@ -894,231 +900,7 @@ async function exportShifts() {
       </div>
     );
   }
-    function MonthlyView(){
-    const [sortKey, setSortKey] = useState<string>('name');
-    const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc');
-    const [filterText, setFilterText] = useState('');
-    const [weekdayPerson, setWeekdayPerson] = useState<number|null>(null);
-    const [activeOnly, setActiveOnly] = useState(false);
-    const [commuterOnly, setCommuterOnly] = useState(false);
-
-    const segmentNames = useMemo(() => segments.map(s => s.name as Segment), [segments]);
-
-    const viewPeople = useMemo(()=>{
-      const low = filterText.toLowerCase();
-      const filtered = people
-        .filter((p:any)=>!activeOnly || p.active)
-        .filter((p:any)=>!commuterOnly || p.commuter)
-        .filter((p:any)=>{
-          const roleNames = segmentNames.map(seg=>{
-            const def = monthlyDefaults.find(d=>d.person_id===p.id && d.segment===seg);
-            const role = roles.find(r=>r.id===def?.role_id);
-            return role?.name || '';
-          });
-          const text = [
-            p.last_name,
-            p.first_name,
-            p.work_email,
-            p.brother_sister || '',
-            p.commuter ? 'commuter' : '',
-            p.active ? 'active' : '',
-            p.avail_mon,
-            p.avail_tue,
-            p.avail_wed,
-            p.avail_thu,
-            p.avail_fri,
-            ...roleNames,
-          ].join(' ').toLowerCase();
-          return text.includes(low);
-        });
-
-      const sorted = filtered.slice().sort((a:any,b:any)=>{
-        const field = sortKey;
-        let av:any; let bv:any;
-        switch(field){
-          case 'name':
-            av = `${a.last_name}, ${a.first_name}`;
-            bv = `${b.last_name}, ${b.first_name}`;
-            break;
-          case 'email':
-            av = a.work_email; bv = b.work_email; break;
-          case 'brother_sister':
-            av = a.brother_sister || '';
-            bv = b.brother_sister || '';
-            break;
-          case 'commuter':
-            av = a.commuter?1:0; bv = b.commuter?1:0; break;
-          case 'active':
-            av = a.active?1:0; bv = b.active?1:0; break;
-          case 'avail_mon': av = a.avail_mon; bv = b.avail_mon; break;
-          case 'avail_tue': av = a.avail_tue; bv = b.avail_tue; break;
-          case 'avail_wed': av = a.avail_wed; bv = b.avail_wed; break;
-          case 'avail_thu': av = a.avail_thu; bv = b.avail_thu; break;
-          case 'avail_fri': av = a.avail_fri; bv = b.avail_fri; break;
-          default:
-            if (segmentNames.includes(field)) {
-              const defA = monthlyDefaults.find(d=>d.person_id===a.id && d.segment===field);
-              const defB = monthlyDefaults.find(d=>d.person_id===b.id && d.segment===field);
-              const roleA = roles.find(r=>r.id===defA?.role_id)?.name || '';
-              const roleB = roles.find(r=>r.id===defB?.role_id)?.name || '';
-              av = roleA; bv = roleB;
-            } else {
-              av = ''; bv = '';
-            }
-            break;
-        }
-        if (av < bv) return sortDir === 'asc' ? -1 : 1;
-        if (av > bv) return sortDir === 'asc' ? 1 : -1;
-        return 0;
-      });
-      return sorted;
-    }, [people, monthlyDefaults, roles, filterText, sortKey, sortDir, activeOnly, commuterOnly, segmentNames]);
-
-    function WeeklyOverrideModal({ personId, onClose }: { personId:number; onClose:()=>void }) {
-      const person = people.find(p=>p.id===personId);
-      if (!person) return null;
-      const weekdays = [1,2,3,4,5];
-      const segNames = segmentNames;
-      return (
-        <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center" onClick={onClose}>
-          <div className="bg-white rounded shadow-lg p-4" onClick={e=>e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-2">
-              <div className="font-semibold">Weekly Overrides - {person.first_name} {person.last_name}</div>
-              <button className="text-slate-600 hover:text-slate-800" onClick={onClose}>Close</button>
-            </div>
-            <table className="text-sm border-collapse">
-              <thead>
-                <tr>
-                  <th className="p-1"></th>
-                  {weekdays.map(w=> (
-                    <th key={w} className="p-1">{WEEKDAYS[w-1].slice(0,3)}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {segNames.map(seg=> (
-                  <tr key={seg}>
-                    <td className="p-1 font-medium">{seg}</td>
-                    {weekdays.map(w => {
-                      const ov = monthlyOverrides.find(o=>o.person_id===personId && o.weekday===w && o.segment===seg);
-                      return (
-                        <td key={w} className="p-1">
-                          <select className="border rounded px-2 py-1" value={ov?.role_id ?? ''} onChange={(e)=>{
-                            const val = e.target.value;
-                            const rid = val === '' ? null : Number(val);
-                            setWeeklyOverride(personId, w, seg, rid);
-                          }}>
-                            <option value="">(default)</option>
-                            {roleListForSegment(seg).map((r:any)=>(<option key={r.id} value={r.id}>{r.name}</option>))}
-                          </select>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <label className="text-sm">Month</label>
-          <input type="month" className="border rounded px-2 py-1" value={selectedMonth} onChange={(e)=>setSelectedMonth(e.target.value)} />
-          <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>applyMonthlyDefaults(selectedMonth)}>Apply to Month</button>
-          <input type="month" className="border rounded px-2 py-1" value={copyFromMonth} onChange={(e)=>setCopyFromMonth(e.target.value)} />
-          <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>copyMonthlyDefaults(copyFromMonth, selectedMonth)}>
-            Copy From Month
-          </button>
-          <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</button>
-          <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={()=>exportMonthlyDefaults(selectedMonth)}>Export HTML</button>
-          <button
-            className="px-3 py-1 bg-slate-200 rounded text-sm"
-            onClick={() =>
-              exportMonthOneSheetXlsx(selectedMonth).catch((err) => alert(err.message))
-            }
-          >
-            Export One Sheet (.xlsx)
-          </button>
-          <Input placeholder="Filter" value={filterText} onChange={(_, data)=>setFilterText(data.value)} />
-          <Dropdown selectedOptions={[sortKey]} onOptionSelect={(_, data)=>setSortKey(data.optionValue as any)}>
-            <Option value="name">Name</Option>
-            <Option value="email">Email</Option>
-            <Option value="brother_sister">B/S</Option>
-            <Option value="commuter">Commute</Option>
-            <Option value="active">Active</Option>
-            <Option value="avail_mon">Mon</Option>
-            <Option value="avail_tue">Tue</Option>
-            <Option value="avail_wed">Wed</Option>
-            <Option value="avail_thu">Thu</Option>
-            <Option value="avail_fri">Fri</Option>
-            {segmentNames.map(seg => (
-              <Option key={seg} value={seg}>{seg} Role</Option>
-            ))}
-          </Dropdown>
-          <Button onClick={()=>setSortDir(sortDir==='asc'?'desc':'asc')}>{sortDir==='asc'?'Asc':'Desc'}</Button>
-          <Checkbox label="Active" checked={activeOnly} onChange={(_, data)=>setActiveOnly(!!data.checked)} />
-          <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data)=>setCommuterOnly(!!data.checked)} />
-        </div>
-        <div className="overflow-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-100">
-              <tr>
-                <th className="p-2 text-left">Name</th>
-                {segmentNames.map(seg=> (
-                  <th key={seg} className="p-2 text-left">{seg}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {viewPeople.map((p:any) => (
-                <tr key={p.id} className="odd:bg-white even:bg-slate-50">
-                  <td className="p-2">
-                    <PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName>
-                    {monthlyEditing && (
-                      <button className="ml-2 text-xs text-slate-600 underline" onClick={()=>setWeekdayPerson(p.id)}>
-                        Days{monthlyOverrides.some(o=>o.person_id===p.id)?'*':''}
-                      </button>
-                    )}
-                  </td>
-                    {segmentNames.map(seg => {
-                      const def = monthlyDefaults.find(d => d.person_id === p.id && d.segment === seg);
-                      return (
-                        <td key={seg} className="p-2">
-                          <select
-                            className="border rounded px-2 py-1 w-full"
-                            value={def?.role_id ?? ""}
-                            disabled={!monthlyEditing}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              const rid = val === "" ? null : Number(val);
-                              setMonthlyDefault(p.id, seg, rid);
-                            }}
-                          >
-                            <option value="">--</option>
-                            {roleListForSegment(seg).map((r: any) => (
-                              <option key={r.id} value={r.id}>{r.name}</option>
-                            ))}
-                          </select>
-                        </td>
-                      );
-                    })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {weekdayPerson !== null && (
-          <WeeklyOverrideModal personId={weekdayPerson} onClose={()=>setWeekdayPerson(null)} />
-        )}
-      </div>
-    );
-  }
-
-  function CrewHistoryView(){
+      function CrewHistoryView(){
     const [defs, setDefs] = useState<any[]>([]);
     const [filter, setFilter] = useState("");
     const segmentNames = useMemo(() => segments.map(s => s.name as Segment), [segments]);
@@ -1466,101 +1248,6 @@ async function exportShifts() {
     );
   }
 
-  function ExportView(){
-    // Generate preview rows same as actual export
-    const previewRows = useMemo(()=>{
-      if (!sqlDb) return [] as any[];
-      const start = parseYMD(exportStart); const end = parseYMD(exportEnd);
-      if (end < start) return [] as any[];
-      const rows: any[] = [];
-      let d = new Date(start.getTime());
-      while (d <= end) {
-        if (weekdayName(d) !== "Weekend") {
-          const dYMD = ymd(d);
-          const assigns = all(`SELECT a.id, a.person_id, a.role_id, a.segment,
-                                      p.first_name, p.last_name, p.work_email,
-                                      r.name as role_name, r.code as role_code, r.group_id,
-                                      g.name as group_name
-                               FROM assignment a
-                               JOIN person p ON p.id=a.person_id
-                               JOIN role r ON r.id=a.role_id
-                               JOIN grp g  ON g.id=r.group_id
-                               WHERE a.date=?`, [dYMD]);
-
-          const segMap = segmentTimesForDate(d);
-          for (const a of assigns) {
-            const seg = segMap[a.segment];
-            if (!seg) continue;
-            let windows: Array<{ start: Date; end: Date }> = [{ start: seg.start, end: seg.end }];
-            let group = a.group_name;
-
-            const intervals = listTimeOffIntervals(a.person_id, d);
-            for (const w of windows) {
-              const split = subtractIntervals(w.start, w.end, intervals);
-              for (const s of split) {
-                rows.push({
-                  date: fmtDateMDY(d),
-                  member: `${a.last_name}, ${a.first_name}`,
-                  email: a.work_email,
-                  group,
-                  start: fmtTime24(s.start),
-                  end: fmtTime24(s.end),
-                  label: a.role_name,
-                  color: groups.find((gg) => gg.name === group)?.theme || "",
-                });
-              }
-            }
-          }
-        }
-        d = addMinutes(d, 24*60);
-      }
-      return rows;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sqlDb, exportStart, exportEnd, people.length, roles.length]);
-
-    return (
-      <div className="p-4">
-        <div className="flex items-center gap-3 mb-4">
-          <label>Start</label>
-          <input type="date" className="border rounded px-2 py-1" value={exportStart} onChange={(e)=>setExportStart(e.target.value)} />
-          <label>End</label>
-          <input type="date" className="border rounded px-2 py-1" value={exportEnd} onChange={(e)=>setExportEnd(e.target.value)} />
-          <button className="ml-auto px-3 py-2 bg-emerald-700 text-white rounded" onClick={exportShifts}>Download XLSX</button>
-        </div>
-        <div className="overflow-auto max-h-[60vh] border rounded">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-100 sticky top-0">
-              <tr>
-                <th className="p-2 text-left">Date</th>
-                <th className="p-2 text-left">Member</th>
-                <th className="p-2 text-left">Work Email</th>
-                <th className="p-2 text-left">Group</th>
-                <th className="p-2 text-left">Start</th>
-                <th className="p-2 text-left">End</th>
-                <th className="p-2 text-left">Custom Label</th>
-                <th className="p-2 text-left">Theme</th>
-              </tr>
-            </thead>
-            <tbody>
-              {previewRows.map((r,i)=> (
-                <tr key={i} className="odd:bg-white even:bg-slate-50">
-                  <td className="p-2">{r.date}</td>
-                  <td className="p-2">{r.member}</td>
-                  <td className="p-2">{r.email}</td>
-                  <td className="p-2">{r.group}</td>
-                  <td className="p-2">{r.start}</td>
-                  <td className="p-2">{r.end}</td>
-                  <td className="p-2">{r.label}</td>
-                  <td className="p-2">{r.color}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="text-slate-500 text-sm mt-2">Rows: {previewRows.length}</div>
-      </div>
-    );
-  }
 
 function PeopleEditor(){
   const emptyForm = { active:true, commuter:false, brother_sister:'Brother', avail_mon:'U', avail_tue:'U', avail_wed:'U', avail_thu:'U', avail_fri:'U' };
@@ -1814,8 +1501,44 @@ function PeopleEditor(){
             )}
           {activeTab === 'PEOPLE' && <PeopleEditor />}
           {activeTab === 'NEEDS' && <BaselineView />}
-          {activeTab === 'EXPORT' && <ExportView />}
-          {activeTab === 'MONTHLY' && <MonthlyView />}
+          {activeTab === 'EXPORT' && (
+              <ExportPreview
+                sqlDb={sqlDb}
+                exportStart={exportStart}
+                exportEnd={exportEnd}
+                setExportStart={setExportStart}
+                setExportEnd={setExportEnd}
+                exportShifts={exportShifts}
+                all={all}
+                segmentTimesForDate={segmentTimesForDate}
+                listTimeOffIntervals={listTimeOffIntervals}
+                subtractIntervals={subtractIntervals}
+                groups={groups}
+                people={people}
+                roles={roles}
+              />
+            )}
+          {activeTab === 'MONTHLY' && (
+            <MonthlyDefaults
+              selectedMonth={selectedMonth}
+              setSelectedMonth={setSelectedMonth}
+              copyFromMonth={copyFromMonth}
+              setCopyFromMonth={setCopyFromMonth}
+              people={people}
+              segments={segments}
+              monthlyDefaults={monthlyDefaults}
+              monthlyOverrides={monthlyOverrides}
+              monthlyEditing={monthlyEditing}
+              setMonthlyEditing={setMonthlyEditing}
+              setMonthlyDefault={setMonthlyDefault}
+              setWeeklyOverride={setWeeklyOverride}
+              copyMonthlyDefaults={copyMonthlyDefaults}
+              applyMonthlyDefaults={applyMonthlyDefaults}
+              exportMonthlyDefaults={exportMonthlyDefaults}
+              roleListForSegment={roleListForSegment}
+            />
+          )}
+
           {activeTab === 'HISTORY' && <CrewHistoryView />}
           {activeTab === 'ADMIN' && (
             <AdminView all={all} run={run} refresh={refreshCaches} segments={segments} />
