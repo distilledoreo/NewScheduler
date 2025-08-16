@@ -71,14 +71,66 @@ export const migrate7SegmentRefs: Migration = (db) => {
     createSql: string,
     columns: string
   ) => {
+    const old = `${table}_old`;
     try {
-      db.run(`ALTER TABLE ${table} RENAME TO ${table}_old;`);
-      db.run(createSql);
+      db.run(`ALTER TABLE ${table} RENAME TO ${old};`);
+    } catch {
+      return;
+    }
+
+    db.run(createSql);
+
+    let migrated = false;
+    try {
       db.run(
-        `INSERT INTO ${table} (${columns}) SELECT ${columns} FROM ${table}_old;`
+        `INSERT INTO ${table} (${columns}) SELECT ${columns} FROM ${old};`
       );
-      db.run(`DROP TABLE ${table}_old;`);
-    } catch {}
+      migrated = true;
+    } catch {
+      const info = db.exec(`PRAGMA table_info(${old});`);
+      const names = info[0]?.values?.map((r: any[]) => String(r[1])) || [];
+
+      if (table === 'monthly_default' && names.includes('am_role_id')) {
+        const hasEarly = names.includes('early_role_id');
+        let select = `SELECT month, person_id, am_role_id, lunch_role_id, pm_role_id`;
+        if (hasEarly) select += ', early_role_id';
+        select += ` FROM ${old}`;
+        const rows = db.exec(select);
+        const vals = rows[0]?.values || [];
+        for (const row of vals) {
+          const [month, personId, am, lunch, pm, early] = row as any[];
+          if (am != null) db.run(`INSERT INTO ${table} (month, person_id, segment, role_id) VALUES (?,?,?,?)`, [month, personId, 'AM', am]);
+          if (lunch != null) db.run(`INSERT INTO ${table} (month, person_id, segment, role_id) VALUES (?,?,?,?)`, [month, personId, 'Lunch', lunch]);
+          if (pm != null) db.run(`INSERT INTO ${table} (month, person_id, segment, role_id) VALUES (?,?,?,?)`, [month, personId, 'PM', pm]);
+          if (hasEarly && early != null) db.run(`INSERT INTO ${table} (month, person_id, segment, role_id) VALUES (?,?,?,?)`, [month, personId, 'Early', early]);
+        }
+        migrated = true;
+      } else if (table === 'monthly_default_day' && names.includes('am_role_id')) {
+        const hasEarly = names.includes('early_role_id');
+        let select = `SELECT month, person_id, weekday, am_role_id, lunch_role_id, pm_role_id`;
+        if (hasEarly) select += ', early_role_id';
+        select += ` FROM ${old}`;
+        const rows = db.exec(select);
+        const vals = rows[0]?.values || [];
+        for (const row of vals) {
+          const [month, personId, weekday, am, lunch, pm, early] = row as any[];
+          if (am != null) db.run(`INSERT INTO ${table} (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)`, [month, personId, weekday, 'AM', am]);
+          if (lunch != null) db.run(`INSERT INTO ${table} (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)`, [month, personId, weekday, 'Lunch', lunch]);
+          if (pm != null) db.run(`INSERT INTO ${table} (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)`, [month, personId, weekday, 'PM', pm]);
+          if (hasEarly && early != null) db.run(`INSERT INTO ${table} (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)`, [month, personId, weekday, 'Early', early]);
+        }
+        migrated = true;
+      }
+    }
+
+    if (!migrated) {
+      // If migration failed entirely, drop the new table and restore old
+      db.run(`DROP TABLE ${table};`);
+      db.run(`ALTER TABLE ${old} RENAME TO ${table};`);
+      return;
+    }
+
+    db.run(`DROP TABLE ${old};`);
   };
 
   rebuild(
