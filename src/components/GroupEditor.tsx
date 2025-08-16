@@ -1,4 +1,66 @@
 import React, { useEffect, useState } from "react";
+import {
+  Button,
+  Card,
+  Input,
+  Table,
+  TableHeader,
+  TableRow,
+  TableBody,
+  TableCell,
+  TableHeaderCell,
+  makeStyles,
+  shorthands,
+  tokens,
+} from "@fluentui/react-components";
+
+const useStyles = makeStyles({
+  root: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: tokens.spacingVerticalL,
+  },
+  header: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  addButton: {
+    backgroundColor: tokens.colorBrandBackground,
+    color: tokens.colorNeutralForegroundOnBrand,
+    ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    ...shorthands.padding(tokens.spacingVerticalS, tokens.spacingHorizontalM),
+  },
+  tableContainer: {
+    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke1),
+    ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    maxHeight: "40vh",
+    overflowY: "auto",
+  },
+  rowActionCell: {
+    display: "flex",
+    justifyContent: "flex-end",
+    columnGap: tokens.spacingHorizontalS,
+  },
+  editButton: {
+    color: tokens.colorPaletteBlueForeground1,
+  },
+  deleteButton: {
+    color: tokens.colorPaletteRedForeground1,
+  },
+  form: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: tokens.spacingVerticalS,
+  },
+  actions: {
+    display: "flex",
+    columnGap: tokens.spacingHorizontalS,
+  },
+  input: {
+    width: "100%",
+  },
+});
 
 interface GroupEditorProps {
   all: (sql: string, params?: any[]) => any[];
@@ -12,6 +74,7 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
   const [editing, setEditing] = useState<any | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const [form, setForm] = useState(empty);
+  const styles = useStyles();
 
   function load() {
     setGroups(all(`SELECT id,name,theme,custom_color FROM grp ORDER BY name`));
@@ -63,70 +126,74 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="font-semibold text-lg">Groups</div>
-        <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={startAdd}>
+    <Card className={styles.root}>
+      <div className={styles.header}>
+        <div>Groups</div>
+        <Button className={styles.addButton} onClick={startAdd}>
           Add Group
-        </button>
+        </Button>
       </div>
 
-      <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
-        <table className="min-w-full text-sm divide-y divide-slate-200">
-          <thead className="bg-slate-100 sticky top-0">
-            <tr>
-              <th className="p-2 text-left">Name</th>
-              <th className="p-2 text-left">Theme</th>
-              <th className="p-2 text-left">Color</th>
-              <th className="p-2"></th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className={styles.tableContainer}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell>Name</TableHeaderCell>
+              <TableHeaderCell>Theme</TableHeaderCell>
+              <TableHeaderCell>Color</TableHeaderCell>
+              <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {groups.map((g: any) => (
-              <tr key={g.id} className="odd:bg-white even:bg-slate-50">
-                <td className="p-2">{g.name}</td>
-                <td className="p-2">{g.theme || ""}</td>
-                <td className="p-2">{g.custom_color || ""}</td>
-                <td className="p-2 text-right space-x-2">
-                  <button className="text-blue-600" onClick={() => startEdit(g)}>Edit</button>
-                  <button className="text-red-600" onClick={() => remove(g.id)}>Delete</button>
-                </td>
-              </tr>
+              <TableRow key={g.id}>
+                <TableCell>{g.name}</TableCell>
+                <TableCell>{g.theme || ""}</TableCell>
+                <TableCell>{g.custom_color || ""}</TableCell>
+                <TableCell className={styles.rowActionCell}>
+                  <Button appearance="subtle" className={styles.editButton} onClick={() => startEdit(g)}>
+                    Edit
+                  </Button>
+                  <Button appearance="subtle" className={styles.deleteButton} onClick={() => remove(g.id)}>
+                    Delete
+                  </Button>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {formVisible && (
-        <div className="space-y-2">
-          <input
-            className="border rounded px-2 py-1 w-full"
+        <div className={styles.form}>
+          <Input
+            className={styles.input}
             placeholder="Name"
             value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            onChange={(_, data) => setForm({ ...form, name: data.value })}
           />
-          <input
-            className="border rounded px-2 py-1 w-full"
+          <Input
+            className={styles.input}
             placeholder="Theme"
             value={form.theme}
-            onChange={(e) => setForm({ ...form, theme: e.target.value })}
+            onChange={(_, data) => setForm({ ...form, theme: data.value })}
           />
-          <input
-            className="border rounded px-2 py-1 w-full"
+          <Input
+            className={styles.input}
             placeholder="Custom Color"
             value={form.custom_color}
-            onChange={(e) => setForm({ ...form, custom_color: e.target.value })}
+            onChange={(_, data) => setForm({ ...form, custom_color: data.value })}
           />
-          <div className="flex gap-2">
-            <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={save}>
+          <div className={styles.actions}>
+            <Button appearance="primary" onClick={save}>
               Save
-            </button>
-            <button className="px-3 py-2 border rounded" onClick={cancel}>
+            </Button>
+            <Button appearance="secondary" onClick={cancel}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
