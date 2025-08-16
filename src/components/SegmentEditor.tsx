@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Button, Field, Input, Table, TableHeader, TableHeaderCell, TableRow, TableBody, TableCell, Text, makeStyles, tokens } from "@fluentui/react-components";
 
 interface SegmentEditorProps {
   all: (sql: string, params?: any[]) => any[];
@@ -65,73 +66,78 @@ export default function SegmentEditor({ all, run, refresh }: SegmentEditorProps)
     refresh();
   }
 
+  const useStyles = makeStyles({
+    section: { display: "flex", flexDirection: "column", rowGap: tokens.spacingHorizontalS },
+    header: { display: "flex", alignItems: "center", justifyContent: "space-between" },
+    tableWrap: {
+      border: `1px solid ${tokens.colorNeutralStroke2}`,
+      borderRadius: tokens.borderRadiusLarge,
+      overflow: "auto",
+      maxHeight: "40vh",
+      width: "100%",
+      boxShadow: tokens.shadow2,
+    },
+    row: { display: "flex", columnGap: tokens.spacingHorizontalS },
+    rightAlign: { textAlign: 'right' },
+    flex1: { flex: 1 },
+    orderWidth: { width: '10ch' },
+    actionsRow: { display: 'flex', gap: tokens.spacingHorizontalS, justifyContent: 'flex-end' },
+  });
+  const s = useStyles();
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="font-semibold text-lg">Segments</div>
-        <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={startAdd}>
-          Add Segment
-        </button>
+    <div className={s.section}>
+      <div className={s.header}>
+        <Text weight="semibold">Segments</Text>
+        <Button appearance="primary" onClick={startAdd}>Add Segment</Button>
       </div>
-      <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
-        <table className="min-w-full text-sm divide-y divide-slate-200">
-          <thead className="bg-slate-100 sticky top-0">
-            <tr>
-              <th className="p-2 text-left">Name</th>
-              <th className="p-2 text-left">Start</th>
-              <th className="p-2 text-left">End</th>
-              <th className="p-2 text-left">Order</th>
-              <th className="p-2"></th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className={s.tableWrap}>
+        <Table aria-label="Segments table">
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell>Name</TableHeaderCell>
+              <TableHeaderCell>Start</TableHeaderCell>
+              <TableHeaderCell>End</TableHeaderCell>
+              <TableHeaderCell>Order</TableHeaderCell>
+              <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {segments.map((s: any) => (
-              <tr key={s.id} className="odd:bg-white even:bg-slate-50">
-                <td className="p-2">{s.name}</td>
-                <td className="p-2">{s.start_time}</td>
-                <td className="p-2">{s.end_time}</td>
-                <td className="p-2">{s.ordering}</td>
-                <td className="p-2 text-right space-x-2">
-                  <button className="text-blue-600" onClick={() => startEdit(s)}>Edit</button>
-                  <button className="text-red-600" onClick={() => remove(s.id)}>Delete</button>
-                </td>
-              </tr>
+              <TableRow key={s.id}>
+                <TableCell>{s.name}</TableCell>
+                <TableCell>{s.start_time}</TableCell>
+                <TableCell>{s.end_time}</TableCell>
+                <TableCell>{s.ordering}</TableCell>
+                <TableCell className={s.rightAlign}>
+                  <div className={s.actionsRow}>
+                    <Button size="small" onClick={() => startEdit(s)}>Edit</Button>
+                    <Button size="small" appearance="secondary" onClick={() => remove(s.id)}>Delete</Button>
+                  </div>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       {formVisible && (
-        <div className="space-y-2">
-          <input
-            className="border rounded px-2 py-1 w-full"
-            placeholder="Name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-          <div className="flex gap-2">
-            <input
-              className="border rounded px-2 py-1 w-full"
-              placeholder="Start (HH:MM)"
-              value={form.start_time}
-              onChange={(e) => setForm({ ...form, start_time: e.target.value })}
-            />
-            <input
-              className="border rounded px-2 py-1 w-full"
-              placeholder="End (HH:MM)"
-              value={form.end_time}
-              onChange={(e) => setForm({ ...form, end_time: e.target.value })}
-            />
-            <input
-              type="number"
-              className="border rounded px-2 py-1 w-full"
-              placeholder="Order"
-              value={form.ordering}
-              onChange={(e) => setForm({ ...form, ordering: Number(e.target.value) })}
-            />
+        <div className={s.section}>
+          <Field label="Name" required>
+            <Input value={form.name} onChange={(_, d) => setForm({ ...form, name: d.value })} />
+          </Field>
+          <div className={s.row}>
+            <Field label="Start (HH:MM)" className={s.flex1}>
+              <Input value={form.start_time} onChange={(_, d) => setForm({ ...form, start_time: d.value })} />
+            </Field>
+            <Field label="End (HH:MM)" className={s.flex1}>
+              <Input value={form.end_time} onChange={(_, d) => setForm({ ...form, end_time: d.value })} />
+            </Field>
+            <Field label="Order" className={s.orderWidth}>
+              <Input type="number" value={String(form.ordering)} onChange={(_, d) => setForm({ ...form, ordering: Number(d.value || 0) })} />
+            </Field>
           </div>
-          <div className="flex gap-2">
-            <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={save}>Save</button>
-            <button className="px-3 py-2 border rounded" onClick={cancel}>Cancel</button>
+          <div className={s.row}>
+            <Button appearance="primary" onClick={save}>Save</Button>
+            <Button onClick={cancel}>Cancel</Button>
           </div>
         </div>
       )}

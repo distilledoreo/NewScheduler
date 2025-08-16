@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Button, Input, Field, Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow, Text, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider } from "@fluentui/react-components";
 
 interface GroupEditorProps {
   all: (sql: string, params?: any[]) => any[];
@@ -7,6 +8,35 @@ interface GroupEditorProps {
 }
 
 export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
+  const useStyles = makeStyles({
+    root: {
+      display: 'flex',
+      flexDirection: 'column',
+      rowGap: tokens.spacingVerticalM,
+    },
+    headerBar: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    tableWrap: {
+      borderRadius: tokens.borderRadiusMedium,
+      boxShadow: tokens.shadow4,
+      overflow: 'auto',
+      maxHeight: '40vh',
+      width: '100%',
+    },
+    formSection: {
+      display: 'flex',
+      flexDirection: 'column',
+      rowGap: tokens.spacingVerticalS,
+    },
+    actionRow: {
+      display: 'flex',
+      columnGap: tokens.spacingHorizontalS,
+    },
+  });
+  const styles = useStyles();
   const empty = { name: "", theme: "", custom_color: "" };
   const [groups, setGroups] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
@@ -63,67 +93,60 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="font-semibold text-lg">Groups</div>
-        <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={startAdd}>
-          Add Group
-        </button>
+    <div className={styles.root}>
+      <div className={styles.headerBar}>
+        <Toolbar aria-label="Group actions" size="small" style={{ width: '100%' }}>
+          <Text weight="semibold">Groups</Text>
+          <div style={{ flex: 1 }} />
+          <ToolbarButton appearance="primary" onClick={startAdd}>Add Group</ToolbarButton>
+        </Toolbar>
       </div>
 
-      <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
-        <table className="min-w-full text-sm divide-y divide-slate-200">
-          <thead className="bg-slate-100 sticky top-0">
-            <tr>
-              <th className="p-2 text-left">Name</th>
-              <th className="p-2 text-left">Theme</th>
-              <th className="p-2 text-left">Color</th>
-              <th className="p-2"></th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className={styles.tableWrap}>
+        <Table aria-label="Groups table">
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell>Name</TableHeaderCell>
+              <TableHeaderCell>Theme</TableHeaderCell>
+              <TableHeaderCell>Color</TableHeaderCell>
+              <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {groups.map((g: any) => (
-              <tr key={g.id} className="odd:bg-white even:bg-slate-50">
-                <td className="p-2">{g.name}</td>
-                <td className="p-2">{g.theme || ""}</td>
-                <td className="p-2">{g.custom_color || ""}</td>
-                <td className="p-2 text-right space-x-2">
-                  <button className="text-blue-600" onClick={() => startEdit(g)}>Edit</button>
-                  <button className="text-red-600" onClick={() => remove(g.id)}>Delete</button>
-                </td>
-              </tr>
+              <TableRow key={g.id}>
+                <TableCell>{g.name}</TableCell>
+                <TableCell>{g.theme || ""}</TableCell>
+                <TableCell>{g.custom_color || ""}</TableCell>
+                <TableCell style={{ textAlign: "right" }}>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <Button size="small" onClick={() => startEdit(g)}>Edit</Button>
+                    <Button size="small" appearance="secondary" onClick={() => remove(g.id)}>Delete</Button>
+                  </div>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {formVisible && (
-        <div className="space-y-2">
-          <input
-            className="border rounded px-2 py-1 w-full"
-            placeholder="Name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-          <input
-            className="border rounded px-2 py-1 w-full"
-            placeholder="Theme"
-            value={form.theme}
-            onChange={(e) => setForm({ ...form, theme: e.target.value })}
-          />
-          <input
-            className="border rounded px-2 py-1 w-full"
-            placeholder="Custom Color"
-            value={form.custom_color}
-            onChange={(e) => setForm({ ...form, custom_color: e.target.value })}
-          />
-          <div className="flex gap-2">
-            <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={save}>
-              Save
-            </button>
-            <button className="px-3 py-2 border rounded" onClick={cancel}>
-              Cancel
-            </button>
+        <div className={styles.formSection}>
+          <Field label="Name" required>
+            <Input value={form.name} onChange={(_, d) => setForm({ ...form, name: d.value })} />
+          </Field>
+          <Field label="Theme">
+            <Input value={form.theme} onChange={(_, d) => setForm({ ...form, theme: d.value })} />
+          </Field>
+          <Field label="Custom Color">
+            <Input value={form.custom_color} onChange={(_, d) => setForm({ ...form, custom_color: d.value })} />
+          </Field>
+          <div className={styles.actionRow}>
+            <Toolbar aria-label="Form actions" size="small">
+              <ToolbarButton appearance="primary" onClick={save}>Save</ToolbarButton>
+              <ToolbarDivider />
+              <ToolbarButton onClick={cancel}>Cancel</ToolbarButton>
+            </Toolbar>
           </div>
         </div>
       )}

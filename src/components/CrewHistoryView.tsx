@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Input, Dropdown, Option, Button, Checkbox } from "@fluentui/react-components";
+import { Input, Dropdown, Option, Button, Checkbox, Table, TableHeader, TableBody, TableRow, TableHeaderCell, TableCell, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider } from "@fluentui/react-components";
+import SmartSelect from "./controls/SmartSelect";
 import PersonName from "./PersonName";
 import type { Segment } from "../services/segments";
 
@@ -35,6 +36,130 @@ export default function CrewHistoryView({
   setMonthlyDefaultForMonth,
   all,
 }: CrewHistoryViewProps) {
+  const NAME_COL_PX = 240;
+  const SEG_COL_PX = 160;
+  const useStyles = makeStyles({
+    root: {
+      padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
+      display: 'flex',
+      flexDirection: 'column',
+      width: '100%',
+      maxWidth: '100%',
+      minWidth: 0,
+      overflow: 'hidden',
+      boxSizing: 'border-box',
+      rowGap: tokens.spacingVerticalM,
+    },
+    toolbar: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: tokens.spacingVerticalS,
+      paddingBlockEnd: tokens.spacingVerticalS,
+      minWidth: 0,
+    },
+    controlsGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+      alignItems: 'stretch',
+      gridAutoRows: 'minmax(40px, auto)',
+      columnGap: tokens.spacingHorizontalS,
+      rowGap: tokens.spacingVerticalS,
+      minWidth: 0,
+    },
+    controlCell: {
+      minWidth: 0,
+      display: 'flex',
+      alignItems: 'end',
+      // let children shrink/grow within the grid cell
+      '& > *': { maxWidth: '100%' },
+    },
+    full: {
+      width: '100%',
+    },
+    segmentsWrap: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      columnGap: tokens.spacingHorizontalS,
+      rowGap: tokens.spacingVerticalXS,
+      paddingBlockEnd: tokens.spacingVerticalXS,
+      minWidth: 0,
+    },
+    monthRange: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: tokens.spacingHorizontalXS,
+      flexWrap: 'wrap',
+    },
+    label: {
+      fontSize: tokens.fontSizeBase300,
+      color: tokens.colorNeutralForeground2,
+    },
+    scroll: {
+      width: '100%',
+      maxWidth: '100%',
+      minWidth: 0,
+      overflowX: 'auto',
+      overflowY: 'auto',
+      overscrollBehaviorX: 'contain',
+    },
+    stickyName: {
+      position: 'sticky',
+      left: '0px',
+      zIndex: 3,
+      backgroundColor: tokens.colorNeutralBackground1,
+      boxShadow: `inset -1px 0 0 ${tokens.colorNeutralStroke2}`,
+      width: `${NAME_COL_PX}px`,
+      minWidth: `${NAME_COL_PX}px`,
+      maxWidth: `${NAME_COL_PX}px`,
+    },
+    stickySeg: {
+      position: 'sticky',
+      left: `${NAME_COL_PX}px`,
+      zIndex: 2,
+      backgroundColor: tokens.colorNeutralBackground1,
+      boxShadow: `inset -1px 0 0 ${tokens.colorNeutralStroke2}`,
+      width: `${SEG_COL_PX}px`,
+      minWidth: `${SEG_COL_PX}px`,
+      maxWidth: `${SEG_COL_PX}px`,
+    },
+  });
+  const styles = useStyles();
+  // Cache for converting hex colors to CSS styles so we don't recompute for every cell
+  const colorStyleCache = useRef<Map<string, React.CSSProperties>>(new Map());
+
+  function hexToRgb(hex?: string): [number, number, number] | null {
+    if (!hex) return null;
+    const s = hex.trim();
+    const m = s.match(/^#?([\da-fA-F]{3}|[\da-fA-F]{6})$/);
+    if (!m) return null;
+    let h = m[1];
+    if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+    const num = parseInt(h, 16);
+    const r = (num >> 16) & 255;
+    const g = (num >> 8) & 255;
+    const b = num & 255;
+    return [r, g, b];
+  }
+
+  function styleForGroupColor(hex?: string): React.CSSProperties | undefined {
+    if (!hex) return undefined;
+    const cached = colorStyleCache.current.get(hex);
+    if (cached) return cached;
+    const rgb = hexToRgb(hex);
+    if (!rgb) return undefined;
+    const [r, g, b] = rgb;
+    // Subtle overlay that adapts to light/dark themes by using transparency
+    const bgAlpha = 0.18;
+    const borderAlpha = 0.35;
+    const style: React.CSSProperties = {
+      backgroundImage: `linear-gradient(0deg, rgba(${r}, ${g}, ${b}, ${bgAlpha}), rgba(${r}, ${g}, ${b}, ${bgAlpha}))`,
+      // Use an inset box-shadow as a border to avoid altering table layout
+      boxShadow: `inset 0 0 0 1px rgba(${r}, ${g}, ${b}, ${borderAlpha})`,
+    };
+    colorStyleCache.current.set(hex, style);
+    return style;
+  }
   const [defs, setDefs] = useState<any[]>([]);
   const [filter, setFilter] = useState("");
   const segmentNames = useMemo(
@@ -77,7 +202,7 @@ export default function CrewHistoryView({
     });
     const nm = nextMonth;
     if (!min) min = nm;
-    if (!max || nm > max) max = nm;
+  if (!max || String(nm) > String(max)) max = nm;
     setStartMonth(min);
     setEndMonth(max);
   }, [defs, nextMonth, startMonth, endMonth]);
@@ -260,56 +385,19 @@ export default function CrewHistoryView({
     seg: Segment;
     def: any;
   }) {
-    const ref = useRef<HTMLSelectElement>(null);
-    const options = roleListForSegment(seg);
-
-    function showNames() {
-      const sel = ref.current;
-      if (!sel) return;
-      Array.from(sel.options).forEach((o) => {
-        const r = options.find((rr: any) => rr.id === Number(o.value));
-        if (r) o.text = r.name;
-      });
-    }
-
-    function showCode() {
-      const sel = ref.current;
-      if (!sel) return;
-      const opt = Array.from(sel.options).find(
-        (o) => Number(o.value) === Number(sel.value),
-      );
-      if (opt) {
-        const r = options.find((rr: any) => rr.id === Number(opt.value));
-        if (r) opt.text = r.code;
-      }
-    }
-
-    useEffect(() => {
-      showCode();
-    }, [def?.role_id, options]);
-
+  const options = roleListForSegment(seg);
+  const optionsKey = options.map((r: any) => `${r.id}:${r.name}`).join(',');
     return (
-      <select
-        ref={ref}
-        className="border rounded px-2 py-1 w-full"
-        value={def?.role_id ?? ""}
-        onFocus={showNames}
-        onBlur={showCode}
-        onChange={(e) => {
-          const val = e.target.value;
-          const rid = val === "" ? null : Number(val);
+      <SmartSelect
+        options={[{ value: "", label: "--" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name }))]}
+        value={def?.role_id != null ? String(def.role_id) : null}
+        onChange={(v) => {
+          const rid = v ? Number(v) : null;
           setMonthlyDefaultForMonth(month, personId, seg, rid);
           setDefs(all(`SELECT * FROM monthly_default`));
-          showCode();
         }}
-      >
-        <option value=""></option>
-        {options.map((r: any) => (
-          <option key={r.id} value={r.id}>
-            {r.name}
-          </option>
-        ))}
-      </select>
+        placeholder="--"
+      />
     );
   }
 
@@ -336,161 +424,122 @@ export default function CrewHistoryView({
   }
 
   return (
-    <div className="p-4">
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <Input
-          placeholder="Filter people..."
-          value={filter}
-          onChange={(_, data) => setFilter(data.value)}
-        />
-        <Dropdown
-          selectedOptions={[sortField]}
-          onOptionSelect={(_, data) => setSortField(data.optionValue as any)}
-        >
-          <Option value="last">Last Name</Option>
-          <Option value="first">First Name</Option>
-          <Option value="brother_sister">B/S</Option>
-          <Option value="commuter">Commute</Option>
-          <Option value="active">Active</Option>
-          <Option value="avail_mon">Mon</Option>
-          <Option value="avail_tue">Tue</Option>
-          <Option value="avail_wed">Wed</Option>
-          <Option value="avail_thu">Thu</Option>
-          <Option value="avail_fri">Fri</Option>
+    <div className={styles.root}>
+      <div className={styles.toolbar}>
+        <div className={styles.controlsGrid}>
+          <div className={styles.controlCell}>
+            <Input className={styles.full} placeholder="Filter people..." value={filter} onChange={(_, data) => setFilter(data.value)} />
+          </div>
+          <div className={styles.controlCell}>
+            <Dropdown className={styles.full} selectedOptions={[sortField]} onOptionSelect={(_, data) => setSortField(data.optionValue as any)}>
+              <Option value="last">Last Name</Option>
+              <Option value="first">First Name</Option>
+              <Option value="brother_sister">B/S</Option>
+              <Option value="commuter">Commute</Option>
+              <Option value="active">Active</Option>
+              <Option value="avail_mon">Mon</Option>
+              <Option value="avail_tue">Tue</Option>
+              <Option value="avail_wed">Wed</Option>
+              <Option value="avail_thu">Thu</Option>
+              <Option value="avail_fri">Fri</Option>
+              {segmentNames.map((seg) => (
+                <Option key={seg} value={seg}>{`${seg} Role`}</Option>
+              ))}
+            </Dropdown>
+          </div>
+          <div className={styles.controlCell}>
+            <Button onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}> {sortDir === "asc" ? "Asc" : "Desc"} </Button>
+          </div>
+          <div className={styles.controlCell}>
+            <Dropdown className={styles.full} selectedOptions={[bsFilter]} onOptionSelect={(_, data) => setBsFilter(data.optionValue as string)}>
+              <Option value="">All B/S</Option>
+              <Option value="Brother">Brother</Option>
+              <Option value="Sister">Sister</Option>
+            </Dropdown>
+          </div>
+          <div className={styles.controlCell}>
+            <Dropdown className={styles.full} multiselect placeholder="All Groups" selectedOptions={groupFilter} onOptionSelect={(_, data) => setGroupFilter(data.selectedOptions as string[])}>
+              {groups.map((g) => (
+                <Option key={g.name} value={g.name}>{g.name}</Option>
+              ))}
+            </Dropdown>
+          </div>
+          <div className={styles.controlCell}>
+            <Dropdown className={styles.full} selectedOptions={filterMonth ? [filterMonth] : []} onOptionSelect={(_, data) => setFilterMonth(data.optionValue as string)}>
+              {months.map((m) => (
+                <Option key={m} value={m}>{m}</Option>
+              ))}
+            </Dropdown>
+          </div>
+          <div className={styles.controlCell}>
+            <Checkbox label="Active" checked={activeOnly} onChange={(_, data) => setActiveOnly(!!data.checked)} />
+          </div>
+          <div className={styles.controlCell}>
+            <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data) => setCommuterOnly(!!data.checked)} />
+          </div>
+          <div className={styles.controlCell}>
+            <Checkbox label="Edit past months" checked={editPast} onChange={(_, data) => setEditPast(!!data.checked)} />
+          </div>
+          <div className={`${styles.controlCell} ${styles.monthRange}`}>
+            <span className={styles.label}>From</span>
+            <Input type="month" value={startMonth} onChange={(_, d) => setStartMonth(d.value)} />
+            <span className={styles.label}>To</span>
+            <Input type="month" value={endMonth} onChange={(_, d) => setEndMonth(d.value)} />
+          </div>
+        </div>
+        <div className={styles.segmentsWrap}>
+          <span className={styles.label}>Segments:</span>
           {segmentNames.map((seg) => (
-            <Option key={seg} value={seg}>
-              {seg} Role
-            </Option>
+            <Checkbox key={seg} label={seg} checked={!!showSeg[seg]} onChange={(_, data) => setShowSeg({ ...showSeg, [seg]: !!data.checked })} />
           ))}
-        </Dropdown>
-        <Button onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}>
-          {sortDir === "asc" ? "Asc" : "Desc"}
-        </Button>
-        <Dropdown
-          selectedOptions={[bsFilter]}
-          onOptionSelect={(_, data) => setBsFilter(data.optionValue as string)}
-        >
-          <Option value="">All B/S</Option>
-          <Option value="Brother">Brother</Option>
-          <Option value="Sister">Sister</Option>
-        </Dropdown>
-        <Dropdown
-          multiselect
-          placeholder="All Groups"
-          selectedOptions={groupFilter}
-          onOptionSelect={(_, data) => setGroupFilter(data.selectedOptions as string[])}
-        >
-          {groups.map((g) => (
-            <Option key={g.name} value={g.name}>
-              {g.name}
-            </Option>
-          ))}
-        </Dropdown>
-        <Dropdown
-          selectedOptions={filterMonth ? [filterMonth] : []}
-          onOptionSelect={(_, data) => setFilterMonth(data.optionValue as string)}
-        >
-          {months.map((m) => (
-            <Option key={m} value={m}>
-              {m}
-            </Option>
-          ))}
-        </Dropdown>
-        <Checkbox
-          label="Active"
-          checked={activeOnly}
-          onChange={(_, data) => setActiveOnly(!!data.checked)}
-        />
-        <Checkbox
-          label="Commuter"
-          checked={commuterOnly}
-          onChange={(_, data) => setCommuterOnly(!!data.checked)}
-        />
-        {segmentNames.map((seg) => (
-          <Checkbox
-            key={seg}
-            label={seg}
-            checked={!!showSeg[seg]}
-            onChange={(_, data) =>
-              setShowSeg({ ...showSeg, [seg]: !!data.checked })
-            }
-          />
-        ))}
-        <Checkbox
-          label="Edit past months"
-          checked={editPast}
-          onChange={(_, data) => setEditPast(!!data.checked)}
-        />
-        <div className="flex items-center gap-1">
-          <label className="text-sm">From</label>
-          <input
-            type="month"
-            className="border rounded px-2 py-1 text-sm"
-            value={startMonth}
-            onChange={(e) => setStartMonth(e.target.value)}
-          />
-          <label className="text-sm">To</label>
-          <input
-            type="month"
-            className="border rounded px-2 py-1 text-sm"
-            value={endMonth}
-            onChange={(e) => setEndMonth(e.target.value)}
-          />
         </div>
       </div>
-      <div className="overflow-auto">
-        <table className="min-w-full text-sm border border-slate-300 border-collapse">
-          <thead className="bg-slate-100">
-            <tr>
-              <th className="p-2 text-left border border-slate-300">Name</th>
-              <th className="p-2 text-left border border-slate-300">Segment</th>
+      <div className={styles.scroll}>
+        <Table size="small" aria-label="Crew history">
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell className={styles.stickyName}>
+                Name
+              </TableHeaderCell>
+              <TableHeaderCell className={styles.stickySeg}>
+                Segment
+              </TableHeaderCell>
               {months.map((m) => (
-                <th key={m} className="p-2 text-left border border-slate-300">
-                  {m}
-                </th>
+                <TableHeaderCell key={m}>{m}</TableHeaderCell>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {filteredPeople.map((p) => {
               const segList = segs;
               return (
                 <React.Fragment key={p.id}>
                   {segList.map((seg, idx) => (
-                    <tr
-                      key={`${p.id}-${seg}`}
-                      className="odd:bg-white even:bg-slate-50"
-                    >
+                    <TableRow key={`${p.id}-${seg}`}>
                       {idx === 0 && (
-                        <td
-                          className="p-2 border border-slate-300"
-                          rowSpan={segList.length}
-                        >
+                        <TableCell rowSpan={segList.length} className={styles.stickyName}>
                           <PersonName personId={p.id}>
                             {p.last_name}, {p.first_name}
                           </PersonName>
-                        </td>
+                        </TableCell>
                       )}
-                      <td className="p-2 border border-slate-300">{seg}</td>
+                      <TableCell className={styles.stickySeg}>{seg}</TableCell>
                       {months.map((m) => {
                         const { content, color } = cellData(m, p.id, seg);
+                        const style = styleForGroupColor(color);
                         return (
-                          <td
-                            key={m}
-                            className="p-2 border border-slate-300"
-                            style={{ backgroundColor: color }}
-                          >
+                          <TableCell key={m} style={style}>
                             {content}
-                          </td>
+                          </TableCell>
                         );
                       })}
-                    </tr>
+                    </TableRow>
                   ))}
                 </React.Fragment>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

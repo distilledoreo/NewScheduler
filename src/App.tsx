@@ -1,19 +1,17 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { applyMigrations } from "./services/migrations";
 import { listSegments, type Segment, type SegmentRow } from "./services/segments";
-import Toolbar from "./components/Toolbar";
-import DailyRunBoard from "./components/DailyRunBoard";
-import AdminView from "./components/AdminView";
-import GroupEditor from "./components/GroupEditor";
-import RoleEditor from "./components/RoleEditor";
-import ExportGroupEditor from "./components/ExportGroupEditor";
-import SegmentEditor from "./components/SegmentEditor";
-import ExportPreview from "./components/ExportPreview";
+import SideRail from "./components/SideRail";
+import TopBar from "./components/TopBar";
+const DailyRunBoard = React.lazy(() => import("./components/DailyRunBoard"));
+const AdminView = React.lazy(() => import("./components/AdminView"));
+const ExportPreview = React.lazy(() => import("./components/ExportPreview"));
 import { exportMonthOneSheetXlsx } from "./excel/export-one-sheet";
 import PersonName from "./components/PersonName";
 import PersonProfileModal from "./components/PersonProfileModal";
 import { ProfileContext } from "./components/ProfileContext";
-import { Button, Checkbox, Dropdown, Input, Option } from "@fluentui/react-components";
+import { Button, Checkbox, Dropdown, Input, Option, Table, TableHeader, TableHeaderCell, TableRow, TableBody, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, makeStyles, tokens } from "@fluentui/react-components";
+import { FluentProvider, webDarkTheme, webLightTheme } from "@fluentui/react-components";
 import MonthlyDefaults from "./components/MonthlyDefaults";
 import CrewHistoryView from "./components/CrewHistoryView";
 
@@ -101,6 +99,21 @@ async function loadXLSX(){
 }
 
 export default function App() {
+  // Theme
+  const [themeName, setThemeName] = useState<"light" | "dark">(() => {
+    try {
+      const saved = localStorage.getItem("theme");
+      if (saved === "light" || saved === "dark") return saved;
+    } catch {}
+    if (typeof window !== "undefined" && window.matchMedia) {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    return "light";
+  });
+  useEffect(() => {
+    try { localStorage.setItem("theme", themeName); } catch {}
+  }, [themeName]);
+
   const [ready, setReady] = useState(false);
   const [sqlDb, setSqlDb] = useState<any | null>(null);
 
@@ -882,45 +895,77 @@ async function exportShifts() {
     const req = date ? getRequiredFor(date, group.id, role.id, segment) : (all(`SELECT required FROM needs_baseline WHERE group_id=? AND role_id=? AND segment=?`, [group.id, role.id, segment])[0]?.required||0);
     const [val,setVal] = useState<number>(req);
     useEffect(()=>setVal(req),[req]);
+    const useReqStyles = makeStyles({
+      row: { display: 'flex', alignItems: 'center', gap: tokens.spacingHorizontalS },
+      input: { width: '7ch' },
+    });
+    const r = useReqStyles();
     return (
-      <div className="flex items-center gap-2">
-        <input 
-          type="number" 
-          className="flex-1 min-w-0 border rounded px-2 py-1 text-sm" 
-          value={val} 
-          min={0} 
-          onChange={(e)=>setVal(parseInt(e.target.value||'0',10))} 
+      <div className={r.row}>
+        <Input
+          type="number"
+          value={String(val)}
+          onChange={(_, d)=>setVal(parseInt(d.value||'0',10))}
+          className={r.input}
+          size="small"
         />
-        <button 
-          className="px-2 py-1 bg-blue-600 text-white rounded text-sm whitespace-nowrap hover:bg-blue-700" 
-          onClick={()=>setRequired(date, group.id, role.id, segment, val)}
-        >
+        <Button size="small" appearance="primary" onClick={()=>setRequired(date, group.id, role.id, segment, val)}>
           Save
-        </button>
+        </Button>
       </div>
     );
   }
   function BaselineView(){
+    const useStyles = makeStyles({
+      root: { padding: tokens.spacingHorizontalM },
+      title: { fontWeight: tokens.fontWeightSemibold, fontSize: tokens.fontSizeBase400, marginBottom: tokens.spacingVerticalM },
+      grid: {
+        display: "grid",
+        gridTemplateColumns: "1fr",
+        gap: tokens.spacingHorizontalM,
+        [`@media (min-width: 1024px)`]: { gridTemplateColumns: "repeat(2, 1fr)" },
+        [`@media (min-width: 1280px)`]: { gridTemplateColumns: "repeat(3, 1fr)" },
+      },
+      card: {
+        border: `1px solid ${tokens.colorNeutralStroke2}`,
+        borderRadius: tokens.borderRadiusLarge,
+        padding: tokens.spacingHorizontalM,
+        backgroundColor: tokens.colorNeutralBackground1,
+        boxShadow: tokens.shadow2,
+      },
+      roleCard: {
+        border: `1px solid ${tokens.colorNeutralStroke2}`,
+        borderRadius: tokens.borderRadiusLarge,
+        padding: tokens.spacingHorizontalM,
+        marginBottom: tokens.spacingVerticalM,
+      },
+      roleGrid: {
+        display: "grid",
+        gap: tokens.spacingHorizontalS,
+        gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+        alignItems: 'start',
+      },
+      subTitle: { fontWeight: tokens.fontWeightSemibold, marginBottom: tokens.spacingVerticalS },
+      label: { fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS },
+    });
+    const s = useStyles();
     return (
-      <div className="p-4">
-        <div className="font-semibold text-lg mb-4">Baseline Needs</div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className={s.root}>
+        <div className={s.title}>Baseline Needs</div>
+        <div className={s.grid}>
           {groups.map((g:any)=> (
-            <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
-              <div className="font-semibold mb-3">{g.name}</div>
+            <div key={g.id} className={s.card}>
+              <div className={s.subTitle}>{g.name}</div>
               {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
-                <div key={r.id} className="mb-4 border rounded p-3">
-                  <div className="font-medium mb-3">{r.name}</div>
-                  <div
-                    className="space-y-3 sm:grid sm:gap-3 sm:space-y-0"
-                    style={{ gridTemplateColumns: `repeat(${segments.length}, minmax(0,1fr))` }}
-                  >
-                    {segments.map((s) => (
-                      <div key={s.name}>
-                        <div className="text-xs text-slate-500 mb-1">{s.name} Required</div>
-                        <RequiredCell date={null} group={g} role={r} segment={s.name as Segment} />
-                      </div>
-                    ))}
+                <div key={r.id} className={s.roleCard}>
+                  <div className={s.subTitle}>{r.name}</div>
+                  <div className={s.roleGrid}>
+                      {segments.map((seg) => (
+                        <div key={seg.name}>
+                          <div className={s.label}>{seg.name} Required</div>
+                          <RequiredCell date={null} group={g} role={r} segment={seg.name as Segment} />
+                        </div>
+                      ))}
                   </div>
                 </div>
               ))}
@@ -976,172 +1021,281 @@ function PeopleEditor(){
     closeModal();
   }
 
+    const useStyles = makeStyles({
+    root: { padding: tokens.spacingHorizontalM },
+    tableWrap: {
+      border: `1px solid ${tokens.colorNeutralStroke2}`,
+      borderRadius: tokens.borderRadiusLarge,
+      overflowY: "auto",
+      overflowX: "hidden",
+      maxHeight: "60vh",
+      width: "100%",
+      boxShadow: tokens.shadow2,
+    },
+    header: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: tokens.spacingVerticalS },
+    title: { fontWeight: tokens.fontWeightSemibold, fontSize: tokens.fontSizeBase400 },
+    actions: { display: "flex", gap: tokens.spacingHorizontalS },
+    formGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(12, 1fr)',
+      gap: tokens.spacingHorizontalS,
+      marginBottom: tokens.spacingVerticalM,
+    },
+    col2: { gridColumn: 'span 2' },
+    col3: { gridColumn: 'span 3' },
+    col4: { gridColumn: 'span 4' },
+    centerRow: { display: 'flex', alignItems: 'center' },
+    smallLabel: { color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS, fontSize: tokens.fontSizeBase200 },
+    qualGrid: {
+      display: 'grid',
+      gap: tokens.spacingHorizontalXS,
+      gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+      maxHeight: '40vh',
+      overflow: 'auto',
+      border: `1px solid ${tokens.colorNeutralStroke2}`,
+      borderRadius: tokens.borderRadiusMedium,
+      padding: tokens.spacingHorizontalS,
+    },
+    row: { display: 'flex', gap: tokens.spacingHorizontalS },
+  cellWrap: { whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' },
+  availText: { color: tokens.colorNeutralForeground3, fontSize: tokens.fontSizeBase200 },
+  });
+  const s = useStyles();
+
   return (
-    <div className="p-4">
+    <div className={s.root}>
       <div className="w-full">
-        <div className="flex items-center justify-between mb-3">
-          <div className="font-semibold text-lg">People</div>
-          <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={()=>openModal()}>Add Person</button>
+        <div className={s.header}>
+          <div className={s.title}>People</div>
+          <Button appearance="primary" onClick={()=>openModal()}>Add Person</Button>
         </div>
 
-        <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
-          <table className="min-w-full text-sm divide-y divide-slate-200">
-            <thead className="bg-slate-100 sticky top-0">
-              <tr>
-                <th className="p-2 text-left font-medium text-slate-600">Name</th>
-                <th className="p-2 text-left font-medium text-slate-600">Email</th>
-                <th className="p-2 text-left font-medium text-slate-600">B/S</th>
-                <th className="p-2 text-left font-medium text-slate-600">Commute</th>
-                <th className="p-2 text-left font-medium text-slate-600">Active</th>
-                <th className="p-2 text-left font-medium text-slate-600">Mon</th>
-                <th className="p-2 text-left font-medium text-slate-600">Tue</th>
-                <th className="p-2 text-left font-medium text-slate-600">Wed</th>
-                <th className="p-2 text-left font-medium text-slate-600">Thu</th>
-                <th className="p-2 text-left font-medium text-slate-600">Fri</th>
-                <th className="p-2 text-left font-medium text-slate-600">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
+        <div className={s.tableWrap}>
+          <Table aria-label="People table">
+            <TableHeader>
+              <TableRow>
+                <TableHeaderCell>Name</TableHeaderCell>
+                <TableHeaderCell>Work Email</TableHeaderCell>
+                <TableHeaderCell>B/S</TableHeaderCell>
+                <TableHeaderCell>Commute</TableHeaderCell>
+                <TableHeaderCell>Active</TableHeaderCell>
+                <TableHeaderCell>Availability</TableHeaderCell>
+                <TableHeaderCell>Actions</TableHeaderCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {people.map(p => (
-                <tr key={p.id} className="odd:bg-white even:bg-slate-50 hover:bg-slate-100">
-                  <td className="p-2"><PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName></td>
-                  <td className="p-2">{p.work_email}</td>
-                  <td className="p-2">{p.brother_sister||'-'}</td>
-                  <td className="p-2">{p.commuter?"Yes":"No"}</td>
-                  <td className="p-2">{p.active?"Yes":"No"}</td>
-                  <td className="p-2">{p.avail_mon}</td>
-                  <td className="p-2">{p.avail_tue}</td>
-                  <td className="p-2">{p.avail_wed}</td>
-                  <td className="p-2">{p.avail_thu}</td>
-                  <td className="p-2">{p.avail_fri}</td>
-                  <td className="p-2 flex gap-2">
-                    <button className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded" onClick={()=>openModal(p)}>Edit</button>
-                    <button className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded" onClick={()=>{ if(confirm('Delete?')) deletePerson(p.id); }}>Delete</button>
-                  </td>
-                </tr>
+                <TableRow key={p.id}>
+                  <TableCell className={s.cellWrap}><PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName></TableCell>
+                  <TableCell className={s.cellWrap}>{p.work_email}</TableCell>
+                  <TableCell>{p.brother_sister||'-'}</TableCell>
+                  <TableCell>{p.commuter?"Yes":"No"}</TableCell>
+                  <TableCell>{p.active?"Yes":"No"}</TableCell>
+                  <TableCell className={s.cellWrap}>
+                    <div className={s.availText}>
+                      Mon: {p.avail_mon || 'U'} | Tue: {p.avail_tue || 'U'} | Wed: {p.avail_wed || 'U'} | Thu: {p.avail_thu || 'U'} | Fri: {p.avail_fri || 'U'}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Button size="small" onClick={()=>openModal(p)}>Edit</Button>
+                      <Button size="small" appearance="secondary" onClick={()=>{ if(confirm('Delete?')) deletePerson(p.id); }}>Delete</Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black/40 z-30 overflow-auto">
-          <div className="min-h-full flex items-start justify-center p-4">
-            <div className="bg-white w-full max-w-3xl max-h-[85vh] overflow-auto rounded-xl p-4 shadow-xl">
-              <div className="flex items-center justify-between mb-4">
-                <div className="font-semibold text-lg">{editing ? 'Edit Person' : 'Add Person'}</div>
-                <button className="text-slate-600 hover:text-slate-800 px-2 py-1" onClick={closeModal}>Close</button>
-              </div>
-
-              <div className="grid grid-cols-12 gap-2 mb-3">
-                <input className="border rounded px-2 py-1 col-span-3" placeholder="Last Name" value={form.last_name||''} onChange={e=>setForm({...form,last_name:e.target.value})} />
-                <input className="border rounded px-2 py-1 col-span-3" placeholder="First Name" value={form.first_name||''} onChange={e=>setForm({...form,first_name:e.target.value})} />
-                <input className="border rounded px-2 py-1 col-span-4" placeholder="Work Email" value={form.work_email||''} onChange={e=>setForm({...form,work_email:e.target.value})} />
-                <select className="border rounded px-2 py-1 col-span-2" value={form.brother_sister||'Brother'} onChange={e=>setForm({...form,brother_sister:e.target.value})}>
-                  <option>Brother</option>
-                  <option>Sister</option>
-                </select>
-                <label className="col-span-2 flex items-center gap-2"><input type="checkbox" checked={!!form.commuter} onChange={e=>setForm({...form,commuter:e.target.checked})}/> Commuter</label>
-                <label className="col-span-2 flex items-center gap-2"><input type="checkbox" checked={form.active!==false} onChange={e=>setForm({...form,active:e.target.checked})}/> Active</label>
+      <Dialog open={showModal} onOpenChange={(_, d) => setShowModal(d.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>{editing ? 'Edit Person' : 'Add Person'}</DialogTitle>
+            <DialogContent>
+              <div className={s.formGrid}>
+                <Input className={s.col3} placeholder="Last Name" value={form.last_name||''} onChange={(_,d)=>setForm({...form,last_name:d.value})} />
+                <Input className={s.col3} placeholder="First Name" value={form.first_name||''} onChange={(_,d)=>setForm({...form,first_name:d.value})} />
+                <Input className={s.col4} placeholder="Work Email" value={form.work_email||''} onChange={(_,d)=>setForm({...form,work_email:d.value})} />
+                <div className={s.col2}>
+                  <Dropdown
+                    selectedOptions={[form.brother_sister || 'Brother']}
+                    onOptionSelect={(_, data)=> setForm({...form, brother_sister: String(data.optionValue ?? data.optionText)})}
+                  >
+                    <Option value="Brother">Brother</Option>
+                    <Option value="Sister">Sister</Option>
+                  </Dropdown>
+                </div>
+                <div className={`${s.col2} ${s.centerRow}`}>
+                  <Checkbox label="Commuter" checked={!!form.commuter} onChange={(_,data)=>setForm({...form,commuter:!!data.checked})} />
+                </div>
+                <div className={`${s.col2} ${s.centerRow}`}>
+                  <Checkbox label="Active" checked={form.active!==false} onChange={(_,data)=>setForm({...form,active:!!data.checked})} />
+                </div>
                 {WEEKDAYS.map((w,idx)=> (
-                  <div key={w} className="col-span-2">
-                    <div className="text-xs text-slate-500">{w} Availability</div>
-                    <select className="border rounded px-2 py-1 w-full" value={form[["avail_mon","avail_tue","avail_wed","avail_thu","avail_fri"][idx]]||'U'} onChange={(e)=>{
-                      const key = ["avail_mon","avail_tue","avail_wed","avail_thu","avail_fri"][idx];
-                      setForm({...form,[key]:e.target.value});
-                    }}>
-                      <option value="U">Unavailable</option>
-                      <option value="AM">AM</option>
-                      <option value="PM">PM</option>
-                      <option value="B">Both</option>
-                    </select>
+                  <div key={w} className={s.col2}>
+                    <div className={s.smallLabel}>{w} Availability</div>
+                    <Dropdown
+                      selectedOptions={[form[["avail_mon","avail_tue","avail_wed","avail_thu","avail_fri"][idx]]||'U']}
+                      onOptionSelect={(_, data)=>{
+                        const key = ["avail_mon","avail_tue","avail_wed","avail_thu","avail_fri"][idx] as keyof typeof form;
+                        setForm({...form,[key]: String(data.optionValue ?? data.optionText)});
+                      }}
+                    >
+                      <Option value="U">Unavailable</Option>
+                      <Option value="AM">AM</Option>
+                      <Option value="PM">PM</Option>
+                      <Option value="B">Both</Option>
+                    </Dropdown>
                   </div>
                 ))}
               </div>
 
-              <div className="mb-4">
-                <div className="text-xs text-slate-500 mb-1">Qualified Roles</div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 max-h-40 overflow-auto border rounded p-2">
+              <div>
+                <div className={s.smallLabel}>Qualified Roles</div>
+                <div className={s.qualGrid}>
                   {roles.map((r:any)=>(
-                    <label key={r.id} className="flex items-center gap-1 text-xs">
-                      <input type="checkbox" checked={qualifications.has(r.id)} onChange={e => {
+                    <Checkbox key={r.id}
+                      label={r.name}
+                      checked={qualifications.has(r.id)}
+                      onChange={(_, data) => {
                         const next = new Set(qualifications);
-                        if(e.target.checked) next.add(r.id); else next.delete(r.id);
+                        if (data.checked) next.add(r.id); else next.delete(r.id);
                         setQualifications(next);
-                      }} />
-                      {r.name}
-                    </label>
+                      }}
+                    />
                   ))}
                 </div>
               </div>
-
-              <div className="flex gap-2">
-                <button className={`px-3 py-2 text-white rounded ${editing? 'bg-blue-700' : 'bg-emerald-700'}`} onClick={save}>{editing ? 'Save Changes' : 'Add Person'}</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={closeModal}>Close</Button>
+              <Button appearance="primary" onClick={save}>{editing ? 'Save Changes' : 'Add Person'}</Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     </div>
   );
 }
 
   function NeedsEditor(){
     const d = selectedDateObj;
+    const useDialogStyles = makeStyles({
+      grid: {
+        display: "grid",
+        gridTemplateColumns: "1fr",
+        gap: tokens.spacingHorizontalM,
+        [`@media (min-width: 1024px)`]: { gridTemplateColumns: "repeat(2, 1fr)" },
+        [`@media (min-width: 1280px)`]: { gridTemplateColumns: "repeat(3, 1fr)" },
+      },
+      card: {
+        border: `1px solid ${tokens.colorNeutralStroke2}`,
+        borderRadius: tokens.borderRadiusLarge,
+        padding: tokens.spacingHorizontalM,
+        backgroundColor: tokens.colorNeutralBackground1,
+        boxShadow: tokens.shadow2,
+      },
+      roleCard: { border: `1px solid ${tokens.colorNeutralStroke2}`, borderRadius: tokens.borderRadiusLarge, padding: tokens.spacingHorizontalM, marginBottom: tokens.spacingVerticalM },
+      subTitle: { fontWeight: tokens.fontWeightSemibold, marginBottom: tokens.spacingVerticalS },
+      roleGrid: { display: "grid", gap: tokens.spacingHorizontalS, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", alignItems: 'start' },
+      label: { fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS },
+      content: { overflowY: 'auto', overflowX: 'hidden' },
+      surface: { width: '90vw', maxWidth: '1200px', maxHeight: '85vh' },
+    });
+    const ds = useDialogStyles();
     return (
-      <div className="fixed inset-0 bg-black/40 z-30 overflow-auto">
-        <div className="min-h-full flex items-start justify-center p-4">
-          <div className="bg-white w-full max-w-6xl max-h-[85vh] overflow-auto rounded-xl p-4 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <div className="font-semibold text-lg">Needs for {fmtDateMDY(d)}</div>
-              <button className="text-slate-600 hover:text-slate-800 px-2 py-1" onClick={()=>setShowNeedsEditor(false)}>Close</button>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-              {groups.map((g:any)=> (
-                <div key={g.id} className="border rounded-lg p-3 bg-white shadow-sm">
-                  <div className="font-semibold mb-3">{g.name}</div>
-                  {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
-                    <div key={r.id} className="mb-4 border rounded p-3">
-                      <div className="font-medium mb-3">{r.name}</div>
-                      <div
-                        className="space-y-3 sm:grid sm:gap-3 sm:space-y-0"
-                        style={{ gridTemplateColumns: `repeat(${segments.length}, minmax(0,1fr))` }}
-                      >
-                        {segments.map((s) => (
-                          <div key={s.name}>
-                            <div className="text-xs text-slate-500 mb-1">{s.name} Required</div>
-                            <RequiredCell date={d} group={g} role={r} segment={s.name as Segment} />
-                          </div>
-                        ))}
+      <Dialog open={showNeedsEditor} onOpenChange={(_, data)=> setShowNeedsEditor(data.open)}>
+        <DialogSurface className={ds.surface}>
+          <DialogBody>
+            <DialogTitle>Needs for {fmtDateMDY(d)}</DialogTitle>
+            <DialogContent className={ds.content}>
+              <div className={ds.grid}>
+                {groups.map((g:any)=> (
+                  <div key={g.id} className={ds.card}>
+                    <div className={ds.subTitle}>{g.name}</div>
+                    {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
+                      <div key={r.id} className={ds.roleCard}>
+                        <div className={ds.subTitle}>{r.name}</div>
+                        <div className={ds.roleGrid}>
+                          {segments.map((seg) => (
+                            <div key={seg.name}>
+                              <div className={ds.label}>{seg.name} Required</div>
+                              <RequiredCell date={d} group={g} role={r} segment={seg.name as Segment} />
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={()=>setShowNeedsEditor(false)}>Close</Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     );
   }
 
+  const useAppShellStyles = makeStyles({
+    shell: {
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      width: '100%',
+      maxWidth: '100%',
+      overflow: 'hidden',
+      backgroundColor: (themeName === "dark" ? webDarkTheme : webLightTheme).colorNeutralBackground1,
+    },
+    contentRow: {
+      display: 'flex',
+      width: '100%',
+      maxWidth: '100%',
+      minHeight: 0,
+      flex: 1,
+      overflow: 'hidden',
+    },
+    main: {
+      flex: 1,
+      minWidth: 0,
+      overflow: 'auto',
+    },
+    mainInner: {
+      padding: tokens.spacingHorizontalM,
+    },
+  });
+  const sh = useAppShellStyles();
+
   return (
-    <ProfileContext.Provider value={{ showProfile: (id: number) => setProfilePersonId(id) }}>
-    <div className="min-h-screen bg-slate-50">
-      <Toolbar
+  <FluentProvider theme={themeName === "dark" ? webDarkTheme : webLightTheme}>
+  <ProfileContext.Provider value={{ showProfile: (id: number) => setProfilePersonId(id) }}>
+  <div className={sh.shell}>
+      <TopBar
         ready={ready}
         sqlDb={sqlDb}
+        canSave={canSave}
         createNewDb={createNewDb}
         openDbFromFile={openDbFromFile}
         saveDb={saveDb}
         saveDbAs={saveDbAs}
         status={status}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        canSave={canSave}
       />
-
+      <div className={sh.contentRow}>
+        <SideRail
+          ready={ready}
+          sqlDb={sqlDb}
+          status={status}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          themeName={themeName}
+          setThemeName={setThemeName}
+        />
+        <main className={sh.main}>
+        <div className={sh.mainInner}>
       {!sqlDb && (
         <div className="p-6 text-slate-600">
           <div className="font-semibold mb-2">First run</div>
@@ -1159,32 +1313,36 @@ function PeopleEditor(){
       {sqlDb && (
         <>
             {activeTab === 'RUN' && (
-              <DailyRunBoard
-                activeRunSegment={activeRunSegment}
-                setActiveRunSegment={setActiveRunSegment}
-                groups={groups}
-                segments={segments}
-                lockEmail={lockEmail}
-                sqlDb={sqlDb}
-                all={all}
-                roleListForSegment={roleListForSegment}
-                selectedDate={selectedDate}
-                selectedDateObj={selectedDateObj}
-                setSelectedDate={setSelectedDate}
-                fmtDateMDY={fmtDateMDY}
-                parseYMD={parseYMD}
-                ymd={ymd}
-                setShowNeedsEditor={setShowNeedsEditor}
-                canEdit={canEdit}
-                peopleOptionsForSegment={peopleOptionsForSegment}
-                getRequiredFor={getRequiredFor}
-                addAssignment={addAssignment}
-                deleteAssignment={deleteAssignment}
-              />
+              <Suspense fallback={<div className="p-4 text-slate-600">Loading Daily Run…</div>}>
+                <DailyRunBoard
+                  activeRunSegment={activeRunSegment}
+                  setActiveRunSegment={setActiveRunSegment}
+                  groups={groups}
+                  segments={segments}
+                  lockEmail={lockEmail}
+                  sqlDb={sqlDb}
+                  all={all}
+                  roleListForSegment={roleListForSegment}
+                  selectedDate={selectedDate}
+                  selectedDateObj={selectedDateObj}
+                  setSelectedDate={setSelectedDate}
+                  fmtDateMDY={fmtDateMDY}
+                  parseYMD={parseYMD}
+                  ymd={ymd}
+                  setShowNeedsEditor={setShowNeedsEditor}
+                  canEdit={canEdit}
+                  peopleOptionsForSegment={peopleOptionsForSegment}
+                  getRequiredFor={getRequiredFor}
+                  addAssignment={addAssignment}
+                  deleteAssignment={deleteAssignment}
+                  isDark={themeName === "dark"}
+                />
+              </Suspense>
             )}
           {activeTab === 'PEOPLE' && <PeopleEditor />}
           {activeTab === 'NEEDS' && <BaselineView />}
           {activeTab === 'EXPORT' && (
+            <Suspense fallback={<div className="p-4 text-slate-600">Loading Export Preview…</div>}>
               <ExportPreview
                 sqlDb={sqlDb}
                 exportStart={exportStart}
@@ -1200,7 +1358,8 @@ function PeopleEditor(){
                 people={people}
                 roles={roles}
               />
-            )}
+            </Suspense>
+          )}
           {activeTab === 'MONTHLY' && (
             <MonthlyDefaults
               selectedMonth={selectedMonth}
@@ -1237,7 +1396,9 @@ function PeopleEditor(){
             />
           )}
           {activeTab === 'ADMIN' && (
-            <AdminView all={all} run={run} refresh={refreshCaches} segments={segments} />
+            <Suspense fallback={<div className="p-4 text-slate-600">Loading Admin…</div>}>
+              <AdminView all={all} run={run} refresh={refreshCaches} segments={segments} />
+            </Suspense>
           )}
         </>
       )}
@@ -1250,7 +1411,11 @@ function PeopleEditor(){
           all={all}
         />
       )}
-    </div>
-    </ProfileContext.Provider>
+        </div>
+        </main>
+      </div>
+  </div>
+  </ProfileContext.Provider>
+  </FluentProvider>
   );
 }

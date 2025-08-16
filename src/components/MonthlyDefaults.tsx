@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { Input, Dropdown, Option, Button, Checkbox } from "@fluentui/react-components";
+import { Input, Button, Checkbox, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, Link, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider, Dropdown, Option } from "@fluentui/react-components";
+import SmartSelect from "./controls/SmartSelect";
 import PersonName from "./PersonName";
 import { exportMonthOneSheetXlsx } from "../excel/export-one-sheet";
 import { type Segment, type SegmentRow } from "../services/segments";
@@ -43,6 +44,44 @@ export default function MonthlyDefaults({
   exportMonthlyDefaults,
   roleListForSegment,
 }: MonthlyDefaultsProps) {
+  const useStyles = makeStyles({
+    root: {
+      padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
+      display: 'flex',
+      flexDirection: 'column',
+      width: '100%',
+      maxWidth: '100%',
+      minWidth: 0,
+      overflow: 'hidden',
+      boxSizing: 'border-box',
+      rowGap: tokens.spacingVerticalM,
+    },
+    toolbar: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+      alignItems: 'end',
+      gap: tokens.spacingHorizontalS,
+      paddingBlockEnd: tokens.spacingVerticalS,
+      minWidth: 0,
+    },
+    label: {
+      fontSize: tokens.fontSizeBase300,
+      color: tokens.colorNeutralForeground2,
+    },
+    scroll: {
+      width: '100%',
+      maxWidth: '100%',
+      minWidth: 0,
+      overflowX: 'auto',
+      overflowY: 'auto',
+      overscrollBehaviorX: 'contain',
+    },
+    inlineLink: {
+      marginLeft: tokens.spacingHorizontalS,
+      fontSize: tokens.fontSizeBase200,
+    },
+  });
+  const styles = useStyles();
   const segmentNames = useMemo(() => segments.map(s => s.name as Segment), [segments]);
   const [filterText, setFilterText] = useState("");
   const [sortKey, setSortKey] = useState<string>("name");
@@ -96,136 +135,140 @@ export default function MonthlyDefaults({
     const weekdays = [1, 2, 3, 4, 5];
     const segNames = segmentNames;
     return (
-      <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center" onClick={onClose}>
-        <div className="bg-white rounded shadow-lg p-4" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-2">
-            <div className="font-semibold">Weekly Overrides - {person.first_name} {person.last_name}</div>
-            <button className="text-slate-600 hover:text-slate-800" onClick={onClose}>Close</button>
-          </div>
-          <table className="text-sm border-collapse">
-            <thead>
-              <tr>
-                <th className="p-1"></th>
-                {weekdays.map(w => (
-                  <th key={w} className="p-1">{WEEKDAYS[w - 1].slice(0, 3)}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {segNames.map(seg => (
-                <tr key={seg}>
-                  <td className="p-1 font-medium">{seg}</td>
-                  {weekdays.map(w => {
-                    const ov = monthlyOverrides.find(o => o.person_id === personId && o.weekday === w && o.segment === seg);
-                    return (
-                      <td key={w} className="p-1">
-                        <select className="border rounded px-2 py-1" value={ov?.role_id ?? ''} onChange={(e) => {
-                          const val = e.target.value;
-                          const rid = val === '' ? null : Number(val);
-                          setWeeklyOverride(personId, w, seg, rid);
-                        }}>
-                          <option value="">(default)</option>
-                          {roleListForSegment(seg).map((r: any) => (<option key={r.id} value={r.id}>{r.name}</option>))}
-                        </select>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Dialog open onOpenChange={(_, d)=>{ if(!d.open) onClose(); }}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Weekly Overrides - {person.first_name} {person.last_name}</DialogTitle>
+            <DialogContent>
+              <Table size="small" aria-label="Weekly overrides">
+                <TableHeader>
+                  <TableRow>
+                    <TableHeaderCell></TableHeaderCell>
+                    {weekdays.map(w => (
+                      <TableHeaderCell key={w}>{WEEKDAYS[w - 1].slice(0, 3)}</TableHeaderCell>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {segNames.map(seg => (
+                    <TableRow key={seg}>
+                      <TableCell>{seg}</TableCell>
+                      {weekdays.map(w => {
+                        const ov = monthlyOverrides.find(o => o.person_id === personId && o.weekday === w && o.segment === seg);
+                        const options = roleListForSegment(seg);
+                        const optionsKey = options.map((r: any) => `${r.id}:${r.name}`).join(',');
+                        return (
+                          <TableCell key={w}>
+                            <SmartSelect
+                              options={[{ value: "", label: "(default)" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name }))]}
+                              value={ov?.role_id != null ? String(ov.role_id) : null}
+                              onChange={(v) => {
+                                const rid = v ? Number(v) : null;
+                                setWeeklyOverride(personId, w, seg, rid);
+                              }}
+                              placeholder="(default)"
+                            />
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={onClose}>Close</Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     );
   }
 
   return (
-    <div className="p-4">
-      <div className="flex items-center gap-2 mb-4">
-        <label className="text-sm">Month</label>
-        <input type="month" className="border rounded px-2 py-1" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} />
-        <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={() => applyMonthlyDefaults(selectedMonth)}>Apply to Month</button>
-        <input type="month" className="border rounded px-2 py-1" value={copyFromMonth} onChange={(e) => setCopyFromMonth(e.target.value)} />
-        <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={() => copyMonthlyDefaults(copyFromMonth, selectedMonth)}>
-          Copy From Month
-        </button>
-        <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={() => setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</button>
-        <button className="px-3 py-1 bg-slate-200 rounded text-sm" onClick={() => exportMonthlyDefaults(selectedMonth)}>Export HTML</button>
-        <button
-          className="px-3 py-1 bg-slate-200 rounded text-sm"
-          onClick={() =>
-            exportMonthOneSheetXlsx(selectedMonth).catch((err) => alert(err.message))
-          }
-        >
-          Export One Sheet (.xlsx)
-        </button>
+    <div className={styles.root}>
+      <div className={styles.toolbar}>
+        <div>
+          <span className={styles.label}>Month</span>
+          <Input type="month" value={selectedMonth} onChange={(_, d) => setSelectedMonth(d.value)} />
+        </div>
+        <Button onClick={() => applyMonthlyDefaults(selectedMonth)}>Apply to Month</Button>
+        <div>
+          <span className={styles.label}>Copy From</span>
+          <Input type="month" value={copyFromMonth} onChange={(_, d) => setCopyFromMonth(d.value)} />
+        </div>
+        <Button onClick={() => copyMonthlyDefaults(copyFromMonth, selectedMonth)}>Copy</Button>
+        <Button onClick={() => setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</Button>
+        <Button onClick={() => exportMonthlyDefaults(selectedMonth)}>Export HTML</Button>
+        <Button onClick={() => exportMonthOneSheetXlsx(selectedMonth).catch((err) => alert(err.message))}>Export .xlsx</Button>
         <Input placeholder="Filter" value={filterText} onChange={(_, data) => setFilterText(data.value)} />
         <Dropdown selectedOptions={[sortKey]} onOptionSelect={(_, data) => setSortKey(data.optionValue as any)}>
-          <Option value="name">Name</Option>
-          <Option value="email">Email</Option>
-          <Option value="brother_sister">B/S</Option>
-          <Option value="commuter">Commute</Option>
-          <Option value="active">Active</Option>
-          <Option value="avail_mon">Mon</Option>
-          <Option value="avail_tue">Tue</Option>
-          <Option value="avail_wed">Wed</Option>
-          <Option value="avail_thu">Thu</Option>
-          <Option value="avail_fri">Fri</Option>
+          <Option value="name" text="Name">Name</Option>
+          <Option value="email" text="Email">Email</Option>
+          <Option value="brother_sister" text="B/S">B/S</Option>
+          <Option value="commuter" text="Commute">Commute</Option>
+          <Option value="active" text="Active">Active</Option>
+          <Option value="avail_mon" text="Mon">Mon</Option>
+          <Option value="avail_tue" text="Tue">Tue</Option>
+          <Option value="avail_wed" text="Wed">Wed</Option>
+          <Option value="avail_thu" text="Thu">Thu</Option>
+          <Option value="avail_fri" text="Fri">Fri</Option>
           {segmentNames.map(seg => (
-            <Option key={seg} value={seg}>{seg} Role</Option>
+            <Option key={seg} value={seg} text={`${seg} Role`}>{`${seg} Role`}</Option>
           ))}
         </Dropdown>
         <Button onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}>{sortDir === 'asc' ? 'Asc' : 'Desc'}</Button>
         <Checkbox label="Active" checked={activeOnly} onChange={(_, data) => setActiveOnly(!!data.checked)} />
         <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data) => setCommuterOnly(!!data.checked)} />
       </div>
-      <div className="overflow-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-100">
-            <tr>
-              <th className="p-2 text-left">Name</th>
-              {segmentNames.map(seg => (
-                <th key={seg} className="p-2 text-left">{seg}</th>
+  <div className={styles.scroll}>
+        <Table size="small" aria-label="Monthly defaults">
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell>Name</TableHeaderCell>
+              {segmentNames.map((seg) => (
+                <TableHeaderCell key={seg}>{seg}</TableHeaderCell>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {viewPeople.map((p: any) => (
-              <tr key={p.id} className="odd:bg-white even:bg-slate-50">
-                <td className="p-2">
-                  <PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName>
+              <TableRow key={p.id}>
+                <TableCell>
+                  <PersonName personId={p.id}>
+                    {p.last_name}, {p.first_name}
+                  </PersonName>
                   {monthlyEditing && (
-                    <button className="ml-2 text-xs text-slate-600 underline" onClick={() => setWeekdayPerson(p.id)}>
-                      Days{monthlyOverrides.some(o => o.person_id === p.id) ? '*' : ''}
-                    </button>
+                    <Link appearance="subtle" className={styles.inlineLink} onClick={() => setWeekdayPerson(p.id)}>
+                      Days{monthlyOverrides.some((o) => o.person_id === p.id) ? "*" : ""}
+                    </Link>
                   )}
-                </td>
-                {segmentNames.map(seg => {
-                  const def = monthlyDefaults.find(d => d.person_id === p.id && d.segment === seg);
+                </TableCell>
+                {segmentNames.map((seg) => {
+                  const def = monthlyDefaults.find(
+                    (d) => d.person_id === p.id && d.segment === seg,
+                  );
+                  const options = roleListForSegment(seg);
+                  const optionsKey = options.map((r: any) => `${r.id}:${r.name}`).join(',');
                   return (
-                    <td key={seg} className="p-2">
-                      <select
-                        className="border rounded px-2 py-1 w-full"
-                        value={def?.role_id ?? ''}
-                        disabled={!monthlyEditing}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          const rid = val === '' ? null : Number(val);
+                    <TableCell key={seg}>
+                      <SmartSelect
+                        options={[{ value: "", label: "--" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name }))]}
+                        value={def?.role_id != null ? String(def.role_id) : null}
+                        onChange={(v) => {
+                          const rid = v ? Number(v) : null;
                           setMonthlyDefault(p.id, seg, rid);
                         }}
-                      >
-                        <option value="">--</option>
-                        {roleListForSegment(seg).map((r: any) => (
-                          <option key={r.id} value={r.id}>{r.name}</option>
-                        ))}
-                      </select>
-                    </td>
+                        placeholder="--"
+                        disabled={!monthlyEditing}
+                      />
+                    </TableCell>
                   );
                 })}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       {weekdayPerson !== null && (
         <WeeklyOverrideModal personId={weekdayPerson} onClose={() => setWeekdayPerson(null)} />

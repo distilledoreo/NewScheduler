@@ -1,11 +1,123 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import GridLayout, { WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import type { Segment, SegmentRow } from "../services/segments";
+import "../styles/scrollbar.css";
 import PersonName from "./PersonName";
+import {
+  Button,
+  Dropdown,
+  Option,
+  Tab,
+  TabList,
+  Input,
+  tokens,
+  Dialog,
+  DialogSurface,
+  DialogBody,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  DialogTrigger,
+  makeStyles,
+  Badge,
+  Card,
+  CardHeader,
+  CardPreview,
+  Subtitle1,
+  Body1,
+  Caption1,
+  Title3,
+  Subtitle2,
+} from "@fluentui/react-components";
 
 const Grid = WidthProvider(GridLayout);
+
+// Styles moved outside the component to avoid recreating style objects on each render
+const useStyles = makeStyles({
+  root: {
+    padding: tokens.spacingHorizontalL,
+    backgroundColor: tokens.colorNeutralBackground2,
+    minHeight: "100%",
+  },
+  header: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: tokens.spacingHorizontalL,
+    marginBottom: tokens.spacingHorizontalL,
+    [`@media (min-width: 1024px)`]: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+  },
+  headerLeft: { display: "flex", alignItems: "center", gap: tokens.spacingHorizontalS },
+  headerRight: { display: "flex", flexWrap: "wrap", gap: tokens.spacingHorizontalS, marginLeft: "auto" },
+  label: {
+    fontSize: tokens.fontSizeBase300,
+    color: tokens.colorNeutralForeground2,
+    whiteSpace: "nowrap",
+  },
+  groupCard: {
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+  },
+  groupHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  groupMeta: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  rolesGrid: {
+    flex: 1,
+    display: "grid",
+    gap: tokens.spacingHorizontalM,
+    paddingTop: tokens.spacingVerticalM,
+    overflow: "auto",
+  },
+  roleCard: {
+    borderLeftWidth: "4px",
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+  },
+  roleHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: tokens.spacingVerticalS,
+  },
+  assignmentsList: {
+    listStyleType: "none",
+    padding: 0,
+    margin: 0,
+    overflow: "auto",
+    display: "grid",
+    rowGap: tokens.spacingVerticalS,
+  },
+  assignmentItem: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: tokens.colorNeutralBackground2,
+    borderRadius: tokens.borderRadiusSmall,
+    padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalM}`,
+    columnGap: tokens.spacingHorizontalM,
+  },
+  assignmentName: {
+    flex: 1,
+    overflowWrap: "anywhere",
+    wordBreak: "break-word",
+  },
+  actionsRow: {
+    display: "flex",
+    columnGap: tokens.spacingHorizontalS,
+    flexShrink: 0,
+  },
+});
 
 interface DailyRunBoardProps {
   activeRunSegment: Segment;
@@ -42,6 +154,7 @@ interface DailyRunBoardProps {
     segment: Segment
   ) => void;
   deleteAssignment: (id: number) => void;
+  isDark: boolean;
 }
 
 export default function DailyRunBoard({
@@ -65,7 +178,21 @@ export default function DailyRunBoard({
   getRequiredFor,
   addAssignment,
   deleteAssignment,
+  isDark,
 }: DailyRunBoardProps) {
+  // Height of each react-grid-layout row in pixels. Increase to make group cards taller.
+  const RGL_ROW_HEIGHT = 110;
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const s = useStyles();
   const seg: Segment = activeRunSegment;
   const [layout, setLayout] = useState<any[]>([]);
   const [layoutLoaded, setLayoutLoaded] = useState(false);
@@ -75,9 +202,11 @@ export default function DailyRunBoard({
   } | null>(null);
   const [moveTargetId, setMoveTargetId] = useState<number | null>(null);
 
+  const roles = useMemo(() => roleListForSegment(seg), [roleListForSegment, seg]);
+
   useEffect(() => {
     setLayoutLoaded(false);
-    const key = `layout:${seg}:${lockEmail || 'default'}`;
+    const key = `layout:${seg}:${lockEmail || "default"}`;
     let saved: any[] = [];
     try {
       const rows = all(`SELECT value FROM meta WHERE key=?`, [key]);
@@ -85,18 +214,35 @@ export default function DailyRunBoard({
     } catch {}
     const byId = new Map(saved.map((l: any) => [l.i, l]));
     const merged = groups.map((g: any, idx: number) => {
-      const roleCount = roleListForSegment(seg).filter((r) => r.group_id === g.id).length;
-      const h = Math.max(2, roleCount + 1);
-      return byId.get(String(g.id)) || { i: String(g.id), x: (idx % 4) * 3, y: Math.floor(idx / 4) * h, w: 3, h };
+      const rolesForGroup = roles.filter((r) => r.group_id === g.id);
+      const roleCount = rolesForGroup.length;
+      // Base height estimates number of role rows across ~3 columns plus header
+      const baseH = Math.max(2, Math.ceil(roleCount / 3)) + 1;
+      // Estimate extra rows based on additional required people beyond 1 per role
+      const extraNeededSum = rolesForGroup.reduce((sum, r) => {
+        const req = getRequiredFor(selectedDateObj, g.id, r.id, seg);
+        return sum + Math.max(0, req - 1);
+      }, 0);
+      const extraRows = Math.ceil(extraNeededSum / 3);
+      const h = baseH + extraRows;
+      return (
+        byId.get(String(g.id)) || {
+          i: String(g.id),
+          x: (idx % 4) * 3,
+          y: Math.floor(idx / 4) * h,
+          w: 3,
+          h,
+        }
+      );
     });
     setLayout(merged);
     setLayoutLoaded(true);
-  }, [groups, lockEmail, seg, roleListForSegment]);
+  }, [groups, lockEmail, seg, roles, all, getRequiredFor, selectedDateObj]);
 
   function handleLayoutChange(l: any[]) {
     setLayout(l);
     if (!layoutLoaded) return;
-    const key = `layout:${seg}:${lockEmail || 'default'}`;
+    const key = `layout:${seg}:${lockEmail || "default"}`;
     try {
       const stmt = sqlDb.prepare(`INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)`);
       stmt.bind([key, JSON.stringify(l)]);
@@ -105,135 +251,216 @@ export default function DailyRunBoard({
     } catch {}
   }
 
-  function RoleCard({ group, role }: { group: any; role: any }) {
-    const assigns = all(
-      `SELECT a.id, p.first_name, p.last_name, p.id as person_id FROM assignment a JOIN person p ON p.id=a.person_id WHERE a.date=? AND a.role_id=? AND a.segment=? ORDER BY p.last_name,p.first_name`,
-      [ymd(selectedDateObj), role.id, seg]
+  const assignedCountMap = useMemo(() => {
+    const rows = all(
+      `SELECT role_id, COUNT(*) as c FROM assignment WHERE date=? AND segment=? GROUP BY role_id`,
+      [ymd(selectedDateObj), seg]
     );
-    const trainedBefore = new Set([
-      ...all(`SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`, [role.id]).map(
-        (r: any) => r.person_id
-      ),
-      ...all(
+    return new Map<number, number>(rows.map((r: any) => [r.role_id, r.c]));
+  }, [all, selectedDateObj, seg, ymd]);
+
+  const groupMap = useMemo(() => new Map(groups.map((g: any) => [g.id, g])), [groups]);
+
+  const deficitRoles = useMemo(() => {
+    return (
+      roles
+        .map((r: any) => {
+          const assigned = assignedCountMap.get(r.id) || 0;
+          const req = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
+          return assigned < req ? { role: r, group: groupMap.get(r.group_id) } : null;
+        })
+        .filter(Boolean) as Array<{ role: any; group: any }>
+    );
+  }, [roles, assignedCountMap, getRequiredFor, selectedDateObj, seg, groupMap]);
+
+  const GroupCard = React.memo(function GroupCard({ group, isDraggable }: { group: any; isDraggable: boolean }) {
+    const rolesForGroup = roles.filter((r) => r.group_id === group.id);
+    const groupNeedsMet = rolesForGroup.every((r: any) => {
+      const assignedCount = assignedCountMap.get(r.id) || 0;
+      const req = getRequiredFor(selectedDateObj, group.id, r.id, seg);
+      return assignedCount >= req;
+    });
+    const groupAccent = groupNeedsMet
+      ? tokens.colorPaletteGreenBorderActive
+      : tokens.colorPaletteRedBorderActive;
+    return (
+      <Card className={s.groupCard} style={{ borderColor: groupAccent }}>
+        <CardHeader
+          className={isDraggable ? "drag-handle" : ""}
+          header={<Title3>{group.name}</Title3>}
+          description={
+            <Caption1 className={s.groupMeta}>
+              {group.theme || "No Theme"}
+            </Caption1>
+          }
+        />
+        <div
+          className={s.rolesGrid}
+          style={{
+            gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))",
+            ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1,
+          }}
+        >
+          {rolesForGroup.map((r: any) => (
+            <RoleCard key={r.id} group={group} role={r} />
+          ))}
+        </div>
+      </Card>
+    );
+  });
+
+  const RoleCard = React.memo(function RoleCard({ group, role }: { group: any; role: any }) {
+    const assigns = useMemo(
+      () =>
+        all(
+          `SELECT a.id, p.first_name, p.last_name, p.id as person_id FROM assignment a JOIN person p ON p.id=a.person_id WHERE a.date=? AND a.role_id=? AND a.segment=? ORDER BY p.last_name,p.first_name`,
+          [ymd(selectedDateObj), role.id, seg]
+        ),
+      [all, selectedDateObj, role.id, seg, ymd]
+    );
+
+    const trainedBefore = useMemo(() => {
+      const qualified = all(
+        `SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`,
+        [role.id]
+      ).map((r: any) => r.person_id);
+      const priorAssigned = all(
         `SELECT DISTINCT person_id FROM assignment WHERE role_id=? AND date < ?`,
         [role.id, ymd(selectedDateObj)]
-      ).map((r: any) => r.person_id),
-    ]);
-    const opts = peopleOptionsForSegment(selectedDateObj, seg, role);
+      ).map((r: any) => r.person_id);
+      return new Set([...qualified, ...priorAssigned]);
+    }, [all, role.id, selectedDateObj, ymd]);
+
+    const opts = useMemo(
+      () => peopleOptionsForSegment(selectedDateObj, seg, role),
+      [peopleOptionsForSegment, selectedDateObj, seg, role]
+    );
 
     const req = getRequiredFor(selectedDateObj, group.id, role.id, seg);
     const assignedCount = assigns.length;
-    const cardColor =
-      assignedCount < req
-        ? 'bg-red-100'
-        : assignedCount === req
-        ? 'bg-green-50'
-        : 'bg-yellow-50';
-    const statusColor =
-      assignedCount < req
-        ? 'bg-red-100 text-red-800'
-        : assignedCount === req
-        ? 'bg-green-100 text-green-800'
-        : 'bg-yellow-100 text-yellow-800';
+    const status: "under" | "exact" | "over" =
+      assignedCount < req ? "under" : assignedCount === req ? "exact" : "over";
+    const accentColor =
+      status === "under"
+        ? tokens.colorPaletteRedBorderActive
+        : status === "exact"
+        ? tokens.colorPaletteGreenBorderActive
+        : tokens.colorPaletteYellowBorderActive;
     const isOverstaffed = assignedCount > req;
 
-    function handleMove(a: any, targets: any[]) {
-      if (!targets.length) return;
-      setMoveContext({ assignment: a, targets });
-      setMoveTargetId(null);
-    }
+    const handleMove = useCallback(
+      (a: any) => {
+        // Compute eligible targets on demand to avoid per-row heavy checks
+        const targets = deficitRoles.filter((d: any) => {
+          const candidateOpts = peopleOptionsForSegment(selectedDateObj, seg, d.role);
+          return candidateOpts.some((o) => o.id === a.person_id && !o.blocked);
+        });
+        if (!targets.length) {
+          alert("No eligible destinations for this person.");
+          return;
+        }
+        setMoveContext({ assignment: a, targets });
+        setMoveTargetId(null);
+      },
+      [deficitRoles, peopleOptionsForSegment, selectedDateObj, seg]
+    );
+
+    const [addSel, setAddSel] = useState<string[]>([]);
+    const [openAdd, setOpenAdd] = useState(false);
 
     return (
-      <div className={`border rounded p-2 ${cardColor}`}>
-        <div className="flex items-center justify-between mb-2">
-          <div className="font-medium">{role.name}</div>
-          <div className={`text-xs px-2 py-0.5 rounded ${statusColor}`}>{assignedCount}/{req}</div>
+      <Card
+        className={s.roleCard}
+        style={{
+          borderLeftColor: accentColor,
+          ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1,
+        }}
+      >
+        <div className={s.roleHeader}>
+          <Subtitle2>{role.name}</Subtitle2>
+          <Badge
+            appearance="tint"
+            color={
+              status === "under"
+                ? "danger"
+                : status === "exact"
+                ? "success"
+                : "warning"
+            }
+          >
+            {assignedCount}/{req}
+          </Badge>
         </div>
 
-        <div className="flex items-center gap-2 mb-2">
-          <select
-            className="border rounded w-full px-2 py-1"
-            defaultValue=""
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: tokens.spacingVerticalS,
+          }}
+        >
+          <Dropdown
+            placeholder={canEdit ? "+ Add person…" : "Add person…"}
             disabled={!canEdit}
-            onChange={(e) => {
-              const pid = Number(e.target.value);
-              if (!pid) return;
+            open={openAdd}
+            onOpenChange={(_, d) => setOpenAdd(Boolean(d.open))}
+            selectedOptions={addSel}
+            onOptionSelect={(_, data) => {
+              const val = data.optionValue ?? '';
+              if (!val) return;
+              const pid = Number(val);
               const sel = opts.find((o) => o.id === pid);
               if (sel?.blocked) {
                 alert("Blocked by time-off for this segment.");
+                setAddSel([]);
                 return;
               }
               addAssignment(selectedDate, pid, role.id, seg);
-              (e.target as HTMLSelectElement).value = "";
+              setAddSel([]);
             }}
+            style={{ width: "100%" }}
           >
-            <option value="">{canEdit ? "+ Add person…" : "Add person…"}</option>
-            {opts.map((o) => (
-              <option key={o.id} value={o.id} disabled={o.blocked}>
-                {o.label}
-                {o.blocked ? " (Time-off)" : ""}
-              </option>
-            ))}
-          </select>
+            {openAdd &&
+              opts.map((o) => (
+                <Option
+                  key={o.id}
+                  value={String(o.id)}
+                  disabled={o.blocked}
+                  text={`${o.label}${o.blocked ? " (Time-off)" : ""}`}
+                >
+                  {`${o.label}${o.blocked ? " (Time-off)" : ""}`}
+                </Option>
+              ))}
+          </Dropdown>
         </div>
-        <ul className="space-y-1">
+    <ul className={s.assignmentsList}>
           {assigns.map((a: any) => (
-            <li key={a.id} className="flex items-center justify-between bg-slate-50 rounded px-2 py-1">
-              <PersonName personId={a.person_id}>
-                {a.last_name}, {a.first_name}
-                {!trainedBefore.has(a.person_id) && " (Untrained)"}
-              </PersonName>
+            <li key={a.id} className={s.assignmentItem}>
+      <Body1 className={s.assignmentName}>
+                <PersonName personId={a.person_id}>
+                  {a.last_name}, {a.first_name}
+                  {!trainedBefore.has(a.person_id) && " (Untrained)"}
+                </PersonName>
+      </Body1>
               {canEdit && (
-                <div className="flex gap-2">
+                <div className={s.actionsRow}>
                   {isOverstaffed && (
-                    (() => {
-                      const targets = deficitRoles.filter((d: any) => {
-                        const opts = peopleOptionsForSegment(selectedDateObj, seg, d.role);
-                        return opts.some(
-                          (o) => o.id === a.person_id && !o.blocked
-                        );
-                      });
-                      return targets.length ? (
-                        <button
-                          className="text-blue-600 text-sm"
-                          onClick={() => handleMove(a, targets)}
-                        >
-                          Move
-                        </button>
-                      ) : null;
-                    })()
+                    <Button size="small" appearance="secondary" onClick={() => handleMove(a)}>
+                      Move
+                    </Button>
                   )}
-                  <button
-                    className="text-red-600 text-sm"
-                    onClick={() => deleteAssignment(a.id)}
-                  >
+                  <Button size="small" appearance="secondary" onClick={() => deleteAssignment(a.id)}>
                     Remove
-                  </button>
+                  </Button>
                 </div>
               )}
             </li>
           ))}
         </ul>
-      </div>
+      </Card>
     );
-  }
-
-  const roles = roleListForSegment(seg);
-  const assignedCountRows = all(
-    `SELECT role_id, COUNT(*) as c FROM assignment WHERE date=? AND segment=? GROUP BY role_id`,
-    [ymd(selectedDateObj), seg]
-  );
-  const assignedCountMap = new Map<number, number>(
-    assignedCountRows.map((r: any) => [r.role_id, r.c])
-  );
-  const groupMap = new Map(groups.map((g: any) => [g.id, g]));
-  const deficitRoles = roles
-    .map((r: any) => {
-      const assigned = assignedCountMap.get(r.id) || 0;
-      const req = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
-      return assigned < req ? { role: r, group: groupMap.get(r.group_id) } : null;
-    })
-    .filter(Boolean) as Array<{ role: any; group: any }>;
+  });
 
   function confirmMove() {
     if (!moveContext || moveTargetId == null) return;
@@ -257,119 +484,96 @@ export default function DailyRunBoard({
   }
 
   return (
-    <div className="p-4">
-      <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 mb-4">
-        <div className="flex items-center gap-2">
-          <label className="text-sm whitespace-nowrap">Date</label>
-          <input
+    <div className={s.root}>
+      <div className={s.header}>
+        <div className={s.headerLeft}>
+          <Body1 as="label" htmlFor="run-date-picker">
+            <b>Date</b>
+          </Body1>
+          <Input
+            id="run-date-picker"
             type="date"
-            className="border rounded px-2 py-1 min-w-0"
             value={ymd(selectedDateObj)}
-            onChange={(e) => {
-              const v = e.target.value;
+            onChange={(_, data) => {
+              const v = data.value;
               if (v) setSelectedDate(fmtDateMDY(parseYMD(v)));
             }}
           />
         </div>
-        <div className="flex gap-2">
-          {segments.map((s) => (
-            <button
-              key={s.name}
-              className={`px-3 py-1 rounded text-sm ${
-                activeRunSegment === s.name ? "bg-indigo-600 text-white" : "bg-slate-200"
-              }`}
-              onClick={() => setActiveRunSegment(s.name as Segment)}
-            >
-              {s.name}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-2 lg:ml-auto">
-          <button
-            className="px-3 py-2 bg-slate-200 rounded text-sm"
-            onClick={() => setShowNeedsEditor(true)}
+        <div>
+          <TabList
+            selectedValue={activeRunSegment}
+            onTabSelect={(_, data) => setActiveRunSegment(data.value as Segment)}
           >
+            {segments.map((s) => (
+              <Tab key={s.name} value={s.name}>
+                {s.name}
+              </Tab>
+            ))}
+          </TabList>
+        </div>
+        <div className={s.headerRight}>
+          <Button appearance="secondary" onClick={() => setShowNeedsEditor(true)}>
             Edit Needs for This Day
-          </button>
+          </Button>
         </div>
       </div>
 
-      <Grid
-        className="layout"
-        layout={layout}
-        cols={12}
-        rowHeight={80}
-        onLayoutChange={handleLayoutChange}
-        draggableHandle=".drag-handle"
-      >
-        {groups.map((g: any) => {
-          const rolesForGroup = roles.filter((r) => r.group_id === g.id);
-          const groupNeedsMet = rolesForGroup.every((r: any) => {
-            const assignedCount = assignedCountMap.get(r.id) || 0;
-            const req = getRequiredFor(selectedDateObj, g.id, r.id, seg);
-            return assignedCount >= req;
-          });
-          const groupColor = groupNeedsMet ? 'bg-green-50' : 'bg-red-100';
-          return (
-            <div
-              key={String(g.id)}
-              className={`border rounded-lg shadow-sm flex flex-col h-full ${groupColor}`}
-            >
-              <div className="font-semibold flex items-center justify-between mb-2 drag-handle px-3 pt-3">
-                <span>{g.name}</span>
-                <span className="text-xs text-slate-500">Theme: {g.theme || '-'}</span>
-                <span className="text-xs text-slate-500 ml-2">Color: {g.custom_color || '-'}</span>
-              </div>
-              <div
-                className="flex-1 grid gap-3 px-3 pb-3 overflow-auto"
-                style={{ gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))" }}
-              >
-                {rolesForGroup.map((r: any) => (
-                  <RoleCard key={r.id} group={g} role={r} />
-                ))}
-              </div>
+      {isMobile ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: tokens.spacingHorizontalL }}>
+          {groups.map((g: any) => (
+            <GroupCard key={g.id} group={g} isDraggable={false} />
+          ))}
+        </div>
+      ) : (
+        <Grid
+          className="layout"
+          layout={layout}
+          cols={12}
+          rowHeight={RGL_ROW_HEIGHT}
+          onLayoutChange={handleLayoutChange}
+          draggableHandle=".drag-handle"
+        >
+          {groups.map((g: any) => (
+            <div key={String(g.id)}>
+              <GroupCard group={g} isDraggable={true} />
             </div>
-          );
-        })}
-      </Grid>
+          ))}
+        </Grid>
+      )}
 
       {moveContext && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white p-4 rounded shadow-md w-72">
-            <div className="mb-2 font-medium">
-              Move {moveContext.assignment.last_name}, {moveContext.assignment.first_name} to:
-            </div>
-            <select
-              className="border rounded w-full px-2 py-1 mb-4"
-              value={moveTargetId ?? ""}
-              onChange={(e) =>
-                setMoveTargetId(e.target.value ? Number(e.target.value) : null)
-              }
-            >
-              <option value="">Select destination</option>
-              {moveContext.targets.map((t) => (
-                <option key={t.role.id} value={t.role.id}>
-                  {t.group.name} - {t.role.name}
-                </option>
-              ))}
-            </select>
-            <div className="flex justify-end gap-2">
-              <button
-                className="px-3 py-1 text-sm bg-slate-200 rounded"
-                onClick={cancelMove}
-              >
-                Cancel
-              </button>
-              <button
-                className="px-3 py-1 text-sm bg-blue-600 text-white rounded disabled:opacity-50"
-                disabled={moveTargetId == null}
-                onClick={confirmMove}
-              >
-                Move
-              </button>
-            </div>
-          </div>
-        </div>
+        <Dialog open onOpenChange={(_, data) => { if (!data.open) cancelMove(); }}>
+          <DialogTrigger>
+            <span />
+          </DialogTrigger>
+          <DialogSurface>
+            <DialogBody>
+              <DialogTitle>Move {moveContext.assignment.last_name}, {moveContext.assignment.first_name}</DialogTitle>
+              <DialogContent>
+                <Dropdown
+                  placeholder="Select destination"
+                  selectedOptions={moveTargetId != null ? [String(moveTargetId)] : []}
+                  onOptionSelect={(_, data) => {
+                    const v = data.optionValue ?? data.optionText;
+                    setMoveTargetId(v ? Number(v) : null);
+                  }}
+                  style={{ width: "100%" }}
+                >
+                  {moveContext.targets.map((t) => (
+                    <Option key={t.role.id} value={String(t.role.id)}>
+                      {`${t.group.name} - ${t.role.name}`}
+                    </Option>
+                  ))}
+                </Dropdown>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={cancelMove}>Cancel</Button>
+                <Button appearance="primary" disabled={moveTargetId == null} onClick={confirmMove}>Move</Button>
+              </DialogActions>
+            </DialogBody>
+          </DialogSurface>
+        </Dialog>
       )}
     </div>
   );
