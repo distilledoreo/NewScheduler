@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Button, Input, Field, Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow, Text } from "@fluentui/react-components";
+import { Button, Input, Field, Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow, Text, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider } from "@fluentui/react-components";
 
 interface GroupEditorProps {
   all: (sql: string, params?: any[]) => any[];
@@ -8,6 +8,35 @@ interface GroupEditorProps {
 }
 
 export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
+  const useStyles = makeStyles({
+    root: {
+      display: 'flex',
+      flexDirection: 'column',
+      rowGap: tokens.spacingVerticalM,
+    },
+    headerBar: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    tableWrap: {
+      borderRadius: tokens.borderRadiusMedium,
+      boxShadow: tokens.shadow4,
+      overflow: 'auto',
+      maxHeight: '40vh',
+      width: '100%',
+    },
+    formSection: {
+      display: 'flex',
+      flexDirection: 'column',
+      rowGap: tokens.spacingVerticalS,
+    },
+    actionRow: {
+      display: 'flex',
+      columnGap: tokens.spacingHorizontalS,
+    },
+  });
+  const styles = useStyles();
   const empty = { name: "", theme: "", custom_color: "" };
   const [groups, setGroups] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
@@ -64,13 +93,16 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Text weight="semibold">Groups</Text>
-        <Button appearance="primary" onClick={startAdd}>Add Group</Button>
+    <div className={styles.root}>
+      <div className={styles.headerBar}>
+        <Toolbar aria-label="Group actions" size="small" style={{ width: '100%' }}>
+          <Text weight="semibold">Groups</Text>
+          <div style={{ flex: 1 }} />
+          <ToolbarButton appearance="primary" onClick={startAdd}>Add Group</ToolbarButton>
+        </Toolbar>
       </div>
 
-      <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
+      <div className={styles.tableWrap}>
         <Table aria-label="Groups table">
           <TableHeader>
             <TableRow>
@@ -99,7 +131,7 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
       </div>
 
       {formVisible && (
-        <div className="space-y-3">
+        <div className={styles.formSection}>
           <Field label="Name" required>
             <Input value={form.name} onChange={(_, d) => setForm({ ...form, name: d.value })} />
           </Field>
@@ -109,9 +141,12 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
           <Field label="Custom Color">
             <Input value={form.custom_color} onChange={(_, d) => setForm({ ...form, custom_color: d.value })} />
           </Field>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Button appearance="primary" onClick={save}>Save</Button>
-            <Button onClick={cancel}>Cancel</Button>
+          <div className={styles.actionRow}>
+            <Toolbar aria-label="Form actions" size="small">
+              <ToolbarButton appearance="primary" onClick={save}>Save</ToolbarButton>
+              <ToolbarDivider />
+              <ToolbarButton onClick={cancel}>Cancel</ToolbarButton>
+            </Toolbar>
           </div>
         </div>
       )}
