@@ -35,6 +35,8 @@ export default function CrewHistoryView({
   setMonthlyDefaultForMonth,
   all,
 }: CrewHistoryViewProps) {
+  const NAME_COL_PX = 240;
+  const SEG_COL_PX = 160;
   const useStyles = makeStyles({
     root: {
       padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
@@ -48,11 +50,24 @@ export default function CrewHistoryView({
       rowGap: tokens.spacingVerticalM,
     },
     toolbar: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: tokens.spacingVerticalS,
+      paddingBlockEnd: tokens.spacingVerticalS,
+      minWidth: 0,
+    },
+    controlsGrid: {
       display: 'grid',
       gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
       alignItems: 'end',
       gap: tokens.spacingHorizontalS,
-      paddingBlockEnd: tokens.spacingVerticalS,
+      minWidth: 0,
+    },
+    segmentsWrap: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: tokens.spacingHorizontalS,
       minWidth: 0,
     },
     monthRange: {
@@ -71,6 +86,26 @@ export default function CrewHistoryView({
       overflowX: 'auto',
       overflowY: 'auto',
       overscrollBehaviorX: 'contain',
+    },
+    stickyName: {
+      position: 'sticky',
+      left: '0px',
+      zIndex: 3,
+      backgroundColor: tokens.colorNeutralBackground1,
+      boxShadow: `inset -1px 0 0 ${tokens.colorNeutralStroke2}`,
+      width: `${NAME_COL_PX}px`,
+      minWidth: `${NAME_COL_PX}px`,
+      maxWidth: `${NAME_COL_PX}px`,
+    },
+    stickySeg: {
+      position: 'sticky',
+      left: `${NAME_COL_PX}px`,
+      zIndex: 2,
+      backgroundColor: tokens.colorNeutralBackground1,
+      boxShadow: `inset -1px 0 0 ${tokens.colorNeutralStroke2}`,
+      width: `${SEG_COL_PX}px`,
+      minWidth: `${SEG_COL_PX}px`,
+      maxWidth: `${SEG_COL_PX}px`,
     },
   });
   const styles = useStyles();
@@ -344,57 +379,66 @@ export default function CrewHistoryView({
   return (
     <div className={styles.root}>
       <div className={styles.toolbar}>
-        <Input placeholder="Filter people..." value={filter} onChange={(_, data) => setFilter(data.value)} />
-        <Dropdown selectedOptions={[sortField]} onOptionSelect={(_, data) => setSortField(data.optionValue as any)}>
-          <Option value="last">Last Name</Option>
-          <Option value="first">First Name</Option>
-          <Option value="brother_sister">B/S</Option>
-          <Option value="commuter">Commute</Option>
-          <Option value="active">Active</Option>
-          <Option value="avail_mon">Mon</Option>
-          <Option value="avail_tue">Tue</Option>
-          <Option value="avail_wed">Wed</Option>
-          <Option value="avail_thu">Thu</Option>
-          <Option value="avail_fri">Fri</Option>
+        <div className={styles.controlsGrid}>
+          <Input placeholder="Filter people..." value={filter} onChange={(_, data) => setFilter(data.value)} />
+          <Dropdown selectedOptions={[sortField]} onOptionSelect={(_, data) => setSortField(data.optionValue as any)}>
+            <Option value="last">Last Name</Option>
+            <Option value="first">First Name</Option>
+            <Option value="brother_sister">B/S</Option>
+            <Option value="commuter">Commute</Option>
+            <Option value="active">Active</Option>
+            <Option value="avail_mon">Mon</Option>
+            <Option value="avail_tue">Tue</Option>
+            <Option value="avail_wed">Wed</Option>
+            <Option value="avail_thu">Thu</Option>
+            <Option value="avail_fri">Fri</Option>
+            {segmentNames.map((seg) => (
+              <Option key={seg} value={seg} text={`${seg} Role`} />
+            ))}
+          </Dropdown>
+          <Button onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}> {sortDir === "asc" ? "Asc" : "Desc"} </Button>
+          <Dropdown selectedOptions={[bsFilter]} onOptionSelect={(_, data) => setBsFilter(data.optionValue as string)}>
+            <Option value="">All B/S</Option>
+            <Option value="Brother">Brother</Option>
+            <Option value="Sister">Sister</Option>
+          </Dropdown>
+          <Dropdown multiselect placeholder="All Groups" selectedOptions={groupFilter} onOptionSelect={(_, data) => setGroupFilter(data.selectedOptions as string[])}>
+            {groups.map((g) => (
+              <Option key={g.name} value={g.name}>{g.name}</Option>
+            ))}
+          </Dropdown>
+          <Dropdown selectedOptions={filterMonth ? [filterMonth] : []} onOptionSelect={(_, data) => setFilterMonth(data.optionValue as string)}>
+            {months.map((m) => (
+              <Option key={m} value={m}>{m}</Option>
+            ))}
+          </Dropdown>
+          <Checkbox label="Active" checked={activeOnly} onChange={(_, data) => setActiveOnly(!!data.checked)} />
+          <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data) => setCommuterOnly(!!data.checked)} />
+          <Checkbox label="Edit past months" checked={editPast} onChange={(_, data) => setEditPast(!!data.checked)} />
+          <div className={styles.monthRange}>
+            <span className={styles.label}>From</span>
+            <Input type="month" value={startMonth} onChange={(_, d) => setStartMonth(d.value)} />
+            <span className={styles.label}>To</span>
+            <Input type="month" value={endMonth} onChange={(_, d) => setEndMonth(d.value)} />
+          </div>
+        </div>
+        <div className={styles.segmentsWrap}>
+          <span className={styles.label}>Segments:</span>
           {segmentNames.map((seg) => (
-            <Option key={seg} value={seg} text={`${seg} Role`} />
+            <Checkbox key={seg} label={seg} checked={!!showSeg[seg]} onChange={(_, data) => setShowSeg({ ...showSeg, [seg]: !!data.checked })} />
           ))}
-        </Dropdown>
-        <Button onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}> {sortDir === "asc" ? "Asc" : "Desc"} </Button>
-        <Dropdown selectedOptions={[bsFilter]} onOptionSelect={(_, data) => setBsFilter(data.optionValue as string)}>
-          <Option value="">All B/S</Option>
-          <Option value="Brother">Brother</Option>
-          <Option value="Sister">Sister</Option>
-        </Dropdown>
-        <Dropdown multiselect placeholder="All Groups" selectedOptions={groupFilter} onOptionSelect={(_, data) => setGroupFilter(data.selectedOptions as string[])}>
-          {groups.map((g) => (
-            <Option key={g.name} value={g.name}>{g.name}</Option>
-          ))}
-        </Dropdown>
-        <Dropdown selectedOptions={filterMonth ? [filterMonth] : []} onOptionSelect={(_, data) => setFilterMonth(data.optionValue as string)}>
-          {months.map((m) => (
-            <Option key={m} value={m}>{m}</Option>
-          ))}
-        </Dropdown>
-        <Checkbox label="Active" checked={activeOnly} onChange={(_, data) => setActiveOnly(!!data.checked)} />
-        <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data) => setCommuterOnly(!!data.checked)} />
-        {segmentNames.map((seg) => (
-          <Checkbox key={seg} label={seg} checked={!!showSeg[seg]} onChange={(_, data) => setShowSeg({ ...showSeg, [seg]: !!data.checked })} />
-        ))}
-        <Checkbox label="Edit past months" checked={editPast} onChange={(_, data) => setEditPast(!!data.checked)} />
-        <div className={styles.monthRange}>
-          <span className={styles.label}>From</span>
-          <Input type="month" value={startMonth} onChange={(_, d) => setStartMonth(d.value)} />
-          <span className={styles.label}>To</span>
-          <Input type="month" value={endMonth} onChange={(_, d) => setEndMonth(d.value)} />
         </div>
       </div>
       <div className={styles.scroll}>
         <Table size="small" aria-label="Crew history">
           <TableHeader>
             <TableRow>
-              <TableHeaderCell>Name</TableHeaderCell>
-              <TableHeaderCell>Segment</TableHeaderCell>
+              <TableHeaderCell className={styles.stickyName}>
+                Name
+              </TableHeaderCell>
+              <TableHeaderCell className={styles.stickySeg}>
+                Segment
+              </TableHeaderCell>
               {months.map((m) => (
                 <TableHeaderCell key={m}>{m}</TableHeaderCell>
               ))}
@@ -408,13 +452,13 @@ export default function CrewHistoryView({
                   {segList.map((seg, idx) => (
                     <TableRow key={`${p.id}-${seg}`}>
                       {idx === 0 && (
-                        <TableCell rowSpan={segList.length}>
+                        <TableCell rowSpan={segList.length} className={styles.stickyName}>
                           <PersonName personId={p.id}>
                             {p.last_name}, {p.first_name}
                           </PersonName>
                         </TableCell>
                       )}
-                      <TableCell>{seg}</TableCell>
+                      <TableCell className={styles.stickySeg}>{seg}</TableCell>
                       {months.map((m) => {
                         const { content, color } = cellData(m, p.id, seg);
                         return (
