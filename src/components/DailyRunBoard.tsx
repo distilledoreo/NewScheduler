@@ -163,18 +163,17 @@ export default function DailyRunBoard({
       listStyleType: "none",
       padding: 0,
       margin: 0,
-      maxHeight: "240px",
       overflow: "auto",
       display: "grid",
-      rowGap: tokens.spacingVerticalS,
+      rowGap: tokens.spacingVerticalXS,
     },
     assignmentItem: {
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
       backgroundColor: tokens.colorNeutralBackground2,
-      borderRadius: tokens.borderRadiusMedium,
-      padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+      borderRadius: tokens.borderRadiusSmall,
+      padding: `2px ${tokens.spacingHorizontalS}`,
     },
     actionsRow: {
       display: "flex",
@@ -204,13 +203,13 @@ export default function DailyRunBoard({
     const byId = new Map(saved.map((l: any) => [l.i, l]));
     const merged = groups.map((g: any, idx: number) => {
       const roleCount = roles.filter((r) => r.group_id === g.id).length;
-      const h = Math.max(2, Math.ceil(roleCount / 2)) + 1;
+      const h = Math.max(2, Math.ceil(roleCount / 3)) + 1;
       return (
         byId.get(String(g.id)) || {
           i: String(g.id),
-          x: (idx % 3) * 4,
-          y: Math.floor(idx / 3) * h,
-          w: 4,
+          x: (idx % 4) * 3,
+          y: Math.floor(idx / 4) * h,
+          w: 3,
           h,
         }
       );
@@ -275,7 +274,7 @@ export default function DailyRunBoard({
         <div
           className={s.rolesGrid}
           style={{
-            gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))",
+            gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
             ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1,
           }}
         >
@@ -492,7 +491,7 @@ export default function DailyRunBoard({
           className="layout"
           layout={layout}
           cols={12}
-          rowHeight={120}
+          rowHeight={80}
           onLayoutChange={handleLayoutChange}
           draggableHandle=".drag-handle"
         >
