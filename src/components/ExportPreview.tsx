@@ -145,7 +145,7 @@ export default function ExportPreview({
 </div>
       <div className="overflow-auto max-h-[60vh] border rounded">
         <Table>
-          <TableHeaderCellead className="bg-slate-100 sticky top-0">
+          <TableHeader className="bg-slate-100 sticky top-0">
             <TableRow>
               <TableHeaderCell className="p-2 text-left">Date</TableHeaderCell>
               <TableHeaderCell className="p-2 text-left">Member</TableHeaderCell>
@@ -159,7 +159,7 @@ export default function ExportPreview({
           </TableHeader>
           <TableBody>
             {previewRows.map((r, i) => (
-              <tr key={i} className="odd:bg-white even:bg-slate-50">
+              <TableRow key={i} className="odd:bg-white even:bg-slate-50">
                 <TableCell className="p-2">{r.date}</TableCell>
                 <TableCell className="p-2">{r.member}</TableCell>
                 <TableCell className="p-2">{r.email}</TableCell>
