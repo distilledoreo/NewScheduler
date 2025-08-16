@@ -1,5 +1,6 @@
 import React from "react";
-import { Button, Tab, TabList, Tooltip, Spinner, Text, Switch, makeStyles, tokens } from "@fluentui/react-components";
+import { Button, Tab, TabList, Tooltip, Spinner, Text, Switch, Toolbar, ToolbarButton, ToolbarDivider, makeStyles, tokens } from "@fluentui/react-components";
+import { Add20Regular, FolderOpen20Regular, Save20Regular, SaveCopy20Regular } from "@fluentui/react-icons";
 
 type TabKey = "RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "ADMIN";
 
@@ -53,6 +54,7 @@ const useStyles = makeStyles({
     gap: tokens.spacingHorizontalS,
   },
   actions: { display: 'flex', gap: tokens.spacingHorizontalS },
+  actionsBar: { alignItems: 'center' },
 });
 
 export default function Toolbar({
@@ -76,12 +78,21 @@ export default function Toolbar({
       <div className={s.left}>
         <Text weight="semibold">Scheduler</Text>
         {!sqlDb && <Tooltip content="No database loaded" relationship="label"><Spinner size="tiny" /></Tooltip>}
-  <div className={s.actions}>
-          <Button appearance="primary" onClick={createNewDb}>New DB</Button>
-          <Button onClick={openDbFromFile}>Open DB</Button>
-          <Button onClick={saveDb} disabled={!canSave}>Save</Button>
-          <Button onClick={saveDbAs} disabled={!sqlDb}>Save As</Button>
-        </div>
+        <Toolbar aria-label="File actions" className={s.actionsBar} size="small">
+          <Tooltip content="New DB" relationship="label">
+            <ToolbarButton appearance="primary" icon={<Add20Regular />} onClick={createNewDb}>New</ToolbarButton>
+          </Tooltip>
+          <Tooltip content="Open DB" relationship="label">
+            <ToolbarButton icon={<FolderOpen20Regular />} onClick={openDbFromFile}>Open</ToolbarButton>
+          </Tooltip>
+          <ToolbarDivider />
+          <Tooltip content="Save" relationship="label">
+            <ToolbarButton icon={<Save20Regular />} onClick={saveDb} disabled={!canSave}>Save</ToolbarButton>
+          </Tooltip>
+          <Tooltip content="Save As" relationship="label">
+            <ToolbarButton icon={<SaveCopy20Regular />} onClick={saveDbAs} disabled={!sqlDb}>Save As</ToolbarButton>
+          </Tooltip>
+        </Toolbar>
       </div>
 
       <div className={s.tabList}>

@@ -50,21 +50,21 @@ export default function ExportPreview({
   roles,
 }: ExportPreviewProps) {
   const useStyles = makeStyles({
-    root: { padding: "16px" },
+    root: { padding: tokens.spacingHorizontalM },
     controls: {
       display: "flex",
       alignItems: "end",
-      gap: "12px",
-      marginBottom: "16px",
+      gap: tokens.spacingHorizontalM,
+      marginBottom: tokens.spacingVerticalM,
     },
     spacer: { marginLeft: "auto" },
     tableWrapper: {
       overflow: "auto",
       maxHeight: "60vh",
       border: `1px solid ${tokens.colorNeutralStroke2}`,
-      borderRadius: "6px",
+      borderRadius: tokens.borderRadiusMedium,
     },
-    rowsText: { color: "GrayText", marginTop: "8px" },
+    rowsText: { color: tokens.colorNeutralForeground3, marginTop: tokens.spacingVerticalXS },
   });
   const s = useStyles();
   function pad2(n: number) {

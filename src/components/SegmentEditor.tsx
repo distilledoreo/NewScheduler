@@ -67,17 +67,21 @@ export default function SegmentEditor({ all, run, refresh }: SegmentEditorProps)
   }
 
   const useStyles = makeStyles({
-    section: { display: "flex", flexDirection: "column", rowGap: "12px" },
+    section: { display: "flex", flexDirection: "column", rowGap: tokens.spacingHorizontalS },
     header: { display: "flex", alignItems: "center", justifyContent: "space-between" },
     tableWrap: {
       border: `1px solid ${tokens.colorNeutralStroke2}`,
-      borderRadius: "8px",
+      borderRadius: tokens.borderRadiusLarge,
       overflow: "auto",
       maxHeight: "40vh",
       width: "100%",
       boxShadow: tokens.shadow2,
     },
-    row: { display: "flex", columnGap: "8px" },
+    row: { display: "flex", columnGap: tokens.spacingHorizontalS },
+    rightAlign: { textAlign: 'right' },
+    flex1: { flex: 1 },
+    orderWidth: { width: '10ch' },
+    actionsRow: { display: 'flex', gap: tokens.spacingHorizontalS, justifyContent: 'flex-end' },
   });
   const s = useStyles();
   return (
@@ -104,8 +108,8 @@ export default function SegmentEditor({ all, run, refresh }: SegmentEditorProps)
                 <TableCell>{s.start_time}</TableCell>
                 <TableCell>{s.end_time}</TableCell>
                 <TableCell>{s.ordering}</TableCell>
-                <TableCell style={{ textAlign: "right" }}>
-                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <TableCell className={s.rightAlign}>
+                  <div className={s.actionsRow}>
                     <Button size="small" onClick={() => startEdit(s)}>Edit</Button>
                     <Button size="small" appearance="secondary" onClick={() => remove(s.id)}>Delete</Button>
                   </div>
@@ -121,13 +125,13 @@ export default function SegmentEditor({ all, run, refresh }: SegmentEditorProps)
             <Input value={form.name} onChange={(_, d) => setForm({ ...form, name: d.value })} />
           </Field>
           <div className={s.row}>
-            <Field label="Start (HH:MM)" style={{ flex: 1 }}>
+            <Field label="Start (HH:MM)" className={s.flex1}>
               <Input value={form.start_time} onChange={(_, d) => setForm({ ...form, start_time: d.value })} />
             </Field>
-            <Field label="End (HH:MM)" style={{ flex: 1 }}>
+            <Field label="End (HH:MM)" className={s.flex1}>
               <Input value={form.end_time} onChange={(_, d) => setForm({ ...form, end_time: d.value })} />
             </Field>
-            <Field label="Order" style={{ width: 140 }}>
+            <Field label="Order" className={s.orderWidth}>
               <Input type="number" value={String(form.ordering)} onChange={(_, d) => setForm({ ...form, ordering: Number(d.value || 0) })} />
             </Field>
           </div>

@@ -73,17 +73,19 @@ export default function ExportGroupEditor({ all, run, refresh }: ExportGroupEdit
   }
 
   const useStyles = makeStyles({
-    section: { display: "flex", flexDirection: "column", rowGap: "12px" },
+    section: { display: "flex", flexDirection: "column", rowGap: tokens.spacingHorizontalS },
     header: { display: "flex", alignItems: "center", justifyContent: "space-between" },
     tableWrap: {
       border: `1px solid ${tokens.colorNeutralStroke2}`,
-      borderRadius: "8px",
+      borderRadius: tokens.borderRadiusLarge,
       overflow: "auto",
       maxHeight: "40vh",
       width: "100%",
       boxShadow: tokens.shadow2,
     },
-    row: { display: "flex", columnGap: "8px" },
+    row: { display: "flex", columnGap: tokens.spacingHorizontalS },
+    rightAlign: { textAlign: 'right' },
+    actionsRow: { display: 'flex', gap: tokens.spacingHorizontalS, justifyContent: 'flex-end' },
   });
   const s = useStyles();
   return (
@@ -110,8 +112,8 @@ export default function ExportGroupEditor({ all, run, refresh }: ExportGroupEdit
                 <TableCell>{r.code}</TableCell>
                 <TableCell>{r.color}</TableCell>
                 <TableCell>{r.column_group}</TableCell>
-                <TableCell style={{ textAlign: "right" }}>
-                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <TableCell className={s.rightAlign}>
+                  <div className={s.actionsRow}>
                     <Button size="small" onClick={() => startEdit(r)}>Edit</Button>
                     <Button size="small" appearance="secondary" onClick={() => remove(r.group_id)}>Delete</Button>
                   </div>
