@@ -6,6 +6,7 @@ import DailyRunBoard from "./components/DailyRunBoard";
 import GroupEditor from "./components/GroupEditor";
 import RoleEditor from "./components/RoleEditor";
 import ExportGroupEditor from "./components/ExportGroupEditor";
+import SegmentEditor from "./components/SegmentEditor";
 import { exportMonthOneSheetXlsx } from "./excel/export-one-sheet";
 import PersonName from "./components/PersonName";
 import PersonProfileModal from "./components/PersonProfileModal";
@@ -109,7 +110,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState<string>(() => fmtDateMDY(new Date()));
   const [exportStart, setExportStart] = useState<string>(() => ymd(new Date()));
   const [exportEnd, setExportEnd] = useState<string>(() => ymd(new Date()));
-  const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "SETUP">("RUN");
+  const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "ADMIN">("RUN");
   const [activeRunSegment, setActiveRunSegment] = useState<Segment>("AM");
 
   // People cache for quick UI (id -> record)
@@ -550,6 +551,19 @@ export default function App() {
     for (const s of segments) {
       out[s.name] = { start: mk(s.start_time), end: mk(s.end_time) };
     }
+
+    const assigns = listAssignmentsForDate(fmtDateMDY(date));
+    const hasLunch = assigns.some((a: any) => a.segment === "Lunch");
+    const hasEarly = assigns.some((a: any) => a.segment === "Early");
+
+    if (hasLunch && out["Lunch"]) {
+      if (out["AM"]) out["AM"].end = out["Lunch"].start;
+      if (out["PM"]) out["PM"].start = addMinutes(out["Lunch"].end, 60);
+    }
+    if (hasEarly && out["PM"]) {
+      out["PM"].end = addMinutes(out["PM"].end, -60);
+    }
+
     return out;
   }
 
@@ -1662,9 +1676,10 @@ async function exportShifts() {
     );
   }
 
-  function SetupView(){
+  function AdminView(){
     return (
       <div className="p-4 space-y-8">
+        <SegmentEditor all={all} run={run} refresh={refreshCaches} />
         <GroupEditor all={all} run={run} refresh={refreshCaches} />
         <RoleEditor all={all} run={run} refresh={refreshCaches} segments={segments} />
         <ExportGroupEditor all={all} run={run} refresh={refreshCaches} />
@@ -1930,7 +1945,7 @@ function PeopleEditor(){
           {activeTab === 'EXPORT' && <ExportView />}
           {activeTab === 'MONTHLY' && <MonthlyView />}
           {activeTab === 'HISTORY' && <CrewHistoryView />}
-          {activeTab === 'SETUP' && <SetupView />}
+          {activeTab === 'ADMIN' && <AdminView />}
         </>
       )}
 

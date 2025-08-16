@@ -1,7 +1,7 @@
 import React from "react";
 import { Button, Tab, TabList, Tooltip, Spinner, Text, makeStyles, tokens } from "@fluentui/react-components";
 
-type TabKey = "RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "SETUP";
+type TabKey = "RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "ADMIN";
 
 interface ToolbarProps {
   ready: boolean;
@@ -84,7 +84,7 @@ export default function Toolbar({
           <Tab value="EXPORT">Export Preview</Tab>
           <Tab value="MONTHLY">Monthly Defaults</Tab>
           <Tab value="HISTORY">Crew History</Tab>
-          <Tab value="SETUP">Setup</Tab>
+          <Tab value="ADMIN">Admin</Tab>
         </TabList>
       </div>
 
