@@ -132,7 +132,9 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
           FOREIGN KEY (role_id) REFERENCES role(id)
         );`);
         
-        db.run(`INSERT INTO assignment_new SELECT * FROM assignment;`);
+        // Copy data excluding the id column (it will be auto-generated)
+        db.run(`INSERT INTO assignment_new (date, person_id, role_id, segment) 
+                SELECT date, person_id, role_id, segment FROM assignment;`);
         db.run(`DROP TABLE assignment;`);
         db.run(`ALTER TABLE assignment_new RENAME TO assignment;`);
       }
@@ -206,7 +208,9 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
           FOREIGN KEY (role_id) REFERENCES role(id)
         );`);
         
-        db.run(`INSERT INTO monthly_default_new SELECT * FROM monthly_default;`);
+        // Copy data excluding the id column (it will be auto-generated)
+        db.run(`INSERT INTO monthly_default_new (month, person_id, segment, role_id) 
+                SELECT month, person_id, segment, role_id FROM monthly_default;`);
         db.run(`DROP TABLE monthly_default;`);
         db.run(`ALTER TABLE monthly_default_new RENAME TO monthly_default;`);
       }
@@ -282,7 +286,9 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
           FOREIGN KEY (role_id) REFERENCES role(id)
         );`);
         
-        db.run(`INSERT INTO monthly_default_day_new SELECT * FROM monthly_default_day;`);
+        // Copy data excluding the id column (it will be auto-generated)
+        db.run(`INSERT INTO monthly_default_day_new (month, person_id, weekday, segment, role_id) 
+                SELECT month, person_id, weekday, segment, role_id FROM monthly_default_day;`);
         db.run(`DROP TABLE monthly_default_day;`);
         db.run(`ALTER TABLE monthly_default_day_new RENAME TO monthly_default_day;`);
       }
@@ -304,7 +310,9 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
         UNIQUE(group_id, role_id, segment)
       );`);
       
-      db.run(`INSERT INTO needs_baseline_new SELECT * FROM needs_baseline;`);
+      // Copy data excluding the id column (it will be auto-generated)
+      db.run(`INSERT INTO needs_baseline_new (group_id, role_id, segment, required) 
+              SELECT group_id, role_id, segment, required FROM needs_baseline;`);
       db.run(`DROP TABLE needs_baseline;`);
       db.run(`ALTER TABLE needs_baseline_new RENAME TO needs_baseline;`);
     } catch (e) {
@@ -326,7 +334,9 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
         UNIQUE(date, group_id, role_id, segment)
       );`);
       
-      db.run(`INSERT INTO needs_override_new SELECT * FROM needs_override;`);
+      // Copy data excluding the id column (it will be auto-generated)
+      db.run(`INSERT INTO needs_override_new (date, group_id, role_id, segment, required) 
+              SELECT date, group_id, role_id, segment, required FROM needs_override;`);
       db.run(`DROP TABLE needs_override;`);
       db.run(`ALTER TABLE needs_override_new RENAME TO needs_override;`);
     } catch (e) {
@@ -470,6 +480,7 @@ const migrations: Record<number, Migration> = {
   6: migrate6AddExportGroup,
   7: migrate7SegmentRefs,
   8: migrate8FixSegmentConstraints,
+  9: migrate8FixSegmentConstraints, // Run the same migration again as 9 to fix failed migration 8
 };
 
 export function addMigration(version: number, fn: Migration) {
