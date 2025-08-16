@@ -1,4 +1,24 @@
 import React, { useEffect, useState } from "react";
+import {
+  Button,
+  Field,
+  Input,
+  Table,
+  TableHeader,
+  TableRow,
+  TableHeaderCell,
+  TableBody,
+  TableCell,
+  Text,
+  Toaster,
+  Toast,
+  ToastTitle,
+  useId,
+  useToastController,
+  makeStyles,
+  shorthands,
+  tokens,
+} from "@fluentui/react-components";
 
 interface SegmentEditorProps {
   all: (sql: string, params?: any[]) => any[];
@@ -6,12 +26,42 @@ interface SegmentEditorProps {
   refresh: () => void;
 }
 
+const useStyles = makeStyles({
+  root: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: tokens.spacingVerticalL,
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  tableWrapper: {
+    maxHeight: "40vh",
+    overflow: "auto",
+    ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke1),
+  },
+  formRow: {
+    display: "flex",
+    columnGap: tokens.spacingHorizontalS,
+  },
+  actionRow: {
+    display: "flex",
+    columnGap: tokens.spacingHorizontalS,
+  },
+});
+
 export default function SegmentEditor({ all, run, refresh }: SegmentEditorProps) {
+  const classes = useStyles();
   const empty = { name: "", start_time: "", end_time: "", ordering: 0 };
   const [segments, setSegments] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const [form, setForm] = useState<any>(empty);
+  const toasterId = useId("segment-editor-toast");
+  const { dispatchToast } = useToastController(toasterId);
 
   function load() {
     setSegments(all(`SELECT id,name,start_time,end_time,ordering FROM segment ORDER BY ordering`));
@@ -31,13 +81,22 @@ export default function SegmentEditor({ all, run, refresh }: SegmentEditorProps)
     setFormVisible(true);
   }
 
+  function showError(msg: string) {
+    dispatchToast(
+      <Toast>
+        <ToastTitle>{msg}</ToastTitle>
+      </Toast>,
+      { intent: "error" }
+    );
+  }
+
   function save() {
     if (!form.name.trim()) {
-      window.alert("Name is required");
+      showError("Name is required");
       return;
     }
     if (!/^\d{2}:\d{2}$/.test(form.start_time) || !/^\d{2}:\d{2}$/.test(form.end_time)) {
-      window.alert("Times must be HH:MM");
+      showError("Times must be HH:MM");
       return;
     }
     if (editing) {
@@ -66,72 +125,89 @@ export default function SegmentEditor({ all, run, refresh }: SegmentEditorProps)
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="font-semibold text-lg">Segments</div>
-        <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={startAdd}>
+    <div className={classes.root}>
+      <Toaster toasterId={toasterId} position="bottom" />
+      <div className={classes.header}>
+        <Text weight="semibold" size={500}>
+          Segments
+        </Text>
+        <Button appearance="primary" onClick={startAdd}>
           Add Segment
-        </button>
+        </Button>
       </div>
-      <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
-        <table className="min-w-full text-sm divide-y divide-slate-200">
-          <thead className="bg-slate-100 sticky top-0">
-            <tr>
-              <th className="p-2 text-left">Name</th>
-              <th className="p-2 text-left">Start</th>
-              <th className="p-2 text-left">End</th>
-              <th className="p-2 text-left">Order</th>
-              <th className="p-2"></th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className={classes.tableWrapper}>
+        <Table size="small">
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell>Name</TableHeaderCell>
+              <TableHeaderCell>Start</TableHeaderCell>
+              <TableHeaderCell>End</TableHeaderCell>
+              <TableHeaderCell>Order</TableHeaderCell>
+              <TableHeaderCell />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {segments.map((s: any) => (
-              <tr key={s.id} className="odd:bg-white even:bg-slate-50">
-                <td className="p-2">{s.name}</td>
-                <td className="p-2">{s.start_time}</td>
-                <td className="p-2">{s.end_time}</td>
-                <td className="p-2">{s.ordering}</td>
-                <td className="p-2 text-right space-x-2">
-                  <button className="text-blue-600" onClick={() => startEdit(s)}>Edit</button>
-                  <button className="text-red-600" onClick={() => remove(s.id)}>Delete</button>
-                </td>
-              </tr>
+              <TableRow key={s.id}>
+                <TableCell>{s.name}</TableCell>
+                <TableCell>{s.start_time}</TableCell>
+                <TableCell>{s.end_time}</TableCell>
+                <TableCell>{s.ordering}</TableCell>
+                <TableCell>
+                  <div className={classes.actionRow}>
+                    <Button appearance="subtle" onClick={() => startEdit(s)}>
+                      Edit
+                    </Button>
+                    <Button appearance="subtle" onClick={() => remove(s.id)}>
+                      Delete
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       {formVisible && (
-        <div className="space-y-2">
-          <input
-            className="border rounded px-2 py-1 w-full"
-            placeholder="Name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-          <div className="flex gap-2">
-            <input
-              className="border rounded px-2 py-1 w-full"
-              placeholder="Start (HH:MM)"
-              value={form.start_time}
-              onChange={(e) => setForm({ ...form, start_time: e.target.value })}
+        <div className={classes.root}>
+          <Field label="Name">
+            <Input
+              value={form.name}
+              onChange={(_, data) => setForm({ ...form, name: data.value })}
             />
-            <input
-              className="border rounded px-2 py-1 w-full"
-              placeholder="End (HH:MM)"
-              value={form.end_time}
-              onChange={(e) => setForm({ ...form, end_time: e.target.value })}
-            />
-            <input
-              type="number"
-              className="border rounded px-2 py-1 w-full"
-              placeholder="Order"
-              value={form.ordering}
-              onChange={(e) => setForm({ ...form, ordering: Number(e.target.value) })}
-            />
+          </Field>
+          <div className={classes.formRow}>
+            <Field label="Start (HH:MM)">
+              <Input
+                value={form.start_time}
+                onChange={(_, data) =>
+                  setForm({ ...form, start_time: data.value })
+                }
+              />
+            </Field>
+            <Field label="End (HH:MM)">
+              <Input
+                value={form.end_time}
+                onChange={(_, data) =>
+                  setForm({ ...form, end_time: data.value })
+                }
+              />
+            </Field>
+            <Field label="Order">
+              <Input
+                type="number"
+                value={form.ordering.toString()}
+                onChange={(_, data) =>
+                  setForm({ ...form, ordering: Number(data.value) })
+                }
+              />
+            </Field>
           </div>
-          <div className="flex gap-2">
-            <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={save}>Save</button>
-            <button className="px-3 py-2 border rounded" onClick={cancel}>Cancel</button>
+          <div className={classes.actionRow}>
+            <Button appearance="primary" onClick={save}>
+              Save
+            </Button>
+            <Button onClick={cancel}>Cancel</Button>
           </div>
         </div>
       )}

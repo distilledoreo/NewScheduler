@@ -17,6 +17,29 @@ import {
   tokens,
 } from "@fluentui/react-components";
 import type { SegmentRow } from "../services/segments";
+import {
+  Button,
+  Checkbox,
+  Dropdown,
+  Field,
+  Input,
+  Option,
+  Table,
+  TableHeader,
+  TableRow,
+  TableHeaderCell,
+  TableBody,
+  TableCell,
+  Text,
+  Toaster,
+  Toast,
+  ToastTitle,
+  useId,
+  useToastController,
+  makeStyles,
+  shorthands,
+  tokens,
+} from "@fluentui/react-components";
 
 const useStyles = makeStyles({
   root: {
@@ -77,12 +100,44 @@ interface RoleEditorProps {
   segments: SegmentRow[];
 }
 
+const useStyles = makeStyles({
+  root: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: tokens.spacingVerticalL,
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  tableWrapper: {
+    maxHeight: "40vh",
+    overflow: "auto",
+    ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke1),
+  },
+  actionRow: {
+    display: "flex",
+    columnGap: tokens.spacingHorizontalS,
+  },
+  checkboxRow: {
+    display: "flex",
+    columnGap: tokens.spacingHorizontalS,
+    flexWrap: "wrap",
+  },
+});
+
 export default function RoleEditor({ all, run, refresh, segments }: RoleEditorProps) {
+  const classes = useStyles();
   const [roles, setRoles] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const styles = useStyles();
+  const toasterId = useId("role-editor-toast");
+  const { dispatchToast } = useToastController(toasterId);
+
 
   function load() {
     setRoles(
@@ -111,15 +166,24 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
     setEditing({ ...editing, segs: s });
   }
 
+  function showError(msg: string) {
+    dispatchToast(
+      <Toast>
+        <ToastTitle>{msg}</ToastTitle>
+      </Toast>,
+      { intent: "error" }
+    );
+  }
+
   function save() {
     if (!editing) return;
     const segArr = Array.from(editing.segs);
     if (!editing.code.trim() || !editing.name.trim()) {
-      window.alert("Code and name are required");
+      showError("Code and name are required");
       return;
     }
     if (!segArr.length) {
-      window.alert("Select at least one segment");
+      showError("Select at least one segment");
       return;
     }
     if (editing.id) {
@@ -154,6 +218,7 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
         </Button>
       </div>
 
+
       <div className={styles.tableContainer}>
         <Table>
           <TableHeader>
@@ -163,6 +228,7 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
               <TableHeaderCell>Group</TableHeaderCell>
               <TableHeaderCell>Segments</TableHeaderCell>
               <TableHeaderCell></TableHeaderCell>
+
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -179,6 +245,7 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
                   <Button appearance="subtle" className={styles.deleteButton} onClick={() => remove(r.id)}>
                     Delete
                   </Button>
+
                 </TableCell>
               </TableRow>
             ))}
@@ -212,6 +279,7 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
             ))}
           </Dropdown>
           <div className={styles.segmentList}>
+
             {segments.map((s) => (
               <Checkbox
                 key={s.name}
@@ -228,6 +296,7 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
             <Button appearance="secondary" onClick={cancel}>
               Cancel
             </Button>
+
           </div>
         </div>
       )}

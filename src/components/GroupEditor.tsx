@@ -2,13 +2,20 @@ import React, { useEffect, useState } from "react";
 import {
   Button,
   Card,
+  Field,
   Input,
   Table,
   TableHeader,
   TableRow,
+  TableHeaderCell,
   TableBody,
   TableCell,
-  TableHeaderCell,
+  Text,
+  Toaster,
+  Toast,
+  ToastTitle,
+  useId,
+  useToastController,
   makeStyles,
   shorthands,
   tokens,
@@ -62,19 +69,47 @@ const useStyles = makeStyles({
   },
 });
 
+
 interface GroupEditorProps {
   all: (sql: string, params?: any[]) => any[];
   run: (sql: string, params?: any[]) => void;
   refresh: () => void;
 }
 
+const useStyles = makeStyles({
+  root: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: tokens.spacingVerticalL,
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  tableWrapper: {
+    maxHeight: "40vh",
+    overflow: "auto",
+    ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke1),
+  },
+  actionRow: {
+    display: "flex",
+    columnGap: tokens.spacingHorizontalS,
+  },
+});
+
 export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
+  const classes = useStyles();
   const empty = { name: "", theme: "", custom_color: "" };
   const [groups, setGroups] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const [form, setForm] = useState(empty);
   const styles = useStyles();
+  const toasterId = useId("group-editor-toast");
+  const { dispatchToast } = useToastController(toasterId);
+
 
   function load() {
     setGroups(all(`SELECT id,name,theme,custom_color FROM grp ORDER BY name`));
@@ -94,9 +129,18 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
     setFormVisible(true);
   }
 
+  function showError(msg: string) {
+    dispatchToast(
+      <Toast>
+        <ToastTitle>{msg}</ToastTitle>
+      </Toast>,
+      { intent: "error" }
+    );
+  }
+
   function save() {
     if (!form.name.trim()) {
-      window.alert("Name is required");
+      showError("Name is required");
       return;
     }
     if (editing) {
@@ -142,6 +186,7 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
               <TableHeaderCell>Theme</TableHeaderCell>
               <TableHeaderCell>Color</TableHeaderCell>
               <TableHeaderCell></TableHeaderCell>
+
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -165,6 +210,7 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
       </div>
 
       {formVisible && (
+
         <div className={styles.form}>
           <Input
             className={styles.input}
@@ -191,6 +237,7 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
             <Button appearance="secondary" onClick={cancel}>
               Cancel
             </Button>
+
           </div>
         </div>
       )}
