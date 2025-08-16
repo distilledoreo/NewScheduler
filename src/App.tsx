@@ -16,6 +16,7 @@ import { ProfileContext } from "./components/ProfileContext";
 import { Button, Checkbox, Dropdown, Input, Option, tokens } from "@fluentui/react-components";
 import MonthlyDefaults from "./components/MonthlyDefaults";
 import CrewHistoryView from "./components/CrewHistoryView";
+import { useLayoutStyles } from "./layoutStyles";
 
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
@@ -32,7 +33,7 @@ Runtime deps (loaded via CDN):
   - sql.js (WASM) via jsDelivr
   - xlsx ESM via SheetJS CDN (no Node `fs`)
 
-Tailwind classes used for styling. This file is a single React component export.
+Fluent UI styling with layout helpers. This file is a single React component export.
 */
 
 // Types
@@ -100,7 +101,8 @@ async function loadXLSX(){
   return mod as any;
 }
 
-export default function App() {
+export default function App({ theme, toggleTheme }: { theme: "light" | "dark"; toggleTheme: () => void }) {
+  const layout = useLayoutStyles();
   const [ready, setReady] = useState(false);
   const [sqlDb, setSqlDb] = useState<any | null>(null);
 
@@ -661,7 +663,6 @@ export default function App() {
 
   // Needs
   function getRequiredFor(date: Date, groupId: number, roleId: number, segment: Segment): number {
-    if (segment === "Early") return 0; // Breakfast baseline usually 0 unless set
     const dY = ymd(date);
     const ov = all(`SELECT required FROM needs_override WHERE date=? AND group_id=? AND role_id=? AND segment=?`, [dY, groupId, roleId, segment]);
     if (ov.length) return ov[0].required;
@@ -1129,7 +1130,8 @@ function PeopleEditor(){
 
   return (
     <ProfileContext.Provider value={{ showProfile: (id: number) => setProfilePersonId(id) }}>
-    <div className="min-h-screen" style={{ backgroundColor: tokens.colorNeutralBackground1 }}>
+
+    <div className={layout.appRoot}>
       <Toolbar
         ready={ready}
         sqlDb={sqlDb}
@@ -1141,6 +1143,8 @@ function PeopleEditor(){
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         canSave={canSave}
+        theme={theme}
+        toggleTheme={toggleTheme}
       />
 
       {!sqlDb && (
@@ -1237,7 +1241,6 @@ function PeopleEditor(){
               all={all}
             />
           )}
-          {activeTab === 'ADMIN' && <AdminView />}
           {activeTab === 'ADMIN' && (
             <AdminView all={all} run={run} refresh={refreshCaches} segments={segments} />
           )}

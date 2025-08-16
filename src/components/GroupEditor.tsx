@@ -1,4 +1,24 @@
 import React, { useEffect, useState } from "react";
+import {
+  Button,
+  Field,
+  Input,
+  Table,
+  TableHeader,
+  TableRow,
+  TableHeaderCell,
+  TableBody,
+  TableCell,
+  Text,
+  Toaster,
+  Toast,
+  ToastTitle,
+  useId,
+  useToastController,
+  makeStyles,
+  shorthands,
+  tokens,
+} from "@fluentui/react-components";
 
 interface GroupEditorProps {
   all: (sql: string, params?: any[]) => any[];
@@ -6,12 +26,38 @@ interface GroupEditorProps {
   refresh: () => void;
 }
 
+const useStyles = makeStyles({
+  root: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: tokens.spacingVerticalL,
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  tableWrapper: {
+    maxHeight: "40vh",
+    overflow: "auto",
+    ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke1),
+  },
+  actionRow: {
+    display: "flex",
+    columnGap: tokens.spacingHorizontalS,
+  },
+});
+
 export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
+  const classes = useStyles();
   const empty = { name: "", theme: "", custom_color: "" };
   const [groups, setGroups] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const [form, setForm] = useState(empty);
+  const toasterId = useId("group-editor-toast");
+  const { dispatchToast } = useToastController(toasterId);
 
   function load() {
     setGroups(all(`SELECT id,name,theme,custom_color FROM grp ORDER BY name`));
@@ -31,9 +77,18 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
     setFormVisible(true);
   }
 
+  function showError(msg: string) {
+    dispatchToast(
+      <Toast>
+        <ToastTitle>{msg}</ToastTitle>
+      </Toast>,
+      { intent: "error" }
+    );
+  }
+
   function save() {
     if (!form.name.trim()) {
-      window.alert("Name is required");
+      showError("Name is required");
       return;
     }
     if (editing) {
@@ -63,67 +118,76 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="font-semibold text-lg">Groups</div>
-        <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={startAdd}>
+    <div className={classes.root}>
+      <Toaster toasterId={toasterId} position="bottom" />
+      <div className={classes.header}>
+        <Text weight="semibold" size={500}>
+          Groups
+        </Text>
+        <Button appearance="primary" onClick={startAdd}>
           Add Group
-        </button>
+        </Button>
       </div>
 
-      <div className="border rounded-lg overflow-auto max-h-[40vh] shadow w-full">
-        <table className="min-w-full text-sm divide-y divide-slate-200">
-          <thead className="bg-slate-100 sticky top-0">
-            <tr>
-              <th className="p-2 text-left">Name</th>
-              <th className="p-2 text-left">Theme</th>
-              <th className="p-2 text-left">Color</th>
-              <th className="p-2"></th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className={classes.tableWrapper}>
+        <Table size="small">
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell>Name</TableHeaderCell>
+              <TableHeaderCell>Theme</TableHeaderCell>
+              <TableHeaderCell>Color</TableHeaderCell>
+              <TableHeaderCell />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {groups.map((g: any) => (
-              <tr key={g.id} className="odd:bg-white even:bg-slate-50">
-                <td className="p-2">{g.name}</td>
-                <td className="p-2">{g.theme || ""}</td>
-                <td className="p-2">{g.custom_color || ""}</td>
-                <td className="p-2 text-right space-x-2">
-                  <button className="text-blue-600" onClick={() => startEdit(g)}>Edit</button>
-                  <button className="text-red-600" onClick={() => remove(g.id)}>Delete</button>
-                </td>
-              </tr>
+              <TableRow key={g.id}>
+                <TableCell>{g.name}</TableCell>
+                <TableCell>{g.theme || ""}</TableCell>
+                <TableCell>{g.custom_color || ""}</TableCell>
+                <TableCell>
+                  <div className={classes.actionRow}>
+                    <Button appearance="subtle" onClick={() => startEdit(g)}>
+                      Edit
+                    </Button>
+                    <Button appearance="subtle" onClick={() => remove(g.id)}>
+                      Delete
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {formVisible && (
-        <div className="space-y-2">
-          <input
-            className="border rounded px-2 py-1 w-full"
-            placeholder="Name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-          <input
-            className="border rounded px-2 py-1 w-full"
-            placeholder="Theme"
-            value={form.theme}
-            onChange={(e) => setForm({ ...form, theme: e.target.value })}
-          />
-          <input
-            className="border rounded px-2 py-1 w-full"
-            placeholder="Custom Color"
-            value={form.custom_color}
-            onChange={(e) => setForm({ ...form, custom_color: e.target.value })}
-          />
-          <div className="flex gap-2">
-            <button className="px-3 py-2 bg-emerald-700 text-white rounded" onClick={save}>
+        <div className={classes.root}>
+          <Field label="Name">
+            <Input
+              value={form.name}
+              onChange={(_, data) => setForm({ ...form, name: data.value })}
+            />
+          </Field>
+          <Field label="Theme">
+            <Input
+              value={form.theme}
+              onChange={(_, data) => setForm({ ...form, theme: data.value })}
+            />
+          </Field>
+          <Field label="Custom Color">
+            <Input
+              value={form.custom_color}
+              onChange={(_, data) =>
+                setForm({ ...form, custom_color: data.value })
+              }
+            />
+          </Field>
+          <div className={classes.actionRow}>
+            <Button appearance="primary" onClick={save}>
               Save
-            </button>
-            <button className="px-3 py-2 border rounded" onClick={cancel}>
-              Cancel
-            </button>
+            </Button>
+            <Button onClick={cancel}>Cancel</Button>
           </div>
         </div>
       )}
