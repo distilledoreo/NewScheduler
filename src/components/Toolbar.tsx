@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Tab, TabList, Tooltip, Spinner, Text, Switch, Toolbar, ToolbarButton, ToolbarDivider, makeStyles, tokens } from "@fluentui/react-components";
+import { Button, Tab, TabList, Tooltip, Spinner, Text, Switch, Toolbar as FluentToolbar, ToolbarButton, ToolbarDivider, makeStyles, tokens } from "@fluentui/react-components";
 import { Add20Regular, FolderOpen20Regular, Save20Regular, SaveCopy20Regular } from "@fluentui/react-icons";
 
 type TabKey = "RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "ADMIN";
@@ -78,7 +78,7 @@ export default function Toolbar({
       <div className={s.left}>
         <Text weight="semibold">Scheduler</Text>
         {!sqlDb && <Tooltip content="No database loaded" relationship="label"><Spinner size="tiny" /></Tooltip>}
-        <Toolbar aria-label="File actions" className={s.actionsBar} size="small">
+  <FluentToolbar aria-label="File actions" className={s.actionsBar} size="small">
           <Tooltip content="New DB" relationship="label">
             <ToolbarButton appearance="primary" icon={<Add20Regular />} onClick={createNewDb}>New</ToolbarButton>
           </Tooltip>
@@ -92,7 +92,7 @@ export default function Toolbar({
           <Tooltip content="Save As" relationship="label">
             <ToolbarButton icon={<SaveCopy20Regular />} onClick={saveDbAs} disabled={!sqlDb}>Save As</ToolbarButton>
           </Tooltip>
-        </Toolbar>
+  </FluentToolbar>
       </div>
 
       <div className={s.tabList}>
