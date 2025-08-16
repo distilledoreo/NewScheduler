@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Input, Dropdown, Option, Button, Checkbox, Table, TableHeader, TableBody, TableRow, TableHeaderCell, TableCell, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider } from "@fluentui/react-components";
 import SmartSelect from "./controls/SmartSelect";
 import PersonName from "./PersonName";
@@ -125,6 +125,41 @@ export default function CrewHistoryView({
     },
   });
   const styles = useStyles();
+  // Cache for converting hex colors to CSS styles so we don't recompute for every cell
+  const colorStyleCache = useRef<Map<string, React.CSSProperties>>(new Map());
+
+  function hexToRgb(hex?: string): [number, number, number] | null {
+    if (!hex) return null;
+    const s = hex.trim();
+    const m = s.match(/^#?([\da-fA-F]{3}|[\da-fA-F]{6})$/);
+    if (!m) return null;
+    let h = m[1];
+    if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+    const num = parseInt(h, 16);
+    const r = (num >> 16) & 255;
+    const g = (num >> 8) & 255;
+    const b = num & 255;
+    return [r, g, b];
+  }
+
+  function styleForGroupColor(hex?: string): React.CSSProperties | undefined {
+    if (!hex) return undefined;
+    const cached = colorStyleCache.current.get(hex);
+    if (cached) return cached;
+    const rgb = hexToRgb(hex);
+    if (!rgb) return undefined;
+    const [r, g, b] = rgb;
+    // Subtle overlay that adapts to light/dark themes by using transparency
+    const bgAlpha = 0.18;
+    const borderAlpha = 0.35;
+    const style: React.CSSProperties = {
+      backgroundImage: `linear-gradient(0deg, rgba(${r}, ${g}, ${b}, ${bgAlpha}), rgba(${r}, ${g}, ${b}, ${bgAlpha}))`,
+      // Use an inset box-shadow as a border to avoid altering table layout
+      boxShadow: `inset 0 0 0 1px rgba(${r}, ${g}, ${b}, ${borderAlpha})`,
+    };
+    colorStyleCache.current.set(hex, style);
+    return style;
+  }
   const [defs, setDefs] = useState<any[]>([]);
   const [filter, setFilter] = useState("");
   const segmentNames = useMemo(
@@ -491,8 +526,9 @@ export default function CrewHistoryView({
                       <TableCell className={styles.stickySeg}>{seg}</TableCell>
                       {months.map((m) => {
                         const { content, color } = cellData(m, p.id, seg);
+                        const style = styleForGroupColor(color);
                         return (
-                          <TableCell key={m} style={{ backgroundColor: color }}>
+                          <TableCell key={m} style={style}>
                             {content}
                           </TableCell>
                         );
