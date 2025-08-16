@@ -933,14 +933,11 @@ async function exportShifts() {
         padding: "12px",
         marginBottom: "16px",
       },
-      roleGridWrap: {
-        overflowX: 'auto',
-      },
       roleGrid: {
         display: "grid",
-        gap: "12px",
-        gridTemplateColumns: `repeat(${segments.length}, 160px)`,
-        alignItems: 'start',
+  gap: "12px",
+  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+  alignItems: 'start',
       },
       subTitle: { fontWeight: 600, marginBottom: "12px" },
       label: { fontSize: "12px", color: tokens.colorNeutralForeground3, marginBottom: "4px" },
@@ -956,15 +953,13 @@ async function exportShifts() {
               {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
                 <div key={r.id} className={s.roleCard}>
                   <div className={s.subTitle}>{r.name}</div>
-                  <div className={s.roleGridWrap}>
-                    <div className={s.roleGrid}>
+                  <div className={s.roleGrid}>
                       {segments.map((seg) => (
                         <div key={seg.name}>
                           <div className={s.label}>{seg.name} Required</div>
                           <RequiredCell date={null} group={g} role={r} segment={seg.name as Segment} />
                         </div>
                       ))}
-                    </div>
                   </div>
                 </div>
               ))}
@@ -1164,7 +1159,7 @@ function PeopleEditor(){
         <DialogSurface style={{ width: '90vw', maxWidth: 1200, maxHeight: '85vh' }}>
           <DialogBody>
             <DialogTitle>Needs for {fmtDateMDY(d)}</DialogTitle>
-            <DialogContent style={{ overflow: 'auto' }}>
+            <DialogContent style={{ overflowY: 'auto', overflowX: 'hidden' }}>
               {(() => {
                 const useStyles = makeStyles({
                   grid: {
@@ -1183,8 +1178,7 @@ function PeopleEditor(){
                   },
                   roleCard: { border: `1px solid ${tokens.colorNeutralStroke2}`, borderRadius: "8px", padding: "12px", marginBottom: "16px" },
                   subTitle: { fontWeight: 600, marginBottom: "12px" },
-                  roleGridWrap: { overflowX: 'auto' },
-                  roleGrid: { display: "grid", gap: "12px", gridTemplateColumns: `repeat(${segments.length}, 160px)`, alignItems: 'start' },
+                  roleGrid: { display: "grid", gap: "12px", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", alignItems: 'start' },
                   label: { fontSize: "12px", color: tokens.colorNeutralForeground3, marginBottom: "4px" },
                 });
                 const s = useStyles();
@@ -1196,15 +1190,13 @@ function PeopleEditor(){
                         {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
                           <div key={r.id} className={s.roleCard}>
                             <div className={s.subTitle}>{r.name}</div>
-                            <div className={s.roleGridWrap}>
-                              <div className={s.roleGrid}>
-                                {segments.map((seg) => (
-                                  <div key={seg.name}>
-                                    <div className={s.label}>{seg.name} Required</div>
-                                    <RequiredCell date={d} group={g} role={r} segment={seg.name as Segment} />
-                                  </div>
-                                ))}
-                              </div>
+                            <div className={s.roleGrid}>
+                              {segments.map((seg) => (
+                                <div key={seg.name}>
+                                  <div className={s.label}>{seg.name} Required</div>
+                                  <RequiredCell date={d} group={g} role={r} segment={seg.name as Segment} />
+                                </div>
+                              ))}
                             </div>
                           </div>
                         ))}
