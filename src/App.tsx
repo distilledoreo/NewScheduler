@@ -894,13 +894,18 @@ async function exportShifts() {
     const req = date ? getRequiredFor(date, group.id, role.id, segment) : (all(`SELECT required FROM needs_baseline WHERE group_id=? AND role_id=? AND segment=?`, [group.id, role.id, segment])[0]?.required||0);
     const [val,setVal] = useState<number>(req);
     useEffect(()=>setVal(req),[req]);
+    const useReqStyles = makeStyles({
+      row: { display: 'flex', alignItems: 'center', gap: tokens.spacingHorizontalS },
+      input: { width: '7ch' },
+    });
+    const r = useReqStyles();
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className={r.row}>
         <Input
           type="number"
           value={String(val)}
           onChange={(_, d)=>setVal(parseInt(d.value||'0',10))}
-          style={{ width: 72 }}
+          className={r.input}
           size="small"
         />
         <Button size="small" appearance="primary" onClick={()=>setRequired(date, group.id, role.id, segment, val)}>
@@ -911,36 +916,36 @@ async function exportShifts() {
   }
   function BaselineView(){
     const useStyles = makeStyles({
-      root: { padding: "16px" },
-      title: { fontWeight: 600, fontSize: "1.125rem", marginBottom: "16px" },
+      root: { padding: tokens.spacingHorizontalM },
+      title: { fontWeight: tokens.fontWeightSemibold, fontSize: tokens.fontSizeBase400, marginBottom: tokens.spacingVerticalM },
       grid: {
         display: "grid",
         gridTemplateColumns: "1fr",
-        gap: "16px",
+        gap: tokens.spacingHorizontalM,
         [`@media (min-width: 1024px)`]: { gridTemplateColumns: "repeat(2, 1fr)" },
         [`@media (min-width: 1280px)`]: { gridTemplateColumns: "repeat(3, 1fr)" },
       },
       card: {
         border: `1px solid ${tokens.colorNeutralStroke2}`,
-        borderRadius: "8px",
-        padding: "12px",
+        borderRadius: tokens.borderRadiusLarge,
+        padding: tokens.spacingHorizontalM,
         backgroundColor: tokens.colorNeutralBackground1,
         boxShadow: tokens.shadow2,
       },
       roleCard: {
         border: `1px solid ${tokens.colorNeutralStroke2}`,
-        borderRadius: "8px",
-        padding: "12px",
-        marginBottom: "16px",
+        borderRadius: tokens.borderRadiusLarge,
+        padding: tokens.spacingHorizontalM,
+        marginBottom: tokens.spacingVerticalM,
       },
       roleGrid: {
         display: "grid",
-  gap: "12px",
-  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-  alignItems: 'start',
+        gap: tokens.spacingHorizontalS,
+        gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+        alignItems: 'start',
       },
-      subTitle: { fontWeight: 600, marginBottom: "12px" },
-      label: { fontSize: "12px", color: tokens.colorNeutralForeground3, marginBottom: "4px" },
+      subTitle: { fontWeight: tokens.fontWeightSemibold, marginBottom: tokens.spacingVerticalS },
+      label: { fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS },
     });
     const s = useStyles();
     return (
@@ -1016,17 +1021,40 @@ function PeopleEditor(){
   }
 
   const useStyles = makeStyles({
-    root: { padding: "16px" },
+    root: { padding: tokens.spacingHorizontalM },
     tableWrap: {
       border: `1px solid ${tokens.colorNeutralStroke2}`,
-      borderRadius: "8px",
+      borderRadius: tokens.borderRadiusLarge,
       overflow: "auto",
       maxHeight: "40vh",
       width: "100%",
       boxShadow: tokens.shadow2,
     },
-    header: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" },
-    actions: { display: "flex", gap: "8px" },
+    header: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: tokens.spacingVerticalS },
+    title: { fontWeight: tokens.fontWeightSemibold, fontSize: tokens.fontSizeBase400 },
+    actions: { display: "flex", gap: tokens.spacingHorizontalS },
+    formGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(12, 1fr)',
+      gap: tokens.spacingHorizontalS,
+      marginBottom: tokens.spacingVerticalM,
+    },
+    col2: { gridColumn: 'span 2' },
+    col3: { gridColumn: 'span 3' },
+    col4: { gridColumn: 'span 4' },
+    centerRow: { display: 'flex', alignItems: 'center' },
+    smallLabel: { color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS, fontSize: tokens.fontSizeBase200 },
+    qualGrid: {
+      display: 'grid',
+      gap: tokens.spacingHorizontalXS,
+      gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+      maxHeight: '40vh',
+      overflow: 'auto',
+      border: `1px solid ${tokens.colorNeutralStroke2}`,
+      borderRadius: tokens.borderRadiusMedium,
+      padding: tokens.spacingHorizontalS,
+    },
+    row: { display: 'flex', gap: tokens.spacingHorizontalS },
   });
   const s = useStyles();
 
@@ -1034,7 +1062,7 @@ function PeopleEditor(){
     <div className={s.root}>
       <div className="w-full">
         <div className={s.header}>
-          <div className="font-semibold text-lg">People</div>
+          <div className={s.title}>People</div>
           <Button appearance="primary" onClick={()=>openModal()}>Add Person</Button>
         </div>
 
@@ -1086,11 +1114,11 @@ function PeopleEditor(){
           <DialogBody>
             <DialogTitle>{editing ? 'Edit Person' : 'Add Person'}</DialogTitle>
             <DialogContent>
-              <div className="grid grid-cols-12 gap-2 mb-3">
-                <Input className="col-span-3" placeholder="Last Name" value={form.last_name||''} onChange={(_,d)=>setForm({...form,last_name:d.value})} />
-                <Input className="col-span-3" placeholder="First Name" value={form.first_name||''} onChange={(_,d)=>setForm({...form,first_name:d.value})} />
-                <Input className="col-span-4" placeholder="Work Email" value={form.work_email||''} onChange={(_,d)=>setForm({...form,work_email:d.value})} />
-                <div className="col-span-2">
+              <div className={s.formGrid}>
+                <Input className={s.col3} placeholder="Last Name" value={form.last_name||''} onChange={(_,d)=>setForm({...form,last_name:d.value})} />
+                <Input className={s.col3} placeholder="First Name" value={form.first_name||''} onChange={(_,d)=>setForm({...form,first_name:d.value})} />
+                <Input className={s.col4} placeholder="Work Email" value={form.work_email||''} onChange={(_,d)=>setForm({...form,work_email:d.value})} />
+                <div className={s.col2}>
                   <Dropdown
                     selectedOptions={[form.brother_sister || 'Brother']}
                     onOptionSelect={(_, data)=> setForm({...form, brother_sister: String(data.optionValue ?? data.optionText)})}
@@ -1099,15 +1127,15 @@ function PeopleEditor(){
                     <Option value="Sister">Sister</Option>
                   </Dropdown>
                 </div>
-                <div className="col-span-2 flex items-center">
+                <div className={`${s.col2} ${s.centerRow}`}>
                   <Checkbox label="Commuter" checked={!!form.commuter} onChange={(_,data)=>setForm({...form,commuter:!!data.checked})} />
                 </div>
-                <div className="col-span-2 flex items-center">
+                <div className={`${s.col2} ${s.centerRow}`}>
                   <Checkbox label="Active" checked={form.active!==false} onChange={(_,data)=>setForm({...form,active:!!data.checked})} />
                 </div>
                 {WEEKDAYS.map((w,idx)=> (
-                  <div key={w} className="col-span-2">
-                    <div className="text-xs text-slate-500 mb-1">{w} Availability</div>
+                  <div key={w} className={s.col2}>
+                    <div className={s.smallLabel}>{w} Availability</div>
                     <Dropdown
                       selectedOptions={[form[["avail_mon","avail_tue","avail_wed","avail_thu","avail_fri"][idx]]||'U']}
                       onOptionSelect={(_, data)=>{
@@ -1124,9 +1152,9 @@ function PeopleEditor(){
                 ))}
               </div>
 
-              <div className="mb-4">
-                <div className="text-xs text-slate-500 mb-1">Qualified Roles</div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 max-h-40 overflow-auto border rounded p-2">
+              <div>
+                <div className={s.smallLabel}>Qualified Roles</div>
+                <div className={s.qualGrid}>
                   {roles.map((r:any)=>(
                     <Checkbox key={r.id}
                       label={r.name}
@@ -1154,57 +1182,55 @@ function PeopleEditor(){
 
   function NeedsEditor(){
     const d = selectedDateObj;
+    const useDialogStyles = makeStyles({
+      grid: {
+        display: "grid",
+        gridTemplateColumns: "1fr",
+        gap: tokens.spacingHorizontalM,
+        [`@media (min-width: 1024px)`]: { gridTemplateColumns: "repeat(2, 1fr)" },
+        [`@media (min-width: 1280px)`]: { gridTemplateColumns: "repeat(3, 1fr)" },
+      },
+      card: {
+        border: `1px solid ${tokens.colorNeutralStroke2}`,
+        borderRadius: tokens.borderRadiusLarge,
+        padding: tokens.spacingHorizontalM,
+        backgroundColor: tokens.colorNeutralBackground1,
+        boxShadow: tokens.shadow2,
+      },
+      roleCard: { border: `1px solid ${tokens.colorNeutralStroke2}`, borderRadius: tokens.borderRadiusLarge, padding: tokens.spacingHorizontalM, marginBottom: tokens.spacingVerticalM },
+      subTitle: { fontWeight: tokens.fontWeightSemibold, marginBottom: tokens.spacingVerticalS },
+      roleGrid: { display: "grid", gap: tokens.spacingHorizontalS, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", alignItems: 'start' },
+      label: { fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS },
+      content: { overflowY: 'auto', overflowX: 'hidden' },
+      surface: { width: '90vw', maxWidth: '1200px', maxHeight: '85vh' },
+    });
+    const ds = useDialogStyles();
     return (
       <Dialog open={showNeedsEditor} onOpenChange={(_, data)=> setShowNeedsEditor(data.open)}>
-        <DialogSurface style={{ width: '90vw', maxWidth: 1200, maxHeight: '85vh' }}>
+        <DialogSurface className={ds.surface}>
           <DialogBody>
             <DialogTitle>Needs for {fmtDateMDY(d)}</DialogTitle>
-            <DialogContent style={{ overflowY: 'auto', overflowX: 'hidden' }}>
-              {(() => {
-                const useStyles = makeStyles({
-                  grid: {
-                    display: "grid",
-                    gridTemplateColumns: "1fr",
-                    gap: "16px",
-                    [`@media (min-width: 1024px)`]: { gridTemplateColumns: "repeat(2, 1fr)" },
-                    [`@media (min-width: 1280px)`]: { gridTemplateColumns: "repeat(3, 1fr)" },
-                  },
-                  card: {
-                    border: `1px solid ${tokens.colorNeutralStroke2}`,
-                    borderRadius: "8px",
-                    padding: "12px",
-                    backgroundColor: tokens.colorNeutralBackground1,
-                    boxShadow: tokens.shadow2,
-                  },
-                  roleCard: { border: `1px solid ${tokens.colorNeutralStroke2}`, borderRadius: "8px", padding: "12px", marginBottom: "16px" },
-                  subTitle: { fontWeight: 600, marginBottom: "12px" },
-                  roleGrid: { display: "grid", gap: "12px", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", alignItems: 'start' },
-                  label: { fontSize: "12px", color: tokens.colorNeutralForeground3, marginBottom: "4px" },
-                });
-                const s = useStyles();
-                return (
-                  <div className={s.grid}>
-                    {groups.map((g:any)=> (
-                      <div key={g.id} className={s.card}>
-                        <div className={s.subTitle}>{g.name}</div>
-                        {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
-                          <div key={r.id} className={s.roleCard}>
-                            <div className={s.subTitle}>{r.name}</div>
-                            <div className={s.roleGrid}>
-                              {segments.map((seg) => (
-                                <div key={seg.name}>
-                                  <div className={s.label}>{seg.name} Required</div>
-                                  <RequiredCell date={d} group={g} role={r} segment={seg.name as Segment} />
-                                </div>
-                              ))}
+            <DialogContent className={ds.content}>
+              <div className={ds.grid}>
+                {groups.map((g:any)=> (
+                  <div key={g.id} className={ds.card}>
+                    <div className={ds.subTitle}>{g.name}</div>
+                    {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
+                      <div key={r.id} className={ds.roleCard}>
+                        <div className={ds.subTitle}>{r.name}</div>
+                        <div className={ds.roleGrid}>
+                          {segments.map((seg) => (
+                            <div key={seg.name}>
+                              <div className={ds.label}>{seg.name} Required</div>
+                              <RequiredCell date={d} group={g} role={r} segment={seg.name as Segment} />
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
-                );
-              })()}
+                ))}
+              </div>
             </DialogContent>
             <DialogActions>
               <Button onClick={()=>setShowNeedsEditor(false)}>Close</Button>

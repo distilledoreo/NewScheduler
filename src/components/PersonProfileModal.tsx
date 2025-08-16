@@ -20,15 +20,17 @@ const useStyles = makeStyles({
   grid: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
-    gap: "12px",
-    marginTop: "8px",
+    gap: tokens.spacingHorizontalS,
+    marginTop: tokens.spacingVerticalXS,
   },
   sectionTitle: {
     color: tokens.colorNeutralForeground2,
-    fontWeight: 600,
-    marginBottom: "4px",
+    fontWeight: tokens.fontWeightSemibold,
+    marginBottom: tokens.spacingVerticalXS,
   },
-  cell: { fontSize: "0.9rem" },
+  cell: { fontSize: tokens.fontSizeBase300 },
+  mtM: { marginTop: tokens.spacingVerticalM },
+  list: { marginTop: tokens.spacingVerticalXS, paddingLeft: tokens.spacingHorizontalL },
 });
 
 function fmtAvail(v: string) {
@@ -77,7 +79,7 @@ export default function PersonProfileModal({ personId, onClose, all }: PersonPro
             <div className={s.cell}><b>Commuter:</b> {person.commuter ? "Yes" : "No"}</div>
           </div>
 
-          <div className={s.sectionTitle} style={{ marginTop: 16 }}>Availability</div>
+          <div className={`${s.sectionTitle} ${s.mtM}`}>Availability</div>
           <div className={s.grid}>
             <div className={s.cell}><b>Mon:</b> {fmtAvail(person.avail_mon)}</div>
             <div className={s.cell}><b>Tue:</b> {fmtAvail(person.avail_tue)}</div>
@@ -86,16 +88,16 @@ export default function PersonProfileModal({ personId, onClose, all }: PersonPro
             <div className={s.cell}><b>Fri:</b> {fmtAvail(person.avail_fri)}</div>
           </div>
 
-          <div className={s.sectionTitle} style={{ marginTop: 16 }}>Training</div>
-          <ul style={{ marginTop: 4, paddingLeft: 18 }}>
+          <div className={`${s.sectionTitle} ${s.mtM}`}>Training</div>
+          <ul className={s.list}>
             {trainings.map((t: any, idx: number) => (
               <li key={idx} className={s.cell}>{t.name} — {t.status}</li>
             ))}
             {trainings.length === 0 && <div className={s.cell}>No training records.</div>}
           </ul>
 
-          <div className={s.sectionTitle} style={{ marginTop: 16 }}>Recent Assignments</div>
-          <ul style={{ marginTop: 4, paddingLeft: 18 }}>
+          <div className={`${s.sectionTitle} ${s.mtM}`}>Recent Assignments</div>
+          <ul className={s.list}>
             {history.map((h: any, idx: number) => (
               <li key={idx} className={s.cell}>
                 {new Date(h.date).toLocaleDateString()} — {h.segment} — {h.group_name} / {h.role_name}
