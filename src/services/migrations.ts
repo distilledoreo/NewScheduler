@@ -133,6 +133,7 @@ export const migrate7SegmentRefs: Migration = (db) => {
     db.run(`DROP TABLE ${old};`);
   };
 
+  // Use TEXT without CHECK constraints to allow any segment name
   rebuild(
     'assignment',
     `CREATE TABLE assignment (
@@ -140,7 +141,7 @@ export const migrate7SegmentRefs: Migration = (db) => {
       date TEXT NOT NULL,
       person_id INTEGER NOT NULL,
       role_id INTEGER NOT NULL,
-      segment TEXT NOT NULL REFERENCES segment(name),
+      segment TEXT NOT NULL,
       FOREIGN KEY (person_id) REFERENCES person(id),
       FOREIGN KEY (role_id) REFERENCES role(id)
     );`,
@@ -153,7 +154,7 @@ export const migrate7SegmentRefs: Migration = (db) => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       month TEXT NOT NULL,
       person_id INTEGER NOT NULL,
-      segment TEXT NOT NULL REFERENCES segment(name),
+      segment TEXT NOT NULL,
       role_id INTEGER NOT NULL,
       UNIQUE(month, person_id, segment),
       FOREIGN KEY (person_id) REFERENCES person(id),
@@ -169,7 +170,7 @@ export const migrate7SegmentRefs: Migration = (db) => {
       month TEXT NOT NULL,
       person_id INTEGER NOT NULL,
       weekday INTEGER NOT NULL,
-      segment TEXT NOT NULL REFERENCES segment(name),
+      segment TEXT NOT NULL,
       role_id INTEGER NOT NULL,
       UNIQUE(month, person_id, weekday, segment),
       FOREIGN KEY (person_id) REFERENCES person(id),
@@ -184,7 +185,7 @@ export const migrate7SegmentRefs: Migration = (db) => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       group_id INTEGER NOT NULL,
       role_id INTEGER NOT NULL,
-      segment TEXT NOT NULL REFERENCES segment(name),
+      segment TEXT NOT NULL,
       required INTEGER NOT NULL DEFAULT 0,
       UNIQUE(group_id, role_id, segment)
     );`,
@@ -198,12 +199,109 @@ export const migrate7SegmentRefs: Migration = (db) => {
       date TEXT NOT NULL,
       group_id INTEGER NOT NULL,
       role_id INTEGER NOT NULL,
-      segment TEXT NOT NULL REFERENCES segment(name),
+      segment TEXT NOT NULL,
       required INTEGER NOT NULL,
       UNIQUE(date, group_id, role_id, segment)
     );`,
     'id, date, group_id, role_id, segment, required'
   );
+};
+
+// NEW MIGRATION 8: Remove CHECK constraints from existing tables
+export const migrate8RemoveSegmentConstraints: Migration = (db) => {
+  // This migration specifically handles databases that still have CHECK constraints
+  // preventing new segments from being saved
+  
+  const tablesToFix = [
+    { name: 'assignment', hasId: true },
+    { name: 'monthly_default', hasId: true },
+    { name: 'monthly_default_day', hasId: true },
+    { name: 'needs_baseline', hasId: true },
+    { name: 'needs_override', hasId: true }
+  ];
+
+  for (const table of tablesToFix) {
+    try {
+      // Check if table has CHECK constraint on segment column
+      const info = db.exec(`PRAGMA table_info(${table.name});`);
+      const columns = info[0]?.values || [];
+      
+      // Find segment column and check for CHECK constraint
+      let hasCheckConstraint = false;
+      for (const col of columns) {
+        const colName = String(col[1]);
+        if (colName === 'segment') {
+          // SQLite doesn't directly expose CHECK constraints in table_info,
+          // but we can check the table's SQL definition
+          const sqlInfo = db.exec(`SELECT sql FROM sqlite_master WHERE type='table' AND name='${table.name}';`);
+          const tableSql = sqlInfo[0]?.values?.[0]?.[0] as string || '';
+          
+          // Look for CHECK constraint on segment column
+          if (tableSql.includes('CHECK(segment IN') || tableSql.includes('CHECK (segment IN')) {
+            hasCheckConstraint = true;
+            break;
+          }
+        }
+      }
+
+      if (hasCheckConstraint) {
+        console.log(`Removing CHECK constraint from ${table.name}...`);
+        
+        // We need to rebuild the table without the CHECK constraint
+        const tempName = `${table.name}_temp_fix`;
+        
+        // Get all column definitions
+        const colDefs: string[] = [];
+        const colNames: string[] = [];
+        
+        for (const col of columns) {
+          const name = String(col[1]);
+          const type = String(col[2]);
+          const notNull = col[3] ? ' NOT NULL' : '';
+          const defaultVal = col[4] != null ? ` DEFAULT ${col[4]}` : '';
+          const pk = col[5] ? ' PRIMARY KEY AUTOINCREMENT' : '';
+          
+          colNames.push(name);
+          
+          // Remove CHECK constraint from segment column
+          if (name === 'segment') {
+            colDefs.push(`${name} TEXT${notNull}`);
+          } else {
+            colDefs.push(`${name} ${type}${notNull}${defaultVal}${pk}`);
+          }
+        }
+
+        // Add foreign keys and unique constraints based on original table
+        let constraints = '';
+        if (table.name === 'assignment') {
+          constraints = `, FOREIGN KEY (person_id) REFERENCES person(id), FOREIGN KEY (role_id) REFERENCES role(id)`;
+        } else if (table.name === 'monthly_default') {
+          constraints = `, UNIQUE(month, person_id, segment), FOREIGN KEY (person_id) REFERENCES person(id), FOREIGN KEY (role_id) REFERENCES role(id)`;
+        } else if (table.name === 'monthly_default_day') {
+          constraints = `, UNIQUE(month, person_id, weekday, segment), FOREIGN KEY (person_id) REFERENCES person(id), FOREIGN KEY (role_id) REFERENCES role(id)`;
+        } else if (table.name === 'needs_baseline') {
+          constraints = `, UNIQUE(group_id, role_id, segment)`;
+        } else if (table.name === 'needs_override') {
+          constraints = `, UNIQUE(date, group_id, role_id, segment)`;
+        }
+
+        // Create new table without CHECK constraint
+        const createSql = `CREATE TABLE ${tempName} (${colDefs.join(', ')}${constraints});`;
+        db.run(createSql);
+
+        // Copy data
+        const copyColumns = colNames.join(', ');
+        db.run(`INSERT INTO ${tempName} (${copyColumns}) SELECT ${copyColumns} FROM ${table.name};`);
+
+        // Drop old table and rename new one
+        db.run(`DROP TABLE ${table.name};`);
+        db.run(`ALTER TABLE ${tempName} RENAME TO ${table.name};`);
+      }
+    } catch (e) {
+      console.error(`Error fixing ${table.name}:`, e);
+      // Continue with other tables even if one fails
+    }
+  }
 };
 
 const migrations: Record<number, Migration> = {
@@ -269,21 +367,22 @@ const migrations: Record<number, Migration> = {
       FOREIGN KEY (role_id) REFERENCES role(id)
     );`);
 
+    // Note: For new databases, we create tables without CHECK constraints on segment
     db.run(`CREATE TABLE IF NOT EXISTS assignment (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date TEXT NOT NULL, -- YYYY-MM-DD
+      date TEXT NOT NULL,
       person_id INTEGER NOT NULL,
       role_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      segment TEXT NOT NULL,
       FOREIGN KEY (person_id) REFERENCES person(id),
       FOREIGN KEY (role_id) REFERENCES role(id)
     );`);
 
     db.run(`CREATE TABLE IF NOT EXISTS monthly_default (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      month TEXT NOT NULL, -- YYYY-MM
+      month TEXT NOT NULL,
       person_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      segment TEXT NOT NULL,
       role_id INTEGER NOT NULL,
       UNIQUE(month, person_id, segment),
       FOREIGN KEY (person_id) REFERENCES person(id),
@@ -294,7 +393,7 @@ const migrations: Record<number, Migration> = {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       group_id INTEGER NOT NULL,
       role_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      segment TEXT NOT NULL,
       required INTEGER NOT NULL DEFAULT 0,
       UNIQUE(group_id, role_id, segment)
     );`);
@@ -304,7 +403,7 @@ const migrations: Record<number, Migration> = {
       date TEXT NOT NULL,
       group_id INTEGER NOT NULL,
       role_id INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      segment TEXT NOT NULL,
       required INTEGER NOT NULL,
       UNIQUE(date, group_id, role_id, segment)
     );`);
@@ -312,21 +411,20 @@ const migrations: Record<number, Migration> = {
     db.run(`CREATE TABLE IF NOT EXISTS timeoff (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       person_id INTEGER NOT NULL,
-      start_ts TEXT NOT NULL, -- ISO string
+      start_ts TEXT NOT NULL,
       end_ts TEXT NOT NULL,
       reason TEXT,
       source TEXT DEFAULT 'TeamsImport',
       FOREIGN KEY (person_id) REFERENCES person(id)
     );`);
-  }
-,
+  },
   2: (db) => {
     db.run(`CREATE TABLE IF NOT EXISTS monthly_default_day (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       month TEXT NOT NULL,
       person_id INTEGER NOT NULL,
       weekday INTEGER NOT NULL,
-      segment TEXT CHECK(segment IN ('Early','AM','Lunch','PM')) NOT NULL,
+      segment TEXT NOT NULL,
       role_id INTEGER NOT NULL,
       UNIQUE(month, person_id, weekday, segment),
       FOREIGN KEY (person_id) REFERENCES person(id),
@@ -338,6 +436,7 @@ const migrations: Record<number, Migration> = {
   5: migrate5AddGroupTheme,
   6: migrate6AddExportGroup,
   7: migrate7SegmentRefs,
+  8: migrate8RemoveSegmentConstraints,
 };
 
 export function addMigration(version: number, fn: Migration) {
