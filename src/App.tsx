@@ -3,6 +3,7 @@ import { applyMigrations } from "./services/migrations";
 import { listSegments, type Segment, type SegmentRow } from "./services/segments";
 import Toolbar from "./components/Toolbar";
 import DailyRunBoard from "./components/DailyRunBoard";
+import AdminView from "./components/AdminView";
 import GroupEditor from "./components/GroupEditor";
 import RoleEditor from "./components/RoleEditor";
 import ExportGroupEditor from "./components/ExportGroupEditor";
@@ -1248,17 +1249,6 @@ async function exportShifts() {
   }
 
 
-  function AdminView(){
-    return (
-      <div className="p-4 space-y-8">
-        <SegmentEditor all={all} run={run} refresh={refreshCaches} />
-        <GroupEditor all={all} run={run} refresh={refreshCaches} />
-        <RoleEditor all={all} run={run} refresh={refreshCaches} segments={segments} />
-        <ExportGroupEditor all={all} run={run} refresh={refreshCaches} />
-      </div>
-    );
-  }
-
 function PeopleEditor(){
   const emptyForm = { active:true, commuter:false, brother_sister:'Brother', avail_mon:'U', avail_tue:'U', avail_wed:'U', avail_thu:'U', avail_fri:'U' };
   const [form,setForm] = useState<any>(emptyForm);
@@ -1550,7 +1540,9 @@ function PeopleEditor(){
           )}
 
           {activeTab === 'HISTORY' && <CrewHistoryView />}
-          {activeTab === 'ADMIN' && <AdminView />}
+          {activeTab === 'ADMIN' && (
+            <AdminView all={all} run={run} refresh={refreshCaches} segments={segments} />
+          )}
         </>
       )}
 
