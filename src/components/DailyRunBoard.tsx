@@ -4,7 +4,7 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import type { Segment, SegmentRow } from "../services/segments";
 import PersonName from "./PersonName";
-import { Button, Dropdown, Option, Tab, TabList, Input } from "@fluentui/react-components";
+import { Button, Dropdown, Option, Tab, TabList, Input, tokens } from "@fluentui/react-components";
 
 const Grid = WidthProvider(GridLayout);
 
@@ -141,18 +141,18 @@ export default function DailyRunBoard({
 
     const req = getRequiredFor(selectedDateObj, group.id, role.id, seg);
     const assignedCount = assigns.length;
-    const cardColor =
+    const cardBg =
       assignedCount < req
-        ? 'bg-red-100'
+        ? tokens.colorPaletteRedBackground2
         : assignedCount === req
-        ? 'bg-green-50'
-        : 'bg-yellow-50';
-    const statusColor =
+        ? tokens.colorPaletteGreenBackground2
+        : tokens.colorPaletteYellowBackground2;
+    const badgeBg =
       assignedCount < req
-        ? 'bg-red-100 text-red-800'
+        ? tokens.colorPaletteRedBackground3
         : assignedCount === req
-        ? 'bg-green-100 text-green-800'
-        : 'bg-yellow-100 text-yellow-800';
+        ? tokens.colorPaletteGreenBackground3
+        : tokens.colorPaletteYellowBackground3;
     const isOverstaffed = assignedCount > req;
 
     function handleMove(a: any, targets: any[]) {
@@ -164,10 +164,12 @@ export default function DailyRunBoard({
     const [addSel, setAddSel] = useState<string[]>([]);
 
     return (
-      <div className={`border rounded p-2 ${cardColor}`}>
+      <div className={"border rounded p-2"} style={{ backgroundColor: cardBg }}>
         <div className="flex items-center justify-between mb-2">
           <div className="font-medium">{role.name}</div>
-          <div className={`text-xs px-2 py-0.5 rounded ${statusColor}`}>{assignedCount}/{req}</div>
+          <div className={"text-xs px-2 py-0.5 rounded"} style={{ backgroundColor: badgeBg }}>
+            {assignedCount}/{req}
+          </div>
         </div>
 
         <div className="flex items-center gap-2 mb-2">
@@ -191,16 +193,22 @@ export default function DailyRunBoard({
             style={{ width: "100%" }}
           >
             {opts.map((o) => (
-              <Option key={o.id} value={String(o.id)} disabled={o.blocked}>
-                {o.label}
-                {o.blocked ? " (Time-off)" : ""}
-              </Option>
+              <Option
+                key={o.id}
+                value={String(o.id)}
+                disabled={o.blocked}
+                text={`${o.label}${o.blocked ? " (Time-off)" : ""}`}
+              />
             ))}
           </Dropdown>
         </div>
         <ul className="space-y-1">
           {assigns.map((a: any) => (
-            <li key={a.id} className="flex items-center justify-between bg-slate-50 rounded px-2 py-1">
+            <li
+              key={a.id}
+              className="flex items-center justify-between rounded px-2 py-1"
+              style={{ backgroundColor: tokens.colorNeutralBackground2 }}
+            >
               <PersonName personId={a.person_id}>
                 {a.last_name}, {a.first_name}
                 {!trainedBefore.has(a.person_id) && " (Untrained)"}
@@ -303,11 +311,14 @@ export default function DailyRunBoard({
             const req = getRequiredFor(selectedDateObj, g.id, r.id, seg);
             return assignedCount >= req;
           });
-          const groupColor = groupNeedsMet ? 'bg-green-50' : 'bg-red-100';
+          const groupBg = groupNeedsMet
+            ? tokens.colorPaletteGreenBackground2
+            : tokens.colorPaletteRedBackground2;
           return (
             <div
               key={String(g.id)}
-              className={`border rounded-lg shadow-sm flex flex-col h-full ${groupColor}`}
+              className={"border rounded-lg shadow-sm flex flex-col h-full"}
+              style={{ backgroundColor: groupBg }}
             >
               <div className="font-semibold flex items-center justify-between mb-2 drag-handle px-3 pt-3">
                 <span>{g.name}</span>
@@ -343,9 +354,7 @@ export default function DailyRunBoard({
               style={{ width: "100%", marginBottom: 12 }}
             >
               {moveContext.targets.map((t) => (
-                <Option key={t.role.id} value={String(t.role.id)}>
-                  {t.group.name} - {t.role.name}
-                </Option>
+                <Option key={t.role.id} value={String(t.role.id)} text={`${t.group.name} - ${t.role.name}`} />
               ))}
             </Dropdown>
             <div className="flex justify-end gap-2">

@@ -1149,7 +1149,7 @@ function PeopleEditor(){
   return (
   <FluentProvider theme={themeName === "dark" ? webDarkTheme : webLightTheme}>
   <ProfileContext.Provider value={{ showProfile: (id: number) => setProfilePersonId(id) }}>
-  <div className="min-h-screen bg-slate-50">
+  <div className="min-h-screen" style={{ backgroundColor: (themeName === "dark" ? webDarkTheme : webLightTheme).colorNeutralBackground1 }}>
       <Toolbar
         ready={ready}
         sqlDb={sqlDb}
