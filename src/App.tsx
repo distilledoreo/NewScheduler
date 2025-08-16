@@ -661,7 +661,6 @@ export default function App() {
 
   // Needs
   function getRequiredFor(date: Date, groupId: number, roleId: number, segment: Segment): number {
-    if (segment === "Early") return 0; // Breakfast baseline usually 0 unless set
     const dY = ymd(date);
     const ov = all(`SELECT required FROM needs_override WHERE date=? AND group_id=? AND role_id=? AND segment=?`, [dY, groupId, roleId, segment]);
     if (ov.length) return ov[0].required;
