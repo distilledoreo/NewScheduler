@@ -1,7 +1,7 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { applyMigrations } from "./services/migrations";
 import { listSegments, type Segment, type SegmentRow } from "./services/segments";
-import Toolbar from "./components/Toolbar";
+import SideRail from "./components/SideRail";
 const DailyRunBoard = React.lazy(() => import("./components/DailyRunBoard"));
 const AdminView = React.lazy(() => import("./components/AdminView"));
 const ExportPreview = React.lazy(() => import("./components/ExportPreview"));
@@ -1241,11 +1241,31 @@ function PeopleEditor(){
     );
   }
 
+  const useAppShellStyles = makeStyles({
+    shell: {
+      minHeight: '100vh',
+      display: 'flex',
+      width: '100%',
+      maxWidth: '100%',
+      overflow: 'hidden',
+      backgroundColor: (themeName === "dark" ? webDarkTheme : webLightTheme).colorNeutralBackground1,
+    },
+    main: {
+      flex: 1,
+      minWidth: 0,
+      overflow: 'auto',
+    },
+    mainInner: {
+      padding: tokens.spacingHorizontalM,
+    },
+  });
+  const sh = useAppShellStyles();
+
   return (
   <FluentProvider theme={themeName === "dark" ? webDarkTheme : webLightTheme}>
   <ProfileContext.Provider value={{ showProfile: (id: number) => setProfilePersonId(id) }}>
-  <div className="min-h-screen" style={{ backgroundColor: (themeName === "dark" ? webDarkTheme : webLightTheme).colorNeutralBackground1 }}>
-      <Toolbar
+  <div className={sh.shell}>
+      <SideRail
         ready={ready}
         sqlDb={sqlDb}
         createNewDb={createNewDb}
@@ -1256,10 +1276,11 @@ function PeopleEditor(){
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         canSave={canSave}
-    themeName={themeName}
-    setThemeName={setThemeName}
+        themeName={themeName}
+        setThemeName={setThemeName}
       />
-
+      <main className={sh.main}>
+        <div className={sh.mainInner}>
       {!sqlDb && (
         <div className="p-6 text-slate-600">
           <div className="font-semibold mb-2">First run</div>
@@ -1375,6 +1396,8 @@ function PeopleEditor(){
           all={all}
         />
       )}
+        </div>
+      </main>
   </div>
   </ProfileContext.Provider>
   </FluentProvider>
