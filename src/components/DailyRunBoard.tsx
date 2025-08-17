@@ -30,9 +30,12 @@ import {
   Caption1,
   Title3,
   Subtitle2,
+  Tooltip,
 } from "@fluentui/react-components";
 
 const Grid = WidthProvider(GridLayout);
+// Work around TS typing issues: cast WidthProvider result to any for JSX use
+const GridWP: any = Grid;
 
 // Styles moved outside the component to avoid recreating style objects on each render
 const useStyles = makeStyles({
@@ -336,17 +339,86 @@ export default function DailyRunBoard({
       [peopleOptionsForSegment, selectedDateObj, seg, role]
     );
 
+    // Calculate dynamic segment times (mimic App.segmentTimesForDate)
+    const segTimes = useMemo(() => {
+      const day = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate());
+      const mk = (t: string) => {
+        const [h, m] = t.split(":").map(Number);
+        return new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m, 0, 0);
+      };
+      const map: Record<string, { start: Date; end: Date }> = {};
+      for (const srow of segments) {
+        map[srow.name] = { start: mk(srow.start_time), end: mk(srow.end_time) };
+      }
+      // Detect Lunch/Early presence on date
+      const rows = all(`SELECT DISTINCT segment FROM assignment WHERE date=?`, [ymd(selectedDateObj)]);
+      const hasLunch = rows.some((r: any) => r.segment === "Lunch");
+      const hasEarly = rows.some((r: any) => r.segment === "Early");
+      const addMinutes = (d: Date, mins: number) => new Date(d.getTime() + mins * 60000);
+      if (hasLunch) {
+        if (map["AM"] && map["Lunch"]) map["AM"].end = map["Lunch"].start;
+        if (map["PM"] && map["Lunch"]) map["PM"].start = addMinutes(map["Lunch"].end, 60);
+      }
+      if (hasEarly && map["PM"]) {
+        map["PM"].end = addMinutes(map["PM"].end, -60);
+      }
+      return map;
+    }, [all, segments, selectedDateObj, ymd]);
+
+    // Compute time-off overlap vs this segment; derive partial/heavy flags
+    const overlapByPerson = useMemo(() => {
+      if (seg === "Early") return new Map<number, { minutes: number; heavy: boolean; partial: boolean }>();
+      const st = segTimes[seg]?.start;
+      const en = segTimes[seg]?.end;
+      const map = new Map<number, { minutes: number; heavy: boolean; partial: boolean }>();
+      if (!st || !en) return map;
+      const segStart = st.getTime();
+      const segEnd = en.getTime();
+      const segMinutes = Math.max(0, Math.round((segEnd - segStart) / 60000));
+
+      // Fetch all timeoff entries overlapping this calendar day to minimize per-person queries
+      const dayStart = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate(), 0, 0, 0, 0);
+      const dayEnd = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() + 1, 0, 0, 0, 0);
+      const rows = all(
+        `SELECT person_id, start_ts, end_ts FROM timeoff WHERE NOT (? >= end_ts OR ? <= start_ts)`,
+        [dayStart.toISOString(), dayEnd.toISOString()]
+      );
+      for (const r of rows as any[]) {
+        const pid = r.person_id as number;
+        const s = new Date(r.start_ts).getTime();
+        const e = new Date(r.end_ts).getTime();
+        const ovl = Math.max(0, Math.min(e, segEnd) - Math.max(s, segStart));
+        if (ovl <= 0) continue;
+        const prev = map.get(pid)?.minutes || 0;
+        const minutes = prev + Math.round(ovl / 60000);
+        const heavy = segMinutes > 0 && minutes >= Math.ceil(segMinutes / 2);
+        const partial = minutes > 0 && !heavy;
+        map.set(pid, { minutes, heavy, partial });
+      }
+      return map;
+    }, [all, seg, segTimes, selectedDateObj]);
+
+    const segDurationMinutes = useMemo(() => {
+      if (seg === "Early") return 0;
+      const st = segTimes[seg]?.start;
+      const en = segTimes[seg]?.end;
+      if (!st || !en) return 0;
+      return Math.max(0, Math.round((en.getTime() - st.getTime()) / 60000));
+    }, [seg, segTimes]);
+
     const req = getRequiredFor(selectedDateObj, group.id, role.id, seg);
-    const assignedCount = assigns.length;
+    // Effective count excludes "heavy" time-off overlaps
+    const heavyCount = assigns.reduce((n, a) => n + (overlapByPerson.get(a.person_id)?.heavy ? 1 : 0), 0);
+    const assignedEffective = assigns.length - heavyCount;
     const status: "under" | "exact" | "over" =
-      assignedCount < req ? "under" : assignedCount === req ? "exact" : "over";
+      assignedEffective < req ? "under" : assignedEffective === req ? "exact" : "over";
     const accentColor =
       status === "under"
         ? tokens.colorPaletteRedBorderActive
         : status === "exact"
         ? tokens.colorPaletteGreenBorderActive
         : tokens.colorPaletteYellowBorderActive;
-    const isOverstaffed = assignedCount > req;
+    const isOverstaffed = assignedEffective > req;
 
     const handleMove = useCallback(
       (a: any) => {
@@ -388,7 +460,7 @@ export default function DailyRunBoard({
                 : "warning"
             }
           >
-            {assignedCount}/{req}
+            {assignedEffective}/{req}
           </Badge>
         </div>
 
@@ -410,9 +482,9 @@ export default function DailyRunBoard({
               const val = data.optionValue ?? '';
               if (!val) return;
               const pid = Number(val);
-              const sel = opts.find((o) => o.id === pid);
-              if (sel?.blocked) {
-                alert("Blocked by time-off for this segment.");
+              const info = overlapByPerson.get(pid);
+              if (info?.heavy) {
+                alert("Blocked by time off (major overlap) for this segment.");
                 setAddSel([]);
                 return;
               }
@@ -422,30 +494,58 @@ export default function DailyRunBoard({
             style={{ width: "100%" }}
           >
             {openAdd &&
-              opts.map((o) => (
-                <Option
-                  key={o.id}
-                  value={String(o.id)}
-                  disabled={o.blocked}
-                  text={`${o.label}${o.blocked ? " (Time-off)" : ""}`}
-                >
-                  {`${o.label}${o.blocked ? " (Time-off)" : ""}`}
-                </Option>
-              ))}
+              opts.map((o) => {
+                const info = overlapByPerson.get(o.id);
+                const isHeavy = Boolean(info?.heavy);
+                const isPartial = Boolean(info?.partial);
+                const suffix = isHeavy ? " (Time-off)" : isPartial ? " (Partial Time-off)" : "";
+                return (
+                  <Option
+                    key={o.id}
+                    value={String(o.id)}
+                    disabled={isHeavy}
+                    text={`${o.label}${suffix}`}
+                  >
+                    {`${o.label}${suffix}`}
+                  </Option>
+                );
+              })}
           </Dropdown>
         </div>
     <ul className={s.assignmentsList}>
-          {assigns.map((a: any) => (
+      {assigns.map((a: any) => (
             <li key={a.id} className={s.assignmentItem}>
       <Body1 className={s.assignmentName}>
                 <PersonName personId={a.person_id}>
                   {a.last_name}, {a.first_name}
                   {!trainedBefore.has(a.person_id) && " (Untrained)"}
                 </PersonName>
+        {(() => {
+                  const info = overlapByPerson.get(a.person_id);
+                  if (!info) return null;
+                  const mins = info.minutes;
+                  const pct = segDurationMinutes > 0 ? Math.round((mins / segDurationMinutes) * 100) : undefined;
+                  const content = pct != null ? `Overlap: ${mins} min (${pct}%)` : `Overlap: ${mins} min`;
+                  if (info.heavy) {
+                    return (
+                      <Tooltip content={content} relationship="label">
+                        <Badge appearance="tint" color="danger" style={{ marginLeft: 8 }}>Time Off</Badge>
+                      </Tooltip>
+                    );
+                  }
+                  if (info.partial) {
+                    return (
+                      <Tooltip content={content} relationship="label">
+                        <Badge appearance="tint" color="warning" style={{ marginLeft: 8 }}>Partial Time Off</Badge>
+                      </Tooltip>
+                    );
+                  }
+                  return null;
+                })()}
       </Body1>
               {canEdit && (
                 <div className={s.actionsRow}>
-                  {isOverstaffed && (
+                  {isOverstaffed && !overlapByPerson.get(a.person_id)?.heavy && (
                     <Button size="small" appearance="secondary" onClick={() => handleMove(a)}>
                       Move
                     </Button>
@@ -487,9 +587,11 @@ export default function DailyRunBoard({
     <div className={s.root}>
       <div className={s.header}>
         <div className={s.headerLeft}>
-          <Body1 as="label" htmlFor="run-date-picker">
-            <b>Date</b>
-          </Body1>
+          <label htmlFor="run-date-picker" style={{ display: "inline-block" }}>
+            <Body1>
+              <b>Date</b>
+            </Body1>
+          </label>
           <Input
             id="run-date-picker"
             type="date"
@@ -526,7 +628,7 @@ export default function DailyRunBoard({
           ))}
         </div>
       ) : (
-        <Grid
+  <GridWP
           className="layout"
           layout={layout}
           cols={12}
@@ -539,7 +641,7 @@ export default function DailyRunBoard({
               <GroupCard group={g} isDraggable={true} />
             </div>
           ))}
-        </Grid>
+  </GridWP>
       )}
 
       {moveContext && (
