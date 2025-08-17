@@ -305,15 +305,8 @@ export default function App() {
   }
 
   function syncTrainingFromAssignments(db = sqlDb) {
-    if (!db) return;
-    const pairs = all(`SELECT DISTINCT person_id, role_id FROM assignment`, [], db);
-    for (const row of pairs) {
-      run(
-        `INSERT INTO training (person_id, role_id, status) VALUES (?,?, 'Qualified') ON CONFLICT(person_id, role_id) DO NOTHING`,
-        [row.person_id, row.role_id],
-        db
-      );
-    }
+    // Disabled: training should be managed only via People > Qualified Roles UI
+    return;
   }
 
   function refreshCaches(db = sqlDb) {
@@ -326,7 +319,8 @@ export default function App() {
     setPeople(p);
     const s = listSegments(db);
     setSegments(s);
-    syncTrainingFromAssignments(db);
+  // Do not auto-derive training from assignments
+  syncTrainingFromAssignments(db);
   }
 
   // People CRUD minimal
@@ -435,10 +429,7 @@ export default function App() {
     }
 
     run(`INSERT INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`, [ymd(d), personId, roleId, segment]);
-    run(
-      `INSERT INTO training (person_id, role_id, status) VALUES (?,?, 'Qualified') ON CONFLICT(person_id, role_id) DO UPDATE SET status='Qualified'`,
-      [personId, roleId]
-    );
+  // Do not auto-qualify from assignment; training is user-controlled in profile
     refreshCaches();
   }
 
