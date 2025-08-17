@@ -76,7 +76,7 @@ export default function Toolbar({
   return (
     <div className={s.root}>
       <div className={s.left}>
-        <Text weight="semibold">Scheduler</Text>
+        <img src="/favicon-32x32.png" alt="Scheduler" width={32} height={32} />
         {!sqlDb && <Tooltip content="No database loaded" relationship="label"><Spinner size="tiny" /></Tooltip>}
   <FluentToolbar aria-label="File actions" className={s.actionsBar} size="small">
           <Tooltip content="New DB" relationship="label">
