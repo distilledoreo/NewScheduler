@@ -304,16 +304,54 @@ export default function App() {
     setStatus("Saved.");
   }
 
-  function syncTrainingFromAssignments(db = sqlDb) {
+  function syncTrainingFromMonthly(db = sqlDb) {
     if (!db) return;
-    const pairs = all(`SELECT DISTINCT person_id, role_id FROM assignment`, [], db);
-    for (const row of pairs) {
-      run(
-        `INSERT INTO training (person_id, role_id, status) VALUES (?,?, 'Qualified') ON CONFLICT(person_id, role_id) DO NOTHING`,
+    // Gather all (person, role) pairs from monthly defaults (any month, any weekday) as implicit qualification
+    const pairs = all(
+      `SELECT DISTINCT person_id, role_id FROM monthly_default
+       UNION
+       SELECT DISTINCT person_id, role_id FROM monthly_default_day`,
+      [],
+      db
+    );
+    const monthlySet = new Set(pairs.map((r: any) => `${r.person_id}|${r.role_id}`));
+
+    // Upsert monthly-derived qualifications, without overriding manual
+    for (const row of pairs as any[]) {
+      const existing = all(
+        `SELECT source FROM training WHERE person_id=? AND role_id=?`,
         [row.person_id, row.role_id],
         db
-      );
+      )[0];
+      if (!existing) {
+        run(
+          `INSERT INTO training (person_id, role_id, status, source) VALUES (?,?, 'Qualified', 'monthly')`,
+          [row.person_id, row.role_id],
+          db
+        );
+      } else if (existing.source !== 'manual') {
+        run(
+          `UPDATE training SET status='Qualified', source='monthly' WHERE person_id=? AND role_id=?`,
+          [row.person_id, row.role_id],
+          db
+        );
+      }
     }
+
+    // Remove stale monthly-derived qualifications that are no longer supported by monthly defaults
+    const stale = all(
+      `SELECT person_id, role_id FROM training WHERE source='monthly'`,
+      [],
+      db
+    ).filter((r: any) => !monthlySet.has(`${r.person_id}|${r.role_id}`));
+    for (const r of stale) {
+      run(`DELETE FROM training WHERE person_id=? AND role_id=? AND source='monthly'`, [r.person_id, r.role_id], db);
+    }
+  }
+
+  function syncTrainingFromAssignments(db = sqlDb) {
+    // Disabled: training should be managed only via People > Qualified Roles UI
+    return;
   }
 
   function refreshCaches(db = sqlDb) {
@@ -326,7 +364,8 @@ export default function App() {
     setPeople(p);
     const s = listSegments(db);
     setSegments(s);
-    syncTrainingFromAssignments(db);
+  // Keep training in sync with monthly defaults; does not affect manual entries
+  syncTrainingFromMonthly(db);
   }
 
   // People CRUD minimal
@@ -381,9 +420,10 @@ export default function App() {
   }
 
   function saveTraining(personId: number, rolesSet: Set<number>) {
-    run(`DELETE FROM training WHERE person_id=?`, [personId]);
+    // Only adjust manual-sourced entries; preserve monthly-derived training which reflects history
+    run(`DELETE FROM training WHERE person_id=? AND source='manual'`, [personId]);
     for (const rid of rolesSet) {
-      run(`INSERT INTO training (person_id, role_id, status) VALUES (?,?, 'Qualified')`, [personId, rid]);
+      run(`INSERT INTO training (person_id, role_id, status, source) VALUES (?,?, 'Qualified', 'manual')`, [personId, rid]);
     }
   }
 
@@ -414,11 +454,28 @@ export default function App() {
       if (blocked) { alert("Time-off overlaps this segment. Blocked."); return; }
     }
 
-    run(`INSERT INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`, [ymd(d), personId, roleId, segment]);
-    run(
-      `INSERT INTO training (person_id, role_id, status) VALUES (?,?, 'Qualified') ON CONFLICT(person_id, role_id) DO UPDATE SET status='Qualified'`,
-      [personId, roleId]
+    // Duplicate assignment guard: prevent two assignments for the same person in the same segment on the same day.
+    // If detected, warn and offer to cancel or continue (continuing removes the existing assignment[s]).
+    const dYMD = ymd(d);
+    const existing = all(
+      `SELECT a.id, a.role_id, r.name as role_name, g.name as group_name
+       FROM assignment a
+       JOIN role r ON r.id=a.role_id
+       JOIN grp g  ON g.id=r.group_id
+       WHERE a.date=? AND a.person_id=? AND a.segment=?`,
+      [dYMD, personId, segment]
     );
+    if (existing.length) {
+      const details = existing.map((e:any)=> `${e.group_name} - ${e.role_name}`).join("; ");
+      const proceed = confirm(`This person is already assigned in ${segment}: ${details}.\n\nClick OK to continue and remove the other assignment(s), or Cancel to abort.`);
+      if (!proceed) return;
+      for (const e of existing) {
+        run(`DELETE FROM assignment WHERE id=?`, [e.id]);
+      }
+    }
+
+    run(`INSERT INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`, [ymd(d), personId, roleId, segment]);
+  // Do not auto-qualify from assignment; training is user-controlled in profile
     refreshCaches();
   }
 
@@ -478,6 +535,8 @@ export default function App() {
     setMonthlyDefaults(rows);
     const ov = all(`SELECT * FROM monthly_default_day WHERE month=?`, [month]);
     setMonthlyOverrides(ov);
+  // Reflect changes to training from monthly assignments
+  syncTrainingFromMonthly();
   }
 
   function setMonthlyDefault(personId: number, segment: Segment, roleId: number | null) {
@@ -490,7 +549,8 @@ export default function App() {
       run(`DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=?`,
           [selectedMonth, personId, segment]);
     }
-    loadMonthlyDefaults(selectedMonth);
+  loadMonthlyDefaults(selectedMonth);
+  syncTrainingFromMonthly();
   }
 
   function setWeeklyOverride(personId: number, weekday: number, segment: Segment, roleId: number | null) {
@@ -503,7 +563,8 @@ export default function App() {
       run(`DELETE FROM monthly_default_day WHERE month=? AND person_id=? AND weekday=? AND segment=?`,
           [selectedMonth, personId, weekday, segment]);
     }
-    loadMonthlyDefaults(selectedMonth);
+  loadMonthlyDefaults(selectedMonth);
+  syncTrainingFromMonthly();
   }
 
   function setMonthlyDefaultForMonth(month: string, personId: number, segment: Segment, roleId: number | null) {
@@ -516,6 +577,7 @@ export default function App() {
       run(`DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=?`,
           [month, personId, segment]);
     }
+  syncTrainingFromMonthly();
   }
 
   function copyMonthlyDefaults(fromMonth: string, toMonth: string) {
@@ -537,6 +599,7 @@ export default function App() {
       );
     }
     loadMonthlyDefaults(toMonth);
+  syncTrainingFromMonthly();
     setStatus(`Copied monthly defaults from ${fromMonth}.`);
   }
 
@@ -833,13 +896,14 @@ async function exportShifts() {
         : "avail_fri";
 
     const rows = all(`SELECT * FROM person WHERE active=1 ORDER BY last_name, first_name`);
-    const trained = new Set([
-      ...all(`SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`, [role.id]).map(
-        (r: any) => r.person_id
-      ),
+    const trained = new Set<number>([
+      ...all(`SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`, [role.id]).map((r: any) => r.person_id),
+      // Implicit monthly qualification for this role/segment
       ...all(
-        `SELECT DISTINCT person_id FROM assignment WHERE role_id=? AND date < ?`,
-        [role.id, ymd(date)]
+        `SELECT DISTINCT person_id FROM monthly_default WHERE role_id=? AND segment=?
+         UNION
+         SELECT DISTINCT person_id FROM monthly_default_day WHERE role_id=? AND segment=?`,
+        [role.id, segment, role.id, segment]
       ).map((r: any) => r.person_id),
     ]);
 

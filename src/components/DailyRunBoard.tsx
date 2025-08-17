@@ -201,7 +201,7 @@ export default function DailyRunBoard({
   const [layoutLoaded, setLayoutLoaded] = useState(false);
   const [moveContext, setMoveContext] = useState<{
     assignment: any;
-    targets: Array<{ role: any; group: any }>;
+  targets: Array<{ role: any; group: any; need: number }>;
   } | null>(null);
   const [moveTargetId, setMoveTargetId] = useState<number | null>(null);
 
@@ -276,6 +276,78 @@ export default function DailyRunBoard({
     );
   }, [roles, assignedCountMap, getRequiredFor, selectedDateObj, seg, groupMap]);
 
+  // Precompute segment times for the selected date at top-level for reuse in move dialog
+  const segTimesTop = useMemo(() => {
+    const day = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate());
+    const mk = (t: string) => {
+      const [h, m] = t.split(":").map(Number);
+      return new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m, 0, 0);
+    };
+    const map: Record<string, { start: Date; end: Date }> = {};
+    for (const srow of segments) {
+      map[srow.name] = { start: mk(srow.start_time), end: mk(srow.end_time) };
+    }
+    // Detect Lunch/Early presence on date
+    const rows = all(`SELECT DISTINCT segment FROM assignment WHERE date=?`, [ymd(selectedDateObj)]);
+    const hasLunch = rows.some((r: any) => r.segment === "Lunch");
+    const hasEarly = rows.some((r: any) => r.segment === "Early");
+    const addMinutes = (d: Date, mins: number) => new Date(d.getTime() + mins * 60000);
+    if (hasLunch) {
+      if (map["AM"] && map["Lunch"]) map["AM"].end = map["Lunch"].start;
+      if (map["PM"] && map["Lunch"]) map["PM"].start = addMinutes(map["Lunch"].end, 60);
+    }
+    if (hasEarly && map["PM"]) {
+      map["PM"].end = addMinutes(map["PM"].end, -60);
+    }
+    return map;
+  }, [all, segments, selectedDateObj, ymd]);
+
+  const segDurationMinutesTop = useMemo(() => {
+    const st = segTimesTop[seg]?.start;
+    const en = segTimesTop[seg]?.end;
+    if (!st || !en || seg === "Early") return 0;
+    return Math.max(0, Math.round((en.getTime() - st.getTime()) / 60000));
+  }, [segTimesTop, seg]);
+
+  // Compute effective assigned counts per role (exclude heavy time-off overlaps)
+  const assignedEffectiveCountMap = useMemo(() => {
+    const map = new Map<number, number>();
+    const st = segTimesTop[seg]?.start;
+    const en = segTimesTop[seg]?.end;
+    if (!st || !en || seg === "Early") {
+      // Fallback to raw counts
+      for (const r of roles) map.set(r.id, assignedCountMap.get(r.id) || 0);
+      return map;
+    }
+    const segStart = st.getTime();
+    const segEnd = en.getTime();
+    const half = Math.ceil((segEnd - segStart) / 2);
+    const dayStart = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate(), 0, 0, 0, 0);
+    const dayEnd = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() + 1, 0, 0, 0, 0);
+    const timeOff = all(
+      `SELECT person_id, start_ts, end_ts FROM timeoff WHERE NOT (? >= end_ts OR ? <= start_ts)`,
+      [dayStart.toISOString(), dayEnd.toISOString()]
+    ) as any[];
+    const ovlByPerson = new Map<number, number>();
+    for (const t of timeOff) {
+      const s = new Date(t.start_ts).getTime();
+      const e = new Date(t.end_ts).getTime();
+      const ovl = Math.max(0, Math.min(e, segEnd) - Math.max(s, segStart));
+      if (ovl <= 0) continue;
+      const prev = ovlByPerson.get(t.person_id) || 0;
+      ovlByPerson.set(t.person_id, prev + ovl);
+    }
+    const assigns = all(`SELECT person_id, role_id FROM assignment WHERE date=? AND segment=?`, [ymd(selectedDateObj), seg]) as any[];
+    for (const r of roles) map.set(r.id, 0);
+    for (const a of assigns) {
+      const ovl = ovlByPerson.get(a.person_id) || 0;
+      const heavy = ovl >= half;
+      if (heavy) continue;
+      map.set(a.role_id, (map.get(a.role_id) || 0) + 1);
+    }
+    return map;
+  }, [all, roles, seg, segTimesTop, selectedDateObj, ymd, assignedCountMap]);
+
   const GroupCard = React.memo(function GroupCard({ group, isDraggable }: { group: any; isDraggable: boolean }) {
     const rolesForGroup = roles.filter((r) => r.group_id === group.id);
     const groupNeedsMet = rolesForGroup.every((r: any) => {
@@ -327,17 +399,32 @@ export default function DailyRunBoard({
         `SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`,
         [role.id]
       ).map((r: any) => r.person_id);
-      const priorAssigned = all(
-        `SELECT DISTINCT person_id FROM assignment WHERE role_id=? AND date < ?`,
-        [role.id, ymd(selectedDateObj)]
+      // Treat monthly assignment history as implicit qualification for this role/segment
+      const monthly = all(
+        `SELECT DISTINCT person_id FROM monthly_default WHERE role_id=? AND segment=?
+         UNION
+         SELECT DISTINCT person_id FROM monthly_default_day WHERE role_id=? AND segment=?`,
+        [role.id, seg, role.id, seg]
       ).map((r: any) => r.person_id);
-      return new Set([...qualified, ...priorAssigned]);
-    }, [all, role.id, selectedDateObj, ymd]);
+      return new Set<number>([...qualified, ...monthly]);
+    }, [all, role.id, seg]);
 
     const opts = useMemo(
       () => peopleOptionsForSegment(selectedDateObj, seg, role),
       [peopleOptionsForSegment, selectedDateObj, seg, role]
     );
+
+    const sortedOpts = useMemo(() => {
+      const normalize = (s: string) => s.replace(/\s*\(Untrained\)$/i, "");
+      const arr = [...opts];
+      arr.sort((a, b) => {
+        const ta = trainedBefore.has(a.id) ? 1 : 0;
+        const tb = trainedBefore.has(b.id) ? 1 : 0;
+        if (ta !== tb) return tb - ta; // trained first
+        return normalize(a.label).localeCompare(normalize(b.label));
+      });
+      return arr;
+    }, [opts, trainedBefore]);
 
     // Calculate dynamic segment times (mimic App.segmentTimesForDate)
     const segTimes = useMemo(() => {
@@ -406,6 +493,29 @@ export default function DailyRunBoard({
       return Math.max(0, Math.round((en.getTime() - st.getTime()) / 60000));
     }, [seg, segTimes]);
 
+    // Build status per role (under/exact/over) for the whole segment to evaluate current assignments
+    const roleStatusById = useMemo(() => {
+      const m = new Map<number, "under" | "exact" | "over">();
+      for (const r of roles) {
+        const eff = assignedEffectiveCountMap.get(r.id) || 0;
+        const reqR = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
+        const st = eff < reqR ? "under" : eff === reqR ? "exact" : "over";
+        m.set(r.id, st);
+      }
+      return m;
+    }, [roles, assignedEffectiveCountMap, getRequiredFor, selectedDateObj, seg]);
+
+    // Map current person -> assigned role (if any) for this date+segment
+    const personAssignedRoleMap = useMemo(() => {
+      const rows = all(
+        `SELECT person_id, role_id FROM assignment WHERE date=? AND segment=?`,
+        [ymd(selectedDateObj), seg]
+      ) as any[];
+      const m = new Map<number, number>();
+      for (const r of rows) if (!m.has(r.person_id)) m.set(r.person_id, r.role_id);
+      return m;
+    }, [all, selectedDateObj, seg, ymd]);
+
     const req = getRequiredFor(selectedDateObj, group.id, role.id, seg);
     // Effective count excludes "heavy" time-off overlaps
     const heavyCount = assigns.reduce((n, a) => n + (overlapByPerson.get(a.person_id)?.heavy ? 1 : 0), 0);
@@ -418,23 +528,40 @@ export default function DailyRunBoard({
         : status === "exact"
         ? tokens.colorPaletteGreenBorderActive
         : tokens.colorPaletteYellowBorderActive;
-    const isOverstaffed = assignedEffective > req;
+  // Move action availability is handled per-person (blocked for heavy time-off), not by overstaffed status
 
     const handleMove = useCallback(
       (a: any) => {
-        // Compute eligible targets on demand to avoid per-row heavy checks
-        const targets = deficitRoles.filter((d: any) => {
-          const candidateOpts = peopleOptionsForSegment(selectedDateObj, seg, d.role);
-          return candidateOpts.some((o) => o.id === a.person_id && !o.blocked);
-        });
-        if (!targets.length) {
+        // Build full target list across all roles in this segment; prioritize deficits
+        const allTargets: Array<{ role: any; group: any; need: number }> = [];
+        for (const r of roles) {
+          const candidateOpts = peopleOptionsForSegment(selectedDateObj, seg, r);
+          const eligible = candidateOpts.some((o) => o.id === a.person_id && !o.blocked);
+          if (!eligible) continue;
+          const grp = groupMap.get(r.group_id);
+          const req = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
+          const eff = assignedEffectiveCountMap.get(r.id) || 0;
+          const need = Math.max(0, req - eff);
+          allTargets.push({ role: r, group: grp, need });
+        }
+        if (!allTargets.length) {
           alert("No eligible destinations for this person.");
           return;
         }
-        setMoveContext({ assignment: a, targets });
+        // Sort: needs first (descending), then by group/role
+        allTargets.sort((aT, bT) => {
+          if (aT.need === 0 && bT.need > 0) return 1;
+          if (aT.need > 0 && bT.need === 0) return -1;
+          if (bT.need !== aT.need) return bT.need - aT.need;
+          const ga = String(aT.group?.name || '');
+          const gb = String(bT.group?.name || '');
+          if (ga !== gb) return ga.localeCompare(gb);
+          return String(aT.role.name).localeCompare(String(bT.role.name));
+        });
+        setMoveContext({ assignment: a, targets: allTargets });
         setMoveTargetId(null);
       },
-      [deficitRoles, peopleOptionsForSegment, selectedDateObj, seg]
+      [roles, groupMap, peopleOptionsForSegment, selectedDateObj, seg, getRequiredFor, assignedEffectiveCountMap]
     );
 
     const [addSel, setAddSel] = useState<string[]>([]);
@@ -494,11 +621,17 @@ export default function DailyRunBoard({
             style={{ width: "100%" }}
           >
             {openAdd &&
-              opts.map((o) => {
+              sortedOpts.map((o) => {
                 const info = overlapByPerson.get(o.id);
                 const isHeavy = Boolean(info?.heavy);
                 const isPartial = Boolean(info?.partial);
-                const suffix = isHeavy ? " (Time-off)" : isPartial ? " (Partial Time-off)" : "";
+                const parts: string[] = [];
+                if (isHeavy) parts.push("(Time-off)"); else if (isPartial) parts.push("(Partial Time-off)");
+                // Warning if already assigned to a role that is at or below required (under/exact)
+                const curRoleId = personAssignedRoleMap.get(o.id);
+                const curStatus = curRoleId != null ? roleStatusById.get(curRoleId) : undefined;
+                if (curStatus === "under" || curStatus === "exact") parts.push("(Assigned)");
+                const suffix = parts.length ? ` ${parts.join(' ')}` : "";
                 return (
                   <Option
                     key={o.id}
@@ -545,7 +678,7 @@ export default function DailyRunBoard({
       </Body1>
               {canEdit && (
                 <div className={s.actionsRow}>
-                  {isOverstaffed && !overlapByPerson.get(a.person_id)?.heavy && (
+                  {!overlapByPerson.get(a.person_id)?.heavy && (
                     <Button size="small" appearance="secondary" onClick={() => handleMove(a)}>
                       Move
                     </Button>
@@ -664,7 +797,7 @@ export default function DailyRunBoard({
                 >
                   {moveContext.targets.map((t) => (
                     <Option key={t.role.id} value={String(t.role.id)}>
-                      {`${t.group.name} - ${t.role.name}`}
+                      {`${t.group.name} - ${t.role.name}${t.need>0?` (need ${t.need})`:''}`}
                     </Option>
                   ))}
                 </Dropdown>

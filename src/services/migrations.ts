@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+type Database = any; // loose type to avoid dependency on sql.js types at build time
 import { GROUPS, ROLE_SEED } from '../config/domain';
 
 export type Migration = (db: Database) => void;
@@ -33,6 +33,31 @@ export const migrate5AddGroupTheme: Migration = (db) => {
   try {
     db.run(`ALTER TABLE grp ADD COLUMN custom_color TEXT;`);
   } catch {}
+};
+
+export const migrate11AddTrainingSource: Migration = (db) => {
+  try {
+    const info = db.exec(`PRAGMA table_info(training);`);
+    const hasSource = Array.isArray(info) && info[0]?.values?.some((r: any[]) => r[1] === 'source');
+    if (!hasSource) {
+      db.run(`CREATE TABLE training_new (
+        person_id INTEGER NOT NULL,
+        role_id INTEGER NOT NULL,
+        status TEXT CHECK(status IN ('Not trained','In training','Qualified')) NOT NULL DEFAULT 'Not trained',
+        source TEXT CHECK(source IN ('manual','monthly')) NOT NULL DEFAULT 'manual',
+        PRIMARY KEY (person_id, role_id),
+        FOREIGN KEY (person_id) REFERENCES person(id),
+        FOREIGN KEY (role_id) REFERENCES role(id)
+      );`);
+      db.run(`INSERT INTO training_new (person_id, role_id, status, source)
+              SELECT person_id, role_id, status, 'manual' AS source FROM training;`);
+      db.run(`DROP TABLE training;`);
+      db.run(`ALTER TABLE training_new RENAME TO training;`);
+    }
+  } catch (e) {
+    console.error('migrate11AddTrainingSource failed:', e);
+    throw e;
+  }
 };
 
 export const migrate6AddExportGroup: Migration = (db) => {
@@ -432,6 +457,7 @@ const migrations: Record<number, Migration> = {
       person_id INTEGER NOT NULL,
       role_id INTEGER NOT NULL,
       status TEXT CHECK(status IN ('Not trained','In training','Qualified')) NOT NULL DEFAULT 'Not trained',
+      source TEXT CHECK(source IN ('manual','monthly')) NOT NULL DEFAULT 'manual',
       PRIMARY KEY (person_id, role_id),
       FOREIGN KEY (person_id) REFERENCES person(id),
       FOREIGN KEY (role_id) REFERENCES role(id)
@@ -489,6 +515,28 @@ const migrations: Record<number, Migration> = {
     );`);
   },
   2: (db) => {
+    // Ensure training table has 'source' column
+    try {
+      const info = db.exec(`PRAGMA table_info(training);`);
+      const hasSource = Array.isArray(info) && info[0]?.values?.some((r: any[]) => r[1] === 'source');
+      if (!hasSource) {
+        // Recreate training with source column
+        db.run(`CREATE TABLE training_new (
+          person_id INTEGER NOT NULL,
+          role_id INTEGER NOT NULL,
+          status TEXT CHECK(status IN ('Not trained','In training','Qualified')) NOT NULL DEFAULT 'Not trained',
+          source TEXT CHECK(source IN ('manual','monthly')) NOT NULL DEFAULT 'manual',
+          PRIMARY KEY (person_id, role_id),
+          FOREIGN KEY (person_id) REFERENCES person(id),
+          FOREIGN KEY (role_id) REFERENCES role(id)
+        );`);
+        db.run(`INSERT INTO training_new (person_id, role_id, status, source)
+                SELECT person_id, role_id, status, 'manual' AS source FROM training;`);
+        db.run(`DROP TABLE training;`);
+        db.run(`ALTER TABLE training_new RENAME TO training;`);
+      }
+    } catch {}
+
     db.run(`CREATE TABLE IF NOT EXISTS monthly_default_day (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       month TEXT NOT NULL,
@@ -509,6 +557,7 @@ const migrations: Record<number, Migration> = {
   8: migrate8FixSegmentConstraints,
   9: migrate8FixSegmentConstraints, // Run the same migration again as 9 to fix failed migration 8
   10: migrate10BackfillGroupCustomColor,
+  11: migrate11AddTrainingSource,
 };
 
 export function addMigration(version: number, fn: Migration) {
