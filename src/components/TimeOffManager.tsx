@@ -7,7 +7,8 @@ interface TimeOffManagerProps {
   refresh: () => void;
 }
 
-const XLSX_URL = "https://cdn.sheetjs.com/xlsx-latest/package/xlsx.mjs";
+// Prefer a stable, public SheetJS URL to avoid CDN auth issues
+const XLSX_URL = "https://cdn.sheetjs.com/xlsx-0.20.2/package/xlsx.mjs";
 async function loadXLSX(){
   // @ts-ignore
   const mod = await import(/* @vite-ignore */ XLSX_URL);
@@ -36,6 +37,59 @@ function combineDateTime(dateStr: string, timeStr: string): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m, 0, 0);
 }
 
+// Excel serial date (days since 1899-12-30) to JS Date
+function excelSerialToDate(n: number): Date {
+  const epoch = new Date(Date.UTC(1899, 11, 30));
+  const ms = Math.round(n * 24 * 60 * 60 * 1000);
+  return new Date(epoch.getTime() + ms);
+}
+
+function coerceDate(val: any): Date | null {
+  if (val == null || val === "") return null;
+  if (val instanceof Date && !isNaN(val.getTime())) return val;
+  if (typeof val === "number" && isFinite(val)) return excelSerialToDate(val);
+  const s = String(val).trim();
+  // ISO or unambiguous formats
+  if (/^\d{4}-\d{2}-\d{2}/.test(s) || /T/.test(s)) {
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  // Try M/D/Y
+  const d = parseMDY(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function coerceTimeHM(val: any): { h: number; m: number } | null {
+  if (val == null || val === "") return null;
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    return { h: val.getHours(), m: val.getMinutes() };
+  }
+  if (typeof val === "number" && isFinite(val)) {
+    // fraction of day
+    const totalMin = Math.round(val * 24 * 60);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return { h, m };
+  }
+  const t = parseTime(String(val));
+  return t;
+}
+
+function combineCoerced(dateVal: any, timeVal: any, defaultTime: { h: number; m: number } = { h: 0, m: 0 }): Date | null {
+  // If dateVal already has time info (string with time or Date with time), prefer it
+  if (dateVal instanceof Date) {
+    const d = dateVal;
+    if (d.getHours() !== 0 || d.getMinutes() !== 0) return d;
+  } else if (typeof dateVal === "string" && /\d:\d|T\d{2}:\d{2}/.test(dateVal)) {
+    const d = new Date(dateVal);
+    if (!isNaN(d.getTime())) return d;
+  }
+  const d = coerceDate(dateVal);
+  if (!d) return null;
+  const tm = coerceTimeHM(timeVal) ?? defaultTime;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), tm.h, tm.m, 0, 0);
+}
+
 const useStyles = makeStyles({
   root: { border: `1px solid ${tokens.colorNeutralStroke2}`, borderRadius: tokens.borderRadiusLarge, padding: tokens.spacingHorizontalM, backgroundColor: tokens.colorNeutralBackground1 },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: tokens.spacingVerticalM },
@@ -58,17 +112,17 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
   const [addEndDate, setAddEndDate] = React.useState<string>("");
   const [addEndTime, setAddEndTime] = React.useState<string>("17:00");
   const [addReason, setAddReason] = React.useState<string>("");
-
-  const rows = React.useMemo(() => all(`SELECT t.id, t.person_id, t.start_ts, t.end_ts, t.reason, p.first_name, p.last_name, p.work_email FROM timeoff t JOIN person p ON p.id=t.person_id ORDER BY t.start_ts DESC LIMIT 200`), [all]);
+  // Always query fresh so the table updates after changes
+  const rows = all(`SELECT t.id, t.person_id, t.start_ts, t.end_ts, t.reason, p.first_name, p.last_name, p.work_email FROM timeoff t JOIN person p ON p.id=t.person_id ORDER BY t.start_ts DESC LIMIT 200`);
 
   async function handleImportXlsx(file: File){
     try{
       const XLSX = await loadXLSX();
       const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: 'array' });
+      const wb = XLSX.read(buf, { type: 'array', cellDates: true });
       const sheetName = wb.SheetNames[0];
       const ws = wb.Sheets[sheetName];
-      const data: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      const data: any[] = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
       if (!data.length){ setStatus('No rows found in the file.'); return; }
 
       // Build email -> id map
@@ -84,25 +138,34 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
         return '';
       };
 
-      let count = 0, skipped = 0;
+      // Common Teams/Excel header variants
+      const EMAIL_HEADERS = ['Work Email','Email','WorkEmail','User email','User Email','UserEmail','Email Address','Email address','UserPrincipalName','UPN','User'];
+      const START_DATE_HEADERS = ['Start Date','Start date','Start','StartDate','Start Local Date','Start Local Time','Start Date Time','StartDateTime'];
+      const START_TIME_HEADERS = ['Start Time','Start time','StartTime','Start Local Time'];
+      const END_DATE_HEADERS = ['End Date','End date','End','EndDate','End Local Date','End Local Time','End Date Time','EndDateTime'];
+      const END_TIME_HEADERS = ['End Time','End time','EndTime','End Local Time'];
+      const REASON_HEADERS = ['Time Off Reason','Time off reason','Reason','Notes','Comment'];
+
+      let count = 0, skipped = 0, noEmail = 0, badDate = 0;
       for (const r of data){
-        const email = String(col(r, ['Work Email','Email','WorkEmail'])).toLowerCase();
+        const email = String(col(r, EMAIL_HEADERS)).toLowerCase();
         const pid = emailMap.get(email);
-        if (!pid){ skipped++; continue; }
-        const sd = String(col(r, ['Start Date','Start']));
-        const st = String(col(r, ['Start Time','StartTime']));
-        const ed = String(col(r, ['End Date','End']));
-        const et = String(col(r, ['End Time','EndTime']));
-        const reason = String(col(r, ['Time Off Reason','Reason','Notes']));
-        if (!sd || !ed){ skipped++; continue; }
-        const start = combineDateTime(sd, st);
-        const end = combineDateTime(ed, et);
-        if (!(start instanceof Date) || isNaN(start.getTime()) || !(end instanceof Date) || isNaN(end.getTime())){ skipped++; continue; }
+        if (!pid){ skipped++; noEmail++; continue; }
+
+        const sdv = col(r, START_DATE_HEADERS);
+        const stv = col(r, START_TIME_HEADERS);
+        const edv = col(r, END_DATE_HEADERS);
+        const etv = col(r, END_TIME_HEADERS);
+        const reason = String(col(r, REASON_HEADERS));
+
+        const start = combineCoerced(sdv, stv, { h: 0, m: 0 });
+        const end = combineCoerced(edv, etv, { h: 23, m: 59 });
+        if (!start || !end || !(start instanceof Date) || isNaN(start.getTime()) || isNaN(end.getTime())){ skipped++; badDate++; continue; }
         run(`INSERT INTO timeoff (person_id, start_ts, end_ts, reason, source) VALUES (?,?,?,?,?)`, [pid, start.toISOString(), end.toISOString(), reason, 'ImportXLSX']);
         count++;
       }
       refresh();
-      setStatus(`Imported ${count} time-off rows. Skipped ${skipped}.`);
+      setStatus(`Imported ${count} time-off rows. Skipped ${skipped}${skipped?` (no email: ${noEmail}, bad date/time: ${badDate})`:''}.`);
     }catch(e:any){
       console.error(e);
       setStatus(`Time-off import failed: ${e?.message||e}`);
@@ -117,6 +180,7 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
     run(`INSERT INTO timeoff (person_id, start_ts, end_ts, reason, source) VALUES (?,?,?,?,?)`, [addPersonId, sdt.toISOString(), edt.toISOString(), addReason || null, 'Manual']);
     setStatus('Added time-off entry.');
     setAddReason('');
+  refresh();
     // Keep person and times for next add
   }
 
@@ -124,6 +188,7 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
     if (!confirm('Delete this time-off entry?')) return;
     run(`DELETE FROM timeoff WHERE id=?`, [id]);
     setStatus('Deleted.');
+  refresh();
     // trigger refresh by forcing re-render; depends on parent refresh
     // parent refresh updates caches; here the table reads live from DB on render
   }
