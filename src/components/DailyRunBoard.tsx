@@ -493,6 +493,29 @@ export default function DailyRunBoard({
       return Math.max(0, Math.round((en.getTime() - st.getTime()) / 60000));
     }, [seg, segTimes]);
 
+    // Build status per role (under/exact/over) for the whole segment to evaluate current assignments
+    const roleStatusById = useMemo(() => {
+      const m = new Map<number, "under" | "exact" | "over">();
+      for (const r of roles) {
+        const eff = assignedEffectiveCountMap.get(r.id) || 0;
+        const reqR = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
+        const st = eff < reqR ? "under" : eff === reqR ? "exact" : "over";
+        m.set(r.id, st);
+      }
+      return m;
+    }, [roles, assignedEffectiveCountMap, getRequiredFor, selectedDateObj, seg]);
+
+    // Map current person -> assigned role (if any) for this date+segment
+    const personAssignedRoleMap = useMemo(() => {
+      const rows = all(
+        `SELECT person_id, role_id FROM assignment WHERE date=? AND segment=?`,
+        [ymd(selectedDateObj), seg]
+      ) as any[];
+      const m = new Map<number, number>();
+      for (const r of rows) if (!m.has(r.person_id)) m.set(r.person_id, r.role_id);
+      return m;
+    }, [all, selectedDateObj, seg, ymd]);
+
     const req = getRequiredFor(selectedDateObj, group.id, role.id, seg);
     // Effective count excludes "heavy" time-off overlaps
     const heavyCount = assigns.reduce((n, a) => n + (overlapByPerson.get(a.person_id)?.heavy ? 1 : 0), 0);
@@ -602,7 +625,13 @@ export default function DailyRunBoard({
                 const info = overlapByPerson.get(o.id);
                 const isHeavy = Boolean(info?.heavy);
                 const isPartial = Boolean(info?.partial);
-                const suffix = isHeavy ? " (Time-off)" : isPartial ? " (Partial Time-off)" : "";
+                const parts: string[] = [];
+                if (isHeavy) parts.push("(Time-off)"); else if (isPartial) parts.push("(Partial Time-off)");
+                // Warning if already assigned to a role that is at or below required (under/exact)
+                const curRoleId = personAssignedRoleMap.get(o.id);
+                const curStatus = curRoleId != null ? roleStatusById.get(curRoleId) : undefined;
+                if (curStatus === "under" || curStatus === "exact") parts.push("(Assigned)");
+                const suffix = parts.length ? ` ${parts.join(' ')}` : "";
                 return (
                   <Option
                     key={o.id}
