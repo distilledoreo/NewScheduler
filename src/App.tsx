@@ -304,6 +304,51 @@ export default function App() {
     setStatus("Saved.");
   }
 
+  function syncTrainingFromMonthly(db = sqlDb) {
+    if (!db) return;
+    // Gather all (person, role) pairs from monthly defaults (any month, any weekday) as implicit qualification
+    const pairs = all(
+      `SELECT DISTINCT person_id, role_id FROM monthly_default
+       UNION
+       SELECT DISTINCT person_id, role_id FROM monthly_default_day`,
+      [],
+      db
+    );
+    const monthlySet = new Set(pairs.map((r: any) => `${r.person_id}|${r.role_id}`));
+
+    // Upsert monthly-derived qualifications, without overriding manual
+    for (const row of pairs as any[]) {
+      const existing = all(
+        `SELECT source FROM training WHERE person_id=? AND role_id=?`,
+        [row.person_id, row.role_id],
+        db
+      )[0];
+      if (!existing) {
+        run(
+          `INSERT INTO training (person_id, role_id, status, source) VALUES (?,?, 'Qualified', 'monthly')`,
+          [row.person_id, row.role_id],
+          db
+        );
+      } else if (existing.source !== 'manual') {
+        run(
+          `UPDATE training SET status='Qualified', source='monthly' WHERE person_id=? AND role_id=?`,
+          [row.person_id, row.role_id],
+          db
+        );
+      }
+    }
+
+    // Remove stale monthly-derived qualifications that are no longer supported by monthly defaults
+    const stale = all(
+      `SELECT person_id, role_id FROM training WHERE source='monthly'`,
+      [],
+      db
+    ).filter((r: any) => !monthlySet.has(`${r.person_id}|${r.role_id}`));
+    for (const r of stale) {
+      run(`DELETE FROM training WHERE person_id=? AND role_id=? AND source='monthly'`, [r.person_id, r.role_id], db);
+    }
+  }
+
   function syncTrainingFromAssignments(db = sqlDb) {
     // Disabled: training should be managed only via People > Qualified Roles UI
     return;
@@ -319,8 +364,8 @@ export default function App() {
     setPeople(p);
     const s = listSegments(db);
     setSegments(s);
-  // Do not auto-derive training from assignments
-  syncTrainingFromAssignments(db);
+  // Keep training in sync with monthly defaults; does not affect manual entries
+  syncTrainingFromMonthly(db);
   }
 
   // People CRUD minimal
@@ -375,9 +420,10 @@ export default function App() {
   }
 
   function saveTraining(personId: number, rolesSet: Set<number>) {
-    run(`DELETE FROM training WHERE person_id=?`, [personId]);
+    // Only adjust manual-sourced entries; preserve monthly-derived training which reflects history
+    run(`DELETE FROM training WHERE person_id=? AND source='manual'`, [personId]);
     for (const rid of rolesSet) {
-      run(`INSERT INTO training (person_id, role_id, status) VALUES (?,?, 'Qualified')`, [personId, rid]);
+      run(`INSERT INTO training (person_id, role_id, status, source) VALUES (?,?, 'Qualified', 'manual')`, [personId, rid]);
     }
   }
 
@@ -489,6 +535,8 @@ export default function App() {
     setMonthlyDefaults(rows);
     const ov = all(`SELECT * FROM monthly_default_day WHERE month=?`, [month]);
     setMonthlyOverrides(ov);
+  // Reflect changes to training from monthly assignments
+  syncTrainingFromMonthly();
   }
 
   function setMonthlyDefault(personId: number, segment: Segment, roleId: number | null) {
@@ -501,7 +549,8 @@ export default function App() {
       run(`DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=?`,
           [selectedMonth, personId, segment]);
     }
-    loadMonthlyDefaults(selectedMonth);
+  loadMonthlyDefaults(selectedMonth);
+  syncTrainingFromMonthly();
   }
 
   function setWeeklyOverride(personId: number, weekday: number, segment: Segment, roleId: number | null) {
@@ -514,7 +563,8 @@ export default function App() {
       run(`DELETE FROM monthly_default_day WHERE month=? AND person_id=? AND weekday=? AND segment=?`,
           [selectedMonth, personId, weekday, segment]);
     }
-    loadMonthlyDefaults(selectedMonth);
+  loadMonthlyDefaults(selectedMonth);
+  syncTrainingFromMonthly();
   }
 
   function setMonthlyDefaultForMonth(month: string, personId: number, segment: Segment, roleId: number | null) {
@@ -527,6 +577,7 @@ export default function App() {
       run(`DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=?`,
           [month, personId, segment]);
     }
+  syncTrainingFromMonthly();
   }
 
   function copyMonthlyDefaults(fromMonth: string, toMonth: string) {
@@ -548,6 +599,7 @@ export default function App() {
       );
     }
     loadMonthlyDefaults(toMonth);
+  syncTrainingFromMonthly();
     setStatus(`Copied monthly defaults from ${fromMonth}.`);
   }
 
