@@ -399,8 +399,15 @@ export default function DailyRunBoard({
         `SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`,
         [role.id]
       ).map((r: any) => r.person_id);
-      return new Set(qualified);
-    }, [all, role.id]);
+      // Treat monthly assignment history as implicit qualification for this role/segment
+      const monthly = all(
+        `SELECT DISTINCT person_id FROM monthly_default WHERE role_id=? AND segment=?
+         UNION
+         SELECT DISTINCT person_id FROM monthly_default_day WHERE role_id=? AND segment=?`,
+        [role.id, seg, role.id, seg]
+      ).map((r: any) => r.person_id);
+      return new Set<number>([...qualified, ...monthly]);
+    }, [all, role.id, seg]);
 
     const opts = useMemo(
       () => peopleOptionsForSegment(selectedDateObj, seg, role),

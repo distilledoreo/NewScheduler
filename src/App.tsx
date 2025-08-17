@@ -844,11 +844,16 @@ async function exportShifts() {
         : "avail_fri";
 
     const rows = all(`SELECT * FROM person WHERE active=1 ORDER BY last_name, first_name`);
-    const trained = new Set(
-      all(`SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`, [role.id]).map(
-        (r: any) => r.person_id
-      )
-    );
+    const trained = new Set<number>([
+      ...all(`SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`, [role.id]).map((r: any) => r.person_id),
+      // Implicit monthly qualification for this role/segment
+      ...all(
+        `SELECT DISTINCT person_id FROM monthly_default WHERE role_id=? AND segment=?
+         UNION
+         SELECT DISTINCT person_id FROM monthly_default_day WHERE role_id=? AND segment=?`,
+        [role.id, segment, role.id, segment]
+      ).map((r: any) => r.person_id),
+    ]);
 
     return rows
       .filter((p: any) => {
