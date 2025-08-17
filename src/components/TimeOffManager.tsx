@@ -118,8 +118,14 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
   async function handleImportXlsx(file: File){
     try{
       const XLSX = await loadXLSX();
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      let wb: any;
+      if (/\.csv$/i.test(file.name) || String(file.type).includes('text/csv')) {
+        const text = await file.text();
+        wb = XLSX.read(text, { type: 'string' });
+      } else {
+        const buf = await file.arrayBuffer();
+        wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      }
       const sheetName = wb.SheetNames[0];
       const ws = wb.Sheets[sheetName];
       const data: any[] = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
