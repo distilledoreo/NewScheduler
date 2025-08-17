@@ -5,6 +5,7 @@ import GroupEditor from "./GroupEditor";
 import RoleEditor from "./RoleEditor";
 import ExportGroupEditor from "./ExportGroupEditor";
 import type { SegmentRow } from "../services/segments";
+import TimeOffManager from "./TimeOffManager";
 
 interface AdminViewProps {
   all: (sql: string, params?: any[]) => any[];
@@ -25,6 +26,7 @@ export default function AdminView({ all, run, refresh, segments }: AdminViewProp
   const s = useStyles();
   return (
     <div className={s.root}>
+  <TimeOffManager all={all} run={run} refresh={refresh} />
       <SegmentEditor all={all} run={run} refresh={refresh} />
       <GroupEditor all={all} run={run} refresh={refresh} />
       <RoleEditor all={all} run={run} refresh={refresh} segments={segments} />
