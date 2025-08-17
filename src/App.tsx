@@ -414,6 +414,26 @@ export default function App() {
       if (blocked) { alert("Time-off overlaps this segment. Blocked."); return; }
     }
 
+    // Duplicate assignment guard: prevent two assignments for the same person in the same segment on the same day.
+    // If detected, warn and offer to cancel or continue (continuing removes the existing assignment[s]).
+    const dYMD = ymd(d);
+    const existing = all(
+      `SELECT a.id, a.role_id, r.name as role_name, g.name as group_name
+       FROM assignment a
+       JOIN role r ON r.id=a.role_id
+       JOIN grp g  ON g.id=r.group_id
+       WHERE a.date=? AND a.person_id=? AND a.segment=?`,
+      [dYMD, personId, segment]
+    );
+    if (existing.length) {
+      const details = existing.map((e:any)=> `${e.group_name} - ${e.role_name}`).join("; ");
+      const proceed = confirm(`This person is already assigned in ${segment}: ${details}.\n\nClick OK to continue and remove the other assignment(s), or Cancel to abort.`);
+      if (!proceed) return;
+      for (const e of existing) {
+        run(`DELETE FROM assignment WHERE id=?`, [e.id]);
+      }
+    }
+
     run(`INSERT INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`, [ymd(d), personId, roleId, segment]);
     run(
       `INSERT INTO training (person_id, role_id, status) VALUES (?,?, 'Qualified') ON CONFLICT(person_id, role_id) DO UPDATE SET status='Qualified'`,
