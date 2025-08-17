@@ -30,6 +30,7 @@ import {
   Caption1,
   Title3,
   Subtitle2,
+  Tooltip,
 } from "@fluentui/react-components";
 
 const Grid = WidthProvider(GridLayout);
@@ -366,6 +367,7 @@ export default function DailyRunBoard({
 
     // Compute time-off overlap vs this segment; derive partial/heavy flags
     const overlapByPerson = useMemo(() => {
+      if (seg === "Early") return new Map<number, { minutes: number; heavy: boolean; partial: boolean }>();
       const st = segTimes[seg]?.start;
       const en = segTimes[seg]?.end;
       const map = new Map<number, { minutes: number; heavy: boolean; partial: boolean }>();
@@ -395,6 +397,14 @@ export default function DailyRunBoard({
       }
       return map;
     }, [all, seg, segTimes, selectedDateObj]);
+
+    const segDurationMinutes = useMemo(() => {
+      if (seg === "Early") return 0;
+      const st = segTimes[seg]?.start;
+      const en = segTimes[seg]?.end;
+      if (!st || !en) return 0;
+      return Math.max(0, Math.round((en.getTime() - st.getTime()) / 60000));
+    }, [seg, segTimes]);
 
     const req = getRequiredFor(selectedDateObj, group.id, role.id, seg);
     // Effective count excludes "heavy" time-off overlaps
@@ -512,11 +522,23 @@ export default function DailyRunBoard({
                 </PersonName>
         {(() => {
                   const info = overlapByPerson.get(a.person_id);
-                  if (info?.heavy) {
-                    return <Badge appearance="tint" color="danger" style={{ marginLeft: 8 }}>Time Off</Badge>;
+                  if (!info) return null;
+                  const mins = info.minutes;
+                  const pct = segDurationMinutes > 0 ? Math.round((mins / segDurationMinutes) * 100) : undefined;
+                  const content = pct != null ? `Overlap: ${mins} min (${pct}%)` : `Overlap: ${mins} min`;
+                  if (info.heavy) {
+                    return (
+                      <Tooltip content={content} relationship="label">
+                        <Badge appearance="tint" color="danger" style={{ marginLeft: 8 }}>Time Off</Badge>
+                      </Tooltip>
+                    );
                   }
-                  if (info?.partial) {
-                    return <Badge appearance="tint" color="warning" style={{ marginLeft: 8 }}>Partial Time Off</Badge>;
+                  if (info.partial) {
+                    return (
+                      <Tooltip content={content} relationship="label">
+                        <Badge appearance="tint" color="warning" style={{ marginLeft: 8 }}>Partial Time Off</Badge>
+                      </Tooltip>
+                    );
                   }
                   return null;
                 })()}
