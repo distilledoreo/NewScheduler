@@ -399,12 +399,8 @@ export default function DailyRunBoard({
         `SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`,
         [role.id]
       ).map((r: any) => r.person_id);
-      const priorAssigned = all(
-        `SELECT DISTINCT person_id FROM assignment WHERE role_id=? AND date < ?`,
-        [role.id, ymd(selectedDateObj)]
-      ).map((r: any) => r.person_id);
-      return new Set([...qualified, ...priorAssigned]);
-    }, [all, role.id, selectedDateObj, ymd]);
+      return new Set(qualified);
+    }, [all, role.id]);
 
     const opts = useMemo(
       () => peopleOptionsForSegment(selectedDateObj, seg, role),

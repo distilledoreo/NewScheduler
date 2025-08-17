@@ -853,15 +853,11 @@ async function exportShifts() {
         : "avail_fri";
 
     const rows = all(`SELECT * FROM person WHERE active=1 ORDER BY last_name, first_name`);
-    const trained = new Set([
-      ...all(`SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`, [role.id]).map(
+    const trained = new Set(
+      all(`SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`, [role.id]).map(
         (r: any) => r.person_id
-      ),
-      ...all(
-        `SELECT DISTINCT person_id FROM assignment WHERE role_id=? AND date < ?`,
-        [role.id, ymd(date)]
-      ).map((r: any) => r.person_id),
-    ]);
+      )
+    );
 
     return rows
       .filter((p: any) => {
