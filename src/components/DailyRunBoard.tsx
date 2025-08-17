@@ -33,6 +33,8 @@ import {
 } from "@fluentui/react-components";
 
 const Grid = WidthProvider(GridLayout);
+// Work around TS typing issues: cast WidthProvider result to any for JSX use
+const GridWP: any = Grid;
 
 // Styles moved outside the component to avoid recreating style objects on each render
 const useStyles = makeStyles({
@@ -336,6 +338,47 @@ export default function DailyRunBoard({
       [peopleOptionsForSegment, selectedDateObj, seg, role]
     );
 
+    // Calculate dynamic segment times (mimic App.segmentTimesForDate)
+    const segTimes = useMemo(() => {
+      const day = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate());
+      const mk = (t: string) => {
+        const [h, m] = t.split(":").map(Number);
+        return new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m, 0, 0);
+      };
+      const map: Record<string, { start: Date; end: Date }> = {};
+      for (const srow of segments) {
+        map[srow.name] = { start: mk(srow.start_time), end: mk(srow.end_time) };
+      }
+      // Detect Lunch/Early presence on date
+      const rows = all(`SELECT DISTINCT segment FROM assignment WHERE date=?`, [ymd(selectedDateObj)]);
+      const hasLunch = rows.some((r: any) => r.segment === "Lunch");
+      const hasEarly = rows.some((r: any) => r.segment === "Early");
+      const addMinutes = (d: Date, mins: number) => new Date(d.getTime() + mins * 60000);
+      if (hasLunch) {
+        if (map["AM"] && map["Lunch"]) map["AM"].end = map["Lunch"].start;
+        if (map["PM"] && map["Lunch"]) map["PM"].start = addMinutes(map["Lunch"].end, 60);
+      }
+      if (hasEarly && map["PM"]) {
+        map["PM"].end = addMinutes(map["PM"].end, -60);
+      }
+      return map;
+    }, [all, segments, selectedDateObj, ymd]);
+
+    const isBlocked = useCallback((personId: number): boolean => {
+      if (seg === "Early") return false;
+      const st = segTimes[seg]?.start;
+      const en = segTimes[seg]?.end;
+      if (!st || !en) return false;
+      const start = st.getTime();
+      const end = en.getTime();
+      const offs = all(`SELECT start_ts, end_ts FROM timeoff WHERE person_id=?`, [personId]);
+      return offs.some((o: any) => {
+        const s = new Date(o.start_ts).getTime();
+        const e = new Date(o.end_ts).getTime();
+        return Math.max(s, start) < Math.min(e, end);
+      });
+    }, [all, seg, segTimes]);
+
     const req = getRequiredFor(selectedDateObj, group.id, role.id, seg);
     const assignedCount = assigns.length;
     const status: "under" | "exact" | "over" =
@@ -435,13 +478,16 @@ export default function DailyRunBoard({
           </Dropdown>
         </div>
     <ul className={s.assignmentsList}>
-          {assigns.map((a: any) => (
+      {assigns.map((a: any) => (
             <li key={a.id} className={s.assignmentItem}>
       <Body1 className={s.assignmentName}>
                 <PersonName personId={a.person_id}>
                   {a.last_name}, {a.first_name}
                   {!trainedBefore.has(a.person_id) && " (Untrained)"}
                 </PersonName>
+        {isBlocked(a.person_id) && (
+                  <Badge appearance="tint" color="danger" style={{ marginLeft: 8 }}>Time off</Badge>
+                )}
       </Body1>
               {canEdit && (
                 <div className={s.actionsRow}>
@@ -487,9 +533,11 @@ export default function DailyRunBoard({
     <div className={s.root}>
       <div className={s.header}>
         <div className={s.headerLeft}>
-          <Body1 as="label" htmlFor="run-date-picker">
-            <b>Date</b>
-          </Body1>
+          <label htmlFor="run-date-picker" style={{ display: "inline-block" }}>
+            <Body1>
+              <b>Date</b>
+            </Body1>
+          </label>
           <Input
             id="run-date-picker"
             type="date"
@@ -526,7 +574,7 @@ export default function DailyRunBoard({
           ))}
         </div>
       ) : (
-        <Grid
+  <GridWP
           className="layout"
           layout={layout}
           cols={12}
@@ -539,7 +587,7 @@ export default function DailyRunBoard({
               <GroupCard group={g} isDraggable={true} />
             </div>
           ))}
-        </Grid>
+  </GridWP>
       )}
 
       {moveContext && (

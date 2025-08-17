@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Button, Input, Dropdown, Option, Table, TableHeader, TableHeaderCell, TableRow, TableBody, TableCell, makeStyles, tokens, Textarea, Tooltip } from "@fluentui/react-components";
+import { Button, Input, Dropdown, Option, Table, TableHeader, TableHeaderCell, TableRow, TableBody, TableCell, makeStyles, tokens, Textarea, Tooltip, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, DialogTrigger } from "@fluentui/react-components";
 
 interface TimeOffManagerProps {
   all: (sql: string, params?: any[]) => any[];
@@ -120,6 +120,7 @@ const useStyles = makeStyles({
 export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProps){
   const s = useStyles();
   const [status, setStatus] = React.useState<string>("");
+  const [importSummary, setImportSummary] = React.useState<null | { added: number; updated: number; ignored: number; skipped: number; noEmail: number; badDate: number; matchedByName: number }>(null);
 
   const people = React.useMemo(() => all(`SELECT id, first_name, last_name, work_email FROM person WHERE active=1 ORDER BY last_name, first_name`), [all]);
   const [addPersonId, setAddPersonId] = React.useState<number | null>(people[0]?.id ?? null);
@@ -229,7 +230,7 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
         if (!nameMap.has(key)) nameMap.set(key, p.id);
       }
 
-      let count = 0, skipped = 0, noEmail = 0, badDate = 0, matchedByName = 0;
+  let added = 0, updated = 0, ignored = 0, skipped = 0, noEmail = 0, badDate = 0, matchedByName = 0;
       for (const r of data){
         let email = sanitizeEmail(col(r, EMAIL_HEADERS));
         let pid = emailMap.get(email);
@@ -261,11 +262,28 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
           end = adj;
         }
         if (!start || !end || !(start instanceof Date) || isNaN(start.getTime()) || isNaN(end.getTime())){ skipped++; badDate++; continue; }
-        run(`INSERT INTO timeoff (person_id, start_ts, end_ts, reason, source) VALUES (?,?,?,?,?)`, [pid, start.toISOString(), end.toISOString(), reason, 'ImportXLSX']);
-        count++;
+        const sIso = start.toISOString();
+        const eIso = end.toISOString();
+        // Check for exact duplicate timeoff for same person and time window
+        const existing = all(`SELECT id, reason FROM timeoff WHERE person_id=? AND start_ts=? AND end_ts=? LIMIT 1`, [pid, sIso, eIso]);
+        if (existing && existing[0]){
+          const ex = existing[0];
+          const exReason = String(ex.reason || '');
+          const newReason = String(reason || '');
+          if (exReason !== newReason){
+            run(`UPDATE timeoff SET reason=? WHERE id=?`, [newReason, ex.id]);
+            updated++;
+          } else {
+            ignored++;
+          }
+        } else {
+          run(`INSERT INTO timeoff (person_id, start_ts, end_ts, reason, source) VALUES (?,?,?,?,?)`, [pid, sIso, eIso, reason, 'ImportXLSX']);
+          added++;
+        }
       }
       refresh();
-  setStatus(`Imported ${count} time-off rows. Skipped ${skipped}${skipped?` (no email: ${noEmail}, bad date/time: ${badDate})`:''}${matchedByName?` (matched by name: ${matchedByName})`:''}.`);
+      setStatus(`Import complete: added ${added}, updated ${updated}, ignored ${ignored}, skipped ${skipped}.`);
+      setImportSummary({ added, updated, ignored, skipped, noEmail, badDate, matchedByName });
     }catch(e:any){
       console.error(e);
       setStatus(`Time-off import failed: ${e?.message||e}`);
@@ -284,6 +302,20 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
     // Keep person and times for next add
   }
 
+  function downloadSampleCsv(){
+    const headers = ['Member','Work Email','Start Date','Start Time','End Date','End Time','Time Off Reason'];
+    const example = ['Doe, Jane','jane.doe@example.com','7/15/2025','8:00 AM','7/15/2025','5:00 PM','Vacation'];
+    const csv = [headers.join(','), example.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')].join("\r\n");
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'timeoff-sample.csv';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
+  }
+
   function remove(id: number){
     if (!confirm('Delete this time-off entry?')) return;
     run(`DELETE FROM timeoff WHERE id=?`, [id]);
@@ -300,6 +332,7 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
         <div className={s.actions}>
           <input id="toff-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" style={{ display: 'none' }} onChange={async (e)=>{ const f=e.target.files?.[0]; if (f) await handleImportXlsx(f); (e.target as HTMLInputElement).value=''; }} />
           <Tooltip content="Import Teams Time-Off XLSX/CSV" relationship="label"><Button onClick={()=>document.getElementById('toff-file')?.click()}>Import Time Off</Button></Tooltip>
+          <Tooltip content="Download a sample CSV template" relationship="label"><Button appearance="secondary" onClick={downloadSampleCsv}>Sample CSV</Button></Tooltip>
         </div>
       </div>
 
@@ -336,6 +369,35 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
       </div>
 
       <div className={s.status}>{status}</div>
+
+      {importSummary && (
+        <Dialog open onOpenChange={(_, d)=>{ if (!d.open) setImportSummary(null); }}>
+          <DialogTrigger>
+            <span />
+          </DialogTrigger>
+          <DialogSurface>
+            <DialogBody>
+              <DialogTitle>Import Summary</DialogTitle>
+              <DialogContent>
+                <div style={{ lineHeight: 1.8 }}>
+                  <div><b>Added:</b> {importSummary.added}</div>
+                  <div><b>Updated:</b> {importSummary.updated}</div>
+                  <div><b>Ignored (duplicates):</b> {importSummary.ignored}</div>
+                  <div><b>Skipped:</b> {importSummary.skipped}</div>
+                  {(importSummary.skipped > 0) && (
+                    <div style={{ marginTop: 8, color: tokens.colorNeutralForeground3 }}>
+                      Details: no email {importSummary.noEmail}, bad date/time {importSummary.badDate}{importSummary.matchedByName?`, matched by name ${importSummary.matchedByName}`:''}.
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={()=>setImportSummary(null)}>Close</Button>
+              </DialogActions>
+            </DialogBody>
+          </DialogSurface>
+        </Dialog>
+      )}
 
       <div className={s.tableWrap}>
         <Table aria-label="Time-off table">
