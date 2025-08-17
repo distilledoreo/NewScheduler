@@ -418,7 +418,7 @@ export default function DailyRunBoard({
         : status === "exact"
         ? tokens.colorPaletteGreenBorderActive
         : tokens.colorPaletteYellowBorderActive;
-    const isOverstaffed = assignedEffective > req;
+  // Move action availability is handled per-person (blocked for heavy time-off), not by overstaffed status
 
     const handleMove = useCallback(
       (a: any) => {
@@ -545,7 +545,7 @@ export default function DailyRunBoard({
       </Body1>
               {canEdit && (
                 <div className={s.actionsRow}>
-                  {isOverstaffed && !overlapByPerson.get(a.person_id)?.heavy && (
+                  {!overlapByPerson.get(a.person_id)?.heavy && (
                     <Button size="small" appearance="secondary" onClick={() => handleMove(a)}>
                       Move
                     </Button>
