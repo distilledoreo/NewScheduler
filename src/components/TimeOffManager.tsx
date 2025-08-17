@@ -90,6 +90,22 @@ function combineCoerced(dateVal: any, timeVal: any, defaultTime: { h: number; m:
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), tm.h, tm.m, 0, 0);
 }
 
+function sanitizeEmail(val: any): string {
+  const s = String(val ?? '').trim();
+  // Extract plain email from formats like "mailto:user@x.com" or "Name <user@x.com>"
+  const m = s.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return (m ? m[0] : s).toLowerCase();
+}
+
+function normalizeHeader(s: string): string {
+  return String(s || '')
+    .replace(/^\ufeff/, '') // strip BOM
+    .replace(/\s+/g, ' ') // collapse spaces
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ''); // remove non-alphanum
+}
+
 const useStyles = makeStyles({
   root: { border: `1px solid ${tokens.colorNeutralStroke2}`, borderRadius: tokens.borderRadiusLarge, padding: tokens.spacingHorizontalM, backgroundColor: tokens.colorNeutralBackground1 },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: tokens.spacingVerticalM },
@@ -132,9 +148,9 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
         const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
         if (!rows.length) return 0;
         const keys = Object.keys(rows[0] || {});
-        const kset = new Set(keys.map((k)=>norm(k)));
+        const kset = new Set(keys.map((k)=>normalizeHeader(k)));
         let score = 0;
-        for (const e of EXPECTED) if (kset.has(norm(e))) score++;
+        for (const e of EXPECTED) if (kset.has(normalizeHeader(e))) score++;
         return score;
       };
       let bestSheet = wb.SheetNames[0];
@@ -144,7 +160,32 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
         if (sc > bestScore){ bestScore = sc; bestSheet = sn; }
       }
       const ws = wb.Sheets[bestSheet];
-      const data: any[] = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+      let data: any[] = [];
+      try {
+        // Detect header row within the sheet
+        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        let bestRow = -1, bestRowScore = -1;
+        for (let i=0;i<rows.length;i++){
+          const r = rows[i] || [];
+          const kset = new Set((r as any[]).map((c)=>normalizeHeader(String(c))));
+          let sc = 0; for (const e of EXPECTED) if (kset.has(normalizeHeader(e))) sc++;
+          if (sc > bestRowScore){ bestRowScore = sc; bestRow = i; }
+        }
+        if (bestRowScore > 0 && bestRow >= 0){
+          const headers = (rows[bestRow] as any[]).map((h)=>String(h||''));
+          for (let i=bestRow+1;i<rows.length;i++){
+            const r = rows[i] || [];
+            if (!r.some((v:any)=>String(v).trim()!=='')) continue; // skip blank row
+            const obj: any = {};
+            for (let c=0;c<headers.length;c++) obj[headers[c]] = r[c] ?? '';
+            data.push(obj);
+          }
+        }
+      } catch {}
+      if (!data.length){
+        // Fallback simple conversion
+        data = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+      }
       if (!data.length){ setStatus('No rows found in the file.'); return; }
 
       // Build email -> id map
@@ -190,7 +231,7 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
 
       let count = 0, skipped = 0, noEmail = 0, badDate = 0, matchedByName = 0;
       for (const r of data){
-        let email = String(col(r, EMAIL_HEADERS)).trim().toLowerCase();
+        let email = sanitizeEmail(col(r, EMAIL_HEADERS));
         let pid = emailMap.get(email);
         if (!pid){
           // Fallback by Member name ("Last, First")
