@@ -126,8 +126,24 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
         const buf = await file.arrayBuffer();
         wb = XLSX.read(buf, { type: 'array', cellDates: true });
       }
-      const sheetName = wb.SheetNames[0];
-      const ws = wb.Sheets[sheetName];
+      // Pick the sheet that best matches expected headers
+      const EXPECTED = ['Member','Work Email','Start Date','Start Time','End Date','End Time','Time Off Reason'];
+      const scoreSheet = (ws: any): number => {
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+        if (!rows.length) return 0;
+        const keys = Object.keys(rows[0] || {});
+        const kset = new Set(keys.map((k)=>norm(k)));
+        let score = 0;
+        for (const e of EXPECTED) if (kset.has(norm(e))) score++;
+        return score;
+      };
+      let bestSheet = wb.SheetNames[0];
+      let bestScore = -1;
+      for (const sn of wb.SheetNames){
+        const sc = scoreSheet(wb.Sheets[sn]);
+        if (sc > bestScore){ bestScore = sc; bestSheet = sn; }
+      }
+      const ws = wb.Sheets[bestSheet];
       const data: any[] = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
       if (!data.length){ setStatus('No rows found in the file.'); return; }
 
@@ -135,27 +151,57 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
       const emailMap = new Map<string, number>();
       for (const p of people){ emailMap.set(String(p.work_email||'').toLowerCase(), p.id); }
 
-      // Column resolvers (case-insensitive)
+      // Header normalization and column resolver
+      const norm = (s: string) => String(s || '')
+        .replace(/^\ufeff/, '') // strip BOM
+        .replace(/\s+/g, ' ') // collapse spaces
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ''); // remove non-alphanum
       const col = (row: any, names: string[]) => {
+        // Build normalized key map once per row
+        const keys = Object.keys(row);
+        const map = new Map<string,string>();
+        for (const k of keys) map.set(norm(k), k);
         for (const n of names){
-          const k = Object.keys(row).find(h => h.toLowerCase() === n.toLowerCase());
-          if (k) return row[k];
+          const direct = keys.find(h => h.toLowerCase() === String(n).toLowerCase());
+          if (direct) return row[direct];
+          const nk = map.get(norm(n));
+          if (nk) return row[nk];
         }
         return '';
       };
 
       // Common Teams/Excel header variants
       const EMAIL_HEADERS = ['Work Email','Email','WorkEmail','User email','User Email','UserEmail','Email Address','Email address','UserPrincipalName','UPN','User'];
+      const MEMBER_HEADERS = ['Member','Name','Display Name','DisplayName'];
       const START_DATE_HEADERS = ['Start Date','Start date','Start','StartDate','Start Local Date','Start Local Time','Start Date Time','StartDateTime'];
       const START_TIME_HEADERS = ['Start Time','Start time','StartTime','Start Local Time'];
       const END_DATE_HEADERS = ['End Date','End date','End','EndDate','End Local Date','End Local Time','End Date Time','EndDateTime'];
       const END_TIME_HEADERS = ['End Time','End time','EndTime','End Local Time'];
       const REASON_HEADERS = ['Time Off Reason','Time off reason','Reason','Notes','Comment'];
 
-      let count = 0, skipped = 0, noEmail = 0, badDate = 0;
+      // Build name -> id map for fallback matching ("Last, First")
+      const nameMap = new Map<string, number>();
+      for (const p of people){
+        const key = `${String(p.last_name||'').trim().toLowerCase()},${String(p.first_name||'').trim().toLowerCase()}`;
+        if (!nameMap.has(key)) nameMap.set(key, p.id);
+      }
+
+      let count = 0, skipped = 0, noEmail = 0, badDate = 0, matchedByName = 0;
       for (const r of data){
-        const email = String(col(r, EMAIL_HEADERS)).toLowerCase();
-        const pid = emailMap.get(email);
+        let email = String(col(r, EMAIL_HEADERS)).trim().toLowerCase();
+        let pid = emailMap.get(email);
+        if (!pid){
+          // Fallback by Member name ("Last, First")
+          const member = String(col(r, MEMBER_HEADERS));
+          const [lastRaw, firstRaw] = member.split(',');
+          if (lastRaw && firstRaw){
+            const key = `${lastRaw.trim().toLowerCase()},${firstRaw.trim().toLowerCase()}`;
+            const byName = nameMap.get(key);
+            if (byName){ pid = byName; matchedByName++; }
+          }
+        }
         if (!pid){ skipped++; noEmail++; continue; }
 
         const sdv = col(r, START_DATE_HEADERS);
@@ -165,13 +211,20 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
         const reason = String(col(r, REASON_HEADERS));
 
         const start = combineCoerced(sdv, stv, { h: 0, m: 0 });
-        const end = combineCoerced(edv, etv, { h: 23, m: 59 });
+        let end = combineCoerced(edv, etv, { h: 23, m: 59 });
+        // Teams all-day ranges often use End Time 00:00 to denote through previous day
+        if (end && ((end.getHours() === 0 && end.getMinutes() === 0) || String(etv).trim() === '00:00')){
+          const adj = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 0, 0, 0, 0);
+          adj.setDate(adj.getDate() - 1);
+          adj.setHours(23, 59, 0, 0);
+          end = adj;
+        }
         if (!start || !end || !(start instanceof Date) || isNaN(start.getTime()) || isNaN(end.getTime())){ skipped++; badDate++; continue; }
         run(`INSERT INTO timeoff (person_id, start_ts, end_ts, reason, source) VALUES (?,?,?,?,?)`, [pid, start.toISOString(), end.toISOString(), reason, 'ImportXLSX']);
         count++;
       }
       refresh();
-      setStatus(`Imported ${count} time-off rows. Skipped ${skipped}${skipped?` (no email: ${noEmail}, bad date/time: ${badDate})`:''}.`);
+  setStatus(`Imported ${count} time-off rows. Skipped ${skipped}${skipped?` (no email: ${noEmail}, bad date/time: ${badDate})`:''}${matchedByName?` (matched by name: ${matchedByName})`:''}.`);
     }catch(e:any){
       console.error(e);
       setStatus(`Time-off import failed: ${e?.message||e}`);
