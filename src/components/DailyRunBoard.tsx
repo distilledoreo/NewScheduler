@@ -414,6 +414,18 @@ export default function DailyRunBoard({
       [peopleOptionsForSegment, selectedDateObj, seg, role]
     );
 
+    const sortedOpts = useMemo(() => {
+      const normalize = (s: string) => s.replace(/\s*\(Untrained\)$/i, "");
+      const arr = [...opts];
+      arr.sort((a, b) => {
+        const ta = trainedBefore.has(a.id) ? 1 : 0;
+        const tb = trainedBefore.has(b.id) ? 1 : 0;
+        if (ta !== tb) return tb - ta; // trained first
+        return normalize(a.label).localeCompare(normalize(b.label));
+      });
+      return arr;
+    }, [opts, trainedBefore]);
+
     // Calculate dynamic segment times (mimic App.segmentTimesForDate)
     const segTimes = useMemo(() => {
       const day = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate());
@@ -586,7 +598,7 @@ export default function DailyRunBoard({
             style={{ width: "100%" }}
           >
             {openAdd &&
-              opts.map((o) => {
+              sortedOpts.map((o) => {
                 const info = overlapByPerson.get(o.id);
                 const isHeavy = Boolean(info?.heavy);
                 const isPartial = Boolean(info?.partial);
