@@ -183,10 +183,10 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
             p.avail_mon, p.avail_tue, p.avail_wed, p.avail_thu, p.avail_fri,
             md.month as month
        FROM monthly_default md
-       JOIN role r ON r.id = md.role_id
-       JOIN grp  g ON g.id = r.group_id
-       JOIN person p ON p.id = md.person_id
-      WHERE ${mdMonth.where}
+      JOIN role r ON r.id = md.role_id
+      JOIN grp  g ON g.id = r.group_id
+      JOIN person p ON p.id = md.person_id
+      WHERE ${mdMonth.where} AND p.active = 1
       ORDER BY g.name, person`,
     mdMonth.params
   );
@@ -199,10 +199,10 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
             p.avail_mon, p.avail_tue, p.avail_wed, p.avail_thu, p.avail_fri,
             mdd.month as month
        FROM monthly_default_day mdd
-       JOIN role r ON r.id = mdd.role_id
-       JOIN grp  g ON g.id = r.group_id
-       JOIN person p ON p.id = mdd.person_id
-      WHERE ${mddMonth.where}`,
+      JOIN role r ON r.id = mdd.role_id
+      JOIN grp  g ON g.id = r.group_id
+      JOIN person p ON p.id = mdd.person_id
+      WHERE ${mddMonth.where} AND p.active = 1`,
     mddMonth.params
   );
 

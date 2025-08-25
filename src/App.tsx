@@ -1048,6 +1048,9 @@ function PeopleEditor(){
   const [qualifications,setQualifications] = useState<Set<number>>(new Set());
   const [showModal,setShowModal] = useState(false);
 
+  // Query all people, including inactive entries, so they can be edited
+  const people = all(`SELECT * FROM person ORDER BY last_name, first_name`);
+
   useEffect(()=>{
     if(editing){
       const rows = all(`SELECT role_id FROM training WHERE person_id=? AND status='Qualified'`, [editing.id]);
