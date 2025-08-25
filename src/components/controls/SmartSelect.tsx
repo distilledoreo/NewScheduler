@@ -56,7 +56,14 @@ export default function SmartSelect({
       placeholder={placeholder}
       disabled={disabled}
       className={className}
-      style={style}
+      // Ensure the combobox never overflows its container so controls
+      // in tight grids or tables don't overlap each other.
+      style={{
+        width: "100%",
+        maxWidth: "100%",
+        boxSizing: "border-box",
+        ...style,
+      }}
     >
       {options.map((o) => (
         <Option key={o.value} value={o.value} disabled={o.disabled} text={o.label}>
