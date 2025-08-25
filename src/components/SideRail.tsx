@@ -13,6 +13,7 @@ import {
   WeatherSunny20Regular,
   WeatherMoon20Regular,
 } from "@fluentui/react-icons";
+import "../styles/tooltip.css";
 
 export type TabKey = "RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "ADMIN";
 
