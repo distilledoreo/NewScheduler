@@ -37,6 +37,49 @@ const Grid = WidthProvider(GridLayout);
 // Work around TS typing issues: cast WidthProvider result to any for JSX use
 const GridWP: any = Grid;
 
+// Map configured group themes to Fluent 2 palette tokens so tinted backgrounds
+// adapt automatically in both light and dark modes.
+const themeTokens: Record<string, { bg: string; fg: string }> = {
+  Purple: {
+    bg: tokens.colorPalettePurpleBackground2,
+    fg: tokens.colorPalettePurpleForeground2,
+  },
+  Pink: {
+    bg: tokens.colorPalettePinkBackground2,
+    fg: tokens.colorPalettePinkForeground2,
+  },
+  DarkPink: {
+    bg: tokens.colorPaletteMagentaBackground2,
+    fg: tokens.colorPaletteMagentaForeground2,
+  },
+  DarkYellow: {
+    bg: tokens.colorPaletteGoldBackground2,
+    fg: tokens.colorPaletteGoldForeground2,
+  },
+  Green: {
+    bg: tokens.colorPaletteGreenBackground2,
+    fg: tokens.colorPaletteGreenForeground2,
+  },
+  DarkPurple: {
+    bg: tokens.colorPaletteGrapeBackground2,
+    fg: tokens.colorPaletteGrapeForeground2,
+  },
+  DarkGreen: {
+    bg: tokens.colorPaletteDarkGreenBackground2,
+    fg: tokens.colorPaletteDarkGreenForeground2,
+  },
+  DarkBlue: {
+    bg: tokens.colorPaletteNavyBackground2,
+    fg: tokens.colorPaletteNavyForeground2,
+  },
+};
+
+const themeColors = (theme: string | null | undefined) => {
+  if (!theme) return { bg: undefined, fg: undefined };
+  const key = theme.replace(/^\d+\.\s*/, "");
+  return themeTokens[key] || { bg: undefined, fg: undefined };
+};
+
 // Styles moved outside the component to avoid recreating style objects on each render
 const useStyles = makeStyles({
   root: {
@@ -358,12 +401,14 @@ export default function DailyRunBoard({
     const groupAccent = groupNeedsMet
       ? tokens.colorPaletteGreenBorderActive
       : tokens.colorPaletteRedBorderActive;
+    const { bg: groupBg, fg: groupFg } = themeColors(group.theme);
     return (
       <Card
         className={s.groupCard}
         style={{
           borderColor: groupAccent,
-          backgroundColor: group.custom_color || undefined,
+          backgroundColor: groupBg,
+          color: groupFg,
         }}
       >
         <CardHeader
@@ -573,13 +618,16 @@ export default function DailyRunBoard({
     const [addSel, setAddSel] = useState<string[]>([]);
     const [openAdd, setOpenAdd] = useState(false);
 
+    const { bg: groupBg, fg: groupFg } = themeColors(group.theme);
+
     return (
       <Card
         className={s.roleCard}
         style={{
           borderLeftColor: accentColor,
           ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1,
-          backgroundColor: group.custom_color || undefined,
+          backgroundColor: groupBg,
+          color: groupFg,
         }}
       >
         <div className={s.roleHeader}>
