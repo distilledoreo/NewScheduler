@@ -68,10 +68,19 @@ export default function MonthlyDefaults({
       gap: tokens.spacingHorizontalS,
       paddingBlockEnd: tokens.spacingVerticalS,
       minWidth: 0,
+      '& > *': {
+        minWidth: 0,
+      },
     },
     label: {
       fontSize: tokens.fontSizeBase300,
       color: tokens.colorNeutralForeground2,
+    },
+    field: {
+      width: '100%',
+      maxWidth: '100%',
+      minWidth: 0,
+      boxSizing: 'border-box',
     },
     scroll: {
       width: '100%',
@@ -219,19 +228,19 @@ export default function MonthlyDefaults({
       <div className={styles.toolbar}>
         <div>
           <span className={styles.label}>Month</span>
-          <Input type="month" value={selectedMonth} onChange={(_, d) => setSelectedMonth(d.value)} />
+          <Input className={styles.field} type="month" value={selectedMonth} onChange={(_, d) => setSelectedMonth(d.value)} />
         </div>
         <Button onClick={() => applyMonthlyDefaults(selectedMonth)}>Apply to Month</Button>
         <div>
           <span className={styles.label}>Copy From</span>
-          <Input type="month" value={copyFromMonth} onChange={(_, d) => setCopyFromMonth(d.value)} />
+          <Input className={styles.field} type="month" value={copyFromMonth} onChange={(_, d) => setCopyFromMonth(d.value)} />
         </div>
         <Button onClick={() => copyMonthlyDefaults(copyFromMonth, selectedMonth)}>Copy</Button>
         <Button onClick={() => setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</Button>
         <Button onClick={() => exportMonthlyDefaults(selectedMonth)}>Export HTML</Button>
         <Button onClick={() => exportMonthOneSheetXlsx(selectedMonth).catch((err) => alert(err.message))}>Export .xlsx</Button>
-        <Input placeholder="Filter" value={filterText} onChange={(_, data) => setFilterText(data.value)} />
-        <Dropdown selectedOptions={[sortKey]} onOptionSelect={(_, data) => setSortKey(data.optionValue as any)}>
+        <Input className={styles.field} placeholder="Filter" value={filterText} onChange={(_, data) => setFilterText(data.value)} />
+        <Dropdown className={styles.field} selectedOptions={[sortKey]} onOptionSelect={(_, data) => setSortKey(data.optionValue as any)}>
           <Option value="name" text="Name">Name</Option>
           <Option value="email" text="Email">Email</Option>
           <Option value="brother_sister" text="B/S">B/S</Option>
