@@ -359,7 +359,13 @@ export default function DailyRunBoard({
       ? tokens.colorPaletteGreenBorderActive
       : tokens.colorPaletteRedBorderActive;
     return (
-      <Card className={s.groupCard} style={{ borderColor: groupAccent }}>
+      <Card
+        className={s.groupCard}
+        style={{
+          borderColor: groupAccent,
+          backgroundColor: group.custom_color || undefined,
+        }}
+      >
         <CardHeader
           className={isDraggable ? "drag-handle" : ""}
           header={<Title3>{group.name}</Title3>}
@@ -573,6 +579,7 @@ export default function DailyRunBoard({
         style={{
           borderLeftColor: accentColor,
           ["--scrollbar-thumb" as any]: tokens.colorNeutralStroke1,
+          backgroundColor: group.custom_color || undefined,
         }}
       >
         <div className={s.roleHeader}>
