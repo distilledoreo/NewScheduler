@@ -663,7 +663,13 @@ export default function App() {
       return l > 186 ? '#000' : '#fff';
     };
 
-    const monthDate = new Date(month + '-01');
+    // Ensure the month is interpreted in the local timezone so that
+    // toLocaleString displays the correct month. Parsing a date-only
+    // string like "2023-09-01" is treated as UTC which can result in the
+    // previous month being shown in negative timezones (e.g. "August" for
+    // September). By including a time component without a timezone, the
+    // date is parsed in the local timezone.
+    const monthDate = new Date(month + '-01T00:00:00');
     const titleText = monthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
     const escapeHtml = (s: string) => String(s)
