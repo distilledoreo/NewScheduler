@@ -28,11 +28,12 @@ export interface SideRailProps {
 
 const useStyles = makeStyles({
   root: {
-  width: "80px",
-  minWidth: 0,
-  height: "100vh",
-  position: "sticky",
-  top: 0,
+    width: "80px",
+    minWidth: 0,
+    height: "100vh",
+    position: "fixed",
+    top: 0,
+    left: 0,
     padding: tokens.spacingVerticalS,
     display: "flex",
     flexDirection: "column",

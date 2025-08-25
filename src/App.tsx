@@ -1313,6 +1313,8 @@ function PeopleEditor(){
       width: '100%',
       maxWidth: '100%',
       overflow: 'hidden',
+      boxSizing: 'border-box',
+      paddingLeft: '80px',
       backgroundColor: (themeName === "dark" ? webDarkTheme : webLightTheme).colorNeutralBackground1,
     },
     contentRow: {
