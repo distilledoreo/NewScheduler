@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from "react";
-import { Input, Button, Checkbox, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, Link, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider, Dropdown, Option } from "@fluentui/react-components";
+import { Input, Button, Checkbox, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, Link, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider, Dropdown, Option, Tooltip, Textarea } from "@fluentui/react-components";
 import SmartSelect from "./controls/SmartSelect";
 import PersonName from "./PersonName";
 import { exportMonthOneSheetXlsx } from "../excel/export-one-sheet";
 import { type Segment, type SegmentRow } from "../services/segments";
+import { Note20Regular } from "@fluentui/react-icons";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
 
@@ -16,10 +17,12 @@ interface MonthlyDefaultsProps {
   segments: SegmentRow[];
   monthlyDefaults: any[];
   monthlyOverrides: any[];
+  monthlyNotes: any[];
   monthlyEditing: boolean;
   setMonthlyEditing: (v: boolean) => void;
   setMonthlyDefault: (personId: number, segment: Segment, roleId: number | null) => void;
   setWeeklyOverride: (personId: number, weekday: number, segment: Segment, roleId: number | null) => void;
+  setMonthlyNote: (personId: number, note: string | null) => void;
   copyMonthlyDefaults: (fromMonth: string, toMonth: string) => void;
   applyMonthlyDefaults: (month: string) => void;
   exportMonthlyDefaults: (month: string) => void;
@@ -35,10 +38,12 @@ export default function MonthlyDefaults({
   segments,
   monthlyDefaults,
   monthlyOverrides,
+  monthlyNotes,
   monthlyEditing,
   setMonthlyEditing,
   setMonthlyDefault,
   setWeeklyOverride,
+  setMonthlyNote,
   copyMonthlyDefaults,
   applyMonthlyDefaults,
   exportMonthlyDefaults,
@@ -89,6 +94,7 @@ export default function MonthlyDefaults({
   const [activeOnly, setActiveOnly] = useState(false);
   const [commuterOnly, setCommuterOnly] = useState(false);
   const [weekdayPerson, setWeekdayPerson] = useState<number | null>(null);
+  const [notePerson, setNotePerson] = useState<number | null>(null);
 
   const viewPeople = useMemo(() => {
     let filtered = people.filter(p => {
@@ -185,6 +191,29 @@ export default function MonthlyDefaults({
     );
   }
 
+  function NotesModal({ personId, onClose }: { personId: number; onClose: () => void }) {
+    const person = people.find(p => p.id === personId);
+    if (!person) return null;
+    const noteObj = monthlyNotes.find(n => n.person_id === personId);
+    const [text, setText] = useState<string>(noteObj?.note || "");
+    return (
+      <Dialog open onOpenChange={(_, d)=>{ if(!d.open) onClose(); }}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Notes - {person.first_name} {person.last_name}</DialogTitle>
+            <DialogContent>
+              <Textarea value={text} onChange={(_, d) => setText(d.value)} />
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="primary" onClick={() => { setMonthlyNote(personId, text); onClose(); }}>Save</Button>
+              <Button onClick={onClose}>Cancel</Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+    );
+  }
+
   return (
     <div className={styles.root}>
       <div className={styles.toolbar}>
@@ -232,46 +261,57 @@ export default function MonthlyDefaults({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {viewPeople.map((p: any) => (
-              <TableRow key={p.id}>
-                <TableCell>
-                  <PersonName personId={p.id}>
-                    {p.last_name}, {p.first_name}
-                  </PersonName>
-                  {monthlyEditing && (
-                    <Link appearance="subtle" className={styles.inlineLink} onClick={() => setWeekdayPerson(p.id)}>
-                      Days{monthlyOverrides.some((o) => o.person_id === p.id) ? "*" : ""}
-                    </Link>
-                  )}
-                </TableCell>
-                {segmentNames.map((seg) => {
-                  const def = monthlyDefaults.find(
-                    (d) => d.person_id === p.id && d.segment === seg,
-                  );
-                  const options = roleListForSegment(seg);
-                  const optionsKey = options.map((r: any) => `${r.id}:${r.name}`).join(',');
-                  return (
-                    <TableCell key={seg}>
-                      <SmartSelect
-                        options={[{ value: "", label: "--" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name }))]}
-                        value={def?.role_id != null ? String(def.role_id) : null}
-                        onChange={(v) => {
-                          const rid = v ? Number(v) : null;
-                          setMonthlyDefault(p.id, seg, rid);
-                        }}
-                        placeholder="--"
-                        disabled={!monthlyEditing}
-                      />
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))}
+            {viewPeople.map((p: any) => {
+              const note = monthlyNotes.find(n => n.person_id === p.id)?.note;
+              return (
+                <TableRow key={p.id}>
+                  <TableCell>
+                    <PersonName personId={p.id}>
+                      {p.last_name}, {p.first_name}
+                    </PersonName>
+                    {monthlyEditing && (
+                      <Link appearance="subtle" className={styles.inlineLink} onClick={() => setWeekdayPerson(p.id)}>
+                        Days{monthlyOverrides.some((o) => o.person_id === p.id) ? "*" : ""}
+                      </Link>
+                    )}
+                    {(note || monthlyEditing) && (
+                      <Tooltip content={note || "Add note"} relationship="description">
+                        <Button size="small" appearance="subtle" icon={<Note20Regular />} onClick={() => setNotePerson(p.id)} />
+                      </Tooltip>
+                    )}
+                  </TableCell>
+                  {segmentNames.map((seg) => {
+                    const def = monthlyDefaults.find(
+                      (d) => d.person_id === p.id && d.segment === seg,
+                    );
+                    const options = roleListForSegment(seg);
+                    const optionsKey = options.map((r: any) => `${r.id}:${r.name}`).join(',');
+                    return (
+                      <TableCell key={seg}>
+                        <SmartSelect
+                          options={[{ value: "", label: "--" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name }))]}
+                          value={def?.role_id != null ? String(def.role_id) : null}
+                          onChange={(v) => {
+                            const rid = v ? Number(v) : null;
+                            setMonthlyDefault(p.id, seg, rid);
+                          }}
+                          placeholder="--"
+                          disabled={!monthlyEditing}
+                        />
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
       {weekdayPerson !== null && (
         <WeeklyOverrideModal personId={weekdayPerson} onClose={() => setWeekdayPerson(null)} />
+      )}
+      {notePerson !== null && (
+        <NotesModal personId={notePerson} onClose={() => setNotePerson(null)} />
       )}
     </div>
   );
