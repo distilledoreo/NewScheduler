@@ -60,6 +60,17 @@ export const migrate11AddTrainingSource: Migration = (db) => {
   }
 };
 
+export const migrate12AddMonthlyNotes: Migration = (db) => {
+  db.run(`CREATE TABLE IF NOT EXISTS monthly_note (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL,
+      person_id INTEGER NOT NULL,
+      note TEXT,
+      UNIQUE(month, person_id),
+      FOREIGN KEY (person_id) REFERENCES person(id)
+    );`);
+};
+
 export const migrate6AddExportGroup: Migration = (db) => {
   db.run(`CREATE TABLE IF NOT EXISTS export_group (
       group_id INTEGER PRIMARY KEY,
@@ -513,6 +524,15 @@ const migrations: Record<number, Migration> = {
       source TEXT DEFAULT 'TeamsImport',
       FOREIGN KEY (person_id) REFERENCES person(id)
     );`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS monthly_note (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL,
+      person_id INTEGER NOT NULL,
+      note TEXT,
+      UNIQUE(month, person_id),
+      FOREIGN KEY (person_id) REFERENCES person(id)
+    );`);
   },
   2: (db) => {
     // Ensure training table has 'source' column
@@ -558,6 +578,7 @@ const migrations: Record<number, Migration> = {
   9: migrate8FixSegmentConstraints, // Run the same migration again as 9 to fix failed migration 8
   10: migrate10BackfillGroupCustomColor,
   11: migrate11AddTrainingSource,
+  12: migrate12AddMonthlyNotes,
 };
 
 export function addMigration(version: number, fn: Migration) {
