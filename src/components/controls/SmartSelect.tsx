@@ -61,6 +61,7 @@ export default function SmartSelect({
       style={{
         width: "100%",
         maxWidth: "100%",
+        minWidth: 0,
         boxSizing: "border-box",
         ...style,
       }}
