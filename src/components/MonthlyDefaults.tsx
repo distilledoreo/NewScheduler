@@ -63,6 +63,9 @@ export default function MonthlyDefaults({
       gap: tokens.spacingHorizontalS,
       paddingBlockEnd: tokens.spacingVerticalS,
       minWidth: 0,
+      '& > *': {
+        minWidth: 0,
+      },
     },
     label: {
       fontSize: tokens.fontSizeBase300,
@@ -71,6 +74,7 @@ export default function MonthlyDefaults({
     field: {
       width: '100%',
       maxWidth: '100%',
+      minWidth: 0,
       boxSizing: 'border-box',
     },
     scroll: {
