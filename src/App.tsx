@@ -148,6 +148,7 @@ export default function App() {
   const [monthlyDefaults, setMonthlyDefaults] = useState<any[]>([]);
   const [monthlyEditing, setMonthlyEditing] = useState(false);
   const [monthlyOverrides, setMonthlyOverrides] = useState<any[]>([]);
+  const [monthlyNotes, setMonthlyNotes] = useState<any[]>([]);
 
   // UI: simple dialogs
   const [showNeedsEditor, setShowNeedsEditor] = useState(false);
@@ -535,8 +536,10 @@ export default function App() {
     setMonthlyDefaults(rows);
     const ov = all(`SELECT * FROM monthly_default_day WHERE month=?`, [month]);
     setMonthlyOverrides(ov);
-  // Reflect changes to training from monthly assignments
-  syncTrainingFromMonthly();
+    const notes = all(`SELECT * FROM monthly_default_note WHERE month=?`, [month]);
+    setMonthlyNotes(notes);
+    // Reflect changes to training from monthly assignments
+    syncTrainingFromMonthly();
   }
 
   function setMonthlyDefault(personId: number, segment: Segment, roleId: number | null) {
@@ -565,6 +568,20 @@ export default function App() {
     }
   loadMonthlyDefaults(selectedMonth);
   syncTrainingFromMonthly();
+  }
+
+  function setMonthlyNote(personId: number, note: string | null) {
+    if (!sqlDb) return;
+    const text = note?.trim();
+    if (text) {
+      run(`INSERT INTO monthly_default_note (month, person_id, note) VALUES (?,?,?)
+           ON CONFLICT(month, person_id) DO UPDATE SET note=excluded.note`,
+          [selectedMonth, personId, text]);
+    } else {
+      run(`DELETE FROM monthly_default_note WHERE month=? AND person_id=?`,
+          [selectedMonth, personId]);
+    }
+    loadMonthlyDefaults(selectedMonth);
   }
 
   function setMonthlyDefaultForMonth(month: string, personId: number, segment: Segment, roleId: number | null) {
@@ -596,6 +613,14 @@ export default function App() {
         `INSERT INTO monthly_default_day (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)
          ON CONFLICT(month, person_id, weekday, segment) DO UPDATE SET role_id=excluded.role_id`,
         [toMonth, row.person_id, row.weekday, row.segment, row.role_id]
+      );
+    }
+    const nrows = all(`SELECT person_id, note FROM monthly_default_note WHERE month=?`, [fromMonth]);
+    for (const row of nrows) {
+      run(
+        `INSERT INTO monthly_default_note (month, person_id, note) VALUES (?,?,?)
+         ON CONFLICT(month, person_id) DO UPDATE SET note=excluded.note`,
+        [toMonth, row.person_id, row.note]
       );
     }
     loadMonthlyDefaults(toMonth);
@@ -1445,10 +1470,12 @@ function PeopleEditor(){
               segments={segments}
               monthlyDefaults={monthlyDefaults}
               monthlyOverrides={monthlyOverrides}
+              monthlyNotes={monthlyNotes}
               monthlyEditing={monthlyEditing}
               setMonthlyEditing={setMonthlyEditing}
               setMonthlyDefault={setMonthlyDefault}
               setWeeklyOverride={setWeeklyOverride}
+              setMonthlyNote={setMonthlyNote}
               copyMonthlyDefaults={copyMonthlyDefaults}
               applyMonthlyDefaults={applyMonthlyDefaults}
               exportMonthlyDefaults={exportMonthlyDefaults}
