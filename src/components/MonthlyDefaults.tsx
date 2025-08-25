@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { Input, Button, Checkbox, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, Link, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider, Dropdown, Option } from "@fluentui/react-components";
+import { Input, Button, Checkbox, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, Link, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider, Dropdown, Option, Tooltip, Textarea } from "@fluentui/react-components";
+import { Note20Regular } from "@fluentui/react-icons";
 import SmartSelect from "./controls/SmartSelect";
 import PersonName from "./PersonName";
 import { exportMonthOneSheetXlsx } from "../excel/export-one-sheet";
@@ -16,10 +17,12 @@ interface MonthlyDefaultsProps {
   segments: SegmentRow[];
   monthlyDefaults: any[];
   monthlyOverrides: any[];
+  monthlyNotes: any[];
   monthlyEditing: boolean;
   setMonthlyEditing: (v: boolean) => void;
   setMonthlyDefault: (personId: number, segment: Segment, roleId: number | null) => void;
   setWeeklyOverride: (personId: number, weekday: number, segment: Segment, roleId: number | null) => void;
+  setMonthlyNote: (personId: number, note: string) => void;
   copyMonthlyDefaults: (fromMonth: string, toMonth: string) => void;
   applyMonthlyDefaults: (month: string) => void;
   exportMonthlyDefaults: (month: string) => void;
@@ -35,10 +38,12 @@ export default function MonthlyDefaults({
   segments,
   monthlyDefaults,
   monthlyOverrides,
+  monthlyNotes,
   monthlyEditing,
   setMonthlyEditing,
   setMonthlyDefault,
   setWeeklyOverride,
+  setMonthlyNote,
   copyMonthlyDefaults,
   applyMonthlyDefaults,
   exportMonthlyDefaults,
@@ -89,6 +94,7 @@ export default function MonthlyDefaults({
   const [activeOnly, setActiveOnly] = useState(false);
   const [commuterOnly, setCommuterOnly] = useState(false);
   const [weekdayPerson, setWeekdayPerson] = useState<number | null>(null);
+  const [notePerson, setNotePerson] = useState<number | null>(null);
 
   const viewPeople = useMemo(() => {
     let filtered = people.filter(p => {
@@ -185,6 +191,29 @@ export default function MonthlyDefaults({
     );
   }
 
+  function NoteModal({ personId, onClose }: { personId: number; onClose: () => void }) {
+    const person = people.find((p) => p.id === personId);
+    if (!person) return null;
+    const existing = monthlyNotes.find((n) => n.person_id === personId)?.note || "";
+    const [text, setText] = useState(existing);
+    return (
+      <Dialog open onOpenChange={(_, d) => { if (!d.open) onClose(); }}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Notes - {person.first_name} {person.last_name}</DialogTitle>
+            <DialogContent>
+              <Textarea value={text} onChange={(_, data) => setText(data.value)} rows={4} />
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="secondary" onClick={onClose}>Cancel</Button>
+              <Button appearance="primary" onClick={() => { setMonthlyNote(personId, text); onClose(); }}>Save</Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+    );
+  }
+
   return (
     <div className={styles.root}>
       <div className={styles.toolbar}>
@@ -243,6 +272,15 @@ export default function MonthlyDefaults({
                       Days{monthlyOverrides.some((o) => o.person_id === p.id) ? "*" : ""}
                     </Link>
                   )}
+                  <Tooltip content={monthlyNotes.find((n) => n.person_id === p.id)?.note || "Add note"} relationship="description">
+                    <Button
+                      appearance="subtle"
+                      size="small"
+                      icon={<Note20Regular />}
+                      aria-label="Notes"
+                      onClick={() => setNotePerson(p.id)}
+                    />
+                  </Tooltip>
                 </TableCell>
                 {segmentNames.map((seg) => {
                   const def = monthlyDefaults.find(
@@ -272,6 +310,9 @@ export default function MonthlyDefaults({
       </div>
       {weekdayPerson !== null && (
         <WeeklyOverrideModal personId={weekdayPerson} onClose={() => setWeekdayPerson(null)} />
+      )}
+      {notePerson !== null && (
+        <NoteModal personId={notePerson} onClose={() => setNotePerson(null)} />
       )}
     </div>
   );
