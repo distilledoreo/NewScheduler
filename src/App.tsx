@@ -675,7 +675,8 @@ export default function App() {
       'First Name',
       ...segments.map(s => `${s.name} Role`),
       'B/S','Commute','Active',
-      'Mon','Tue','Wed','Thu','Fri'
+      'Mon','Tue','Wed','Thu','Fri',
+      'Notes'
     ];
 
     const contrastColor = (hex: string) => {
@@ -712,8 +713,18 @@ export default function App() {
         const bg = group?.custom_color || '';
         const color = bg ? contrastColor(bg) : '';
         const style = bg ? ` style="background:${bg};color:${color};"` : '';
-        return `<td${style}>${escapeHtml(role?.name || '')}</td>`;
+        const overrideStrs: string[] = [];
+        for (let w = 1; w <= 5; w++) {
+          const ov = monthlyOverrides.find(o => o.person_id===p.id && o.weekday===w && o.segment===seg);
+          const ovRole = roles.find(r => r.id===ov?.role_id);
+          if (ovRole && ovRole.id !== def?.role_id) {
+            overrideStrs.push(`${WEEKDAYS[w-1].slice(0,3)}: ${escapeHtml(ovRole.name)}`);
+          }
+        }
+        const overrideHtml = overrideStrs.length ? `<div class="ov">${overrideStrs.join(', ')}</div>` : '';
+        return `<td${style}>${escapeHtml(role?.name || '')}${overrideHtml}</td>`;
       }).join('');
+      const note = monthlyNotes.find(n => n.person_id === p.id)?.note;
       return `<tr>`+
         `<td>${escapeHtml(p.last_name)}</td>`+
         `<td>${escapeHtml(p.first_name)}</td>`+
@@ -726,6 +737,7 @@ export default function App() {
         `<td>${escapeHtml(p.avail_wed)}</td>`+
         `<td>${escapeHtml(p.avail_thu)}</td>`+
         `<td>${escapeHtml(p.avail_fri)}</td>`+
+        `<td>${escapeHtml(note || '')}</td>`+
         `</tr>`;
     }).join('');
 
@@ -736,7 +748,8 @@ export default function App() {
       `table{width:100%;border-collapse:collapse;box-shadow:0 2px 4px rgba(0,0,0,0.1);}\n`+
       `th,td{padding:12px 16px;border-bottom:1px solid #e5e7eb;}\n`+
       `th{background:#111827;color:#fff;position:sticky;top:0;cursor:pointer;}\n`+
-      `tr:nth-child(even){background:#f9fafb;}`;
+      `tr:nth-child(even){background:#f9fafb;}\n`+
+      `.ov{font-size:0.8em;margin-top:4px;}`;
 
     const script = `const getCellValue=(tr,idx)=>tr.children[idx].innerText;\n`+
       `const comparer=(idx,asc)=>((a,b)=>((v1,v2)=>v1!==''&&v2!==''&&!isNaN(v1)&&!isNaN(v2)?v1-v2:v1.localeCompare(v2))(`+
