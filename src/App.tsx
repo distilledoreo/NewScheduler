@@ -674,9 +674,9 @@ export default function App() {
       'Last Name',
       'First Name',
       ...segments.map(s => `${s.name} Role`),
+      'Notes',
       'B/S','Commute','Active',
-      'Mon','Tue','Wed','Thu','Fri',
-      'Notes'
+      'Mon','Tue','Wed','Thu','Fri'
     ];
 
     const contrastColor = (hex: string) => {
@@ -729,6 +729,7 @@ export default function App() {
         `<td>${escapeHtml(p.last_name)}</td>`+
         `<td>${escapeHtml(p.first_name)}</td>`+
         roleTds+
+        `<td>${escapeHtml(note || '')}</td>`+
         `<td>${escapeHtml(p.brother_sister || '')}</td>`+
         `<td>${p.commuter ? 'Yes' : 'No'}</td>`+
         `<td>${p.active ? 'Yes' : 'No'}</td>`+
@@ -737,7 +738,6 @@ export default function App() {
         `<td>${escapeHtml(p.avail_wed)}</td>`+
         `<td>${escapeHtml(p.avail_thu)}</td>`+
         `<td>${escapeHtml(p.avail_fri)}</td>`+
-        `<td>${escapeHtml(note || '')}</td>`+
         `</tr>`;
     }).join('');
 
