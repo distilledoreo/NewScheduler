@@ -26,6 +26,11 @@ function loadExportGroups(): { info: GroupInfo; col1: string[]; col2: string[]; 
     else if (r.column_group === 'kitchen2') col2.push(r.group_name);
     else if (r.column_group === 'dining') dining.push(r.group_name);
   }
+  // Ensure Lunch group is available even if export_group lacks an entry
+  if (!info['Lunch']) {
+    info['Lunch'] = { code: 'LUNCH', color: 'FFF9A8D4', column_group: 'dining' };
+    dining.push('Lunch');
+  }
   return { info, col1, col2, dining };
 }
 
@@ -70,6 +75,10 @@ type DayRow = WithAvail & {
 // Buckets: regular/commuter -> groupCode -> personName -> { AM days, PM days, roles list (for display) }
 type Buckets = Record<'regular'|'commuter',
   Record<string, Record<string, { AM: Set<DayLetter>; PM: Set<DayLetter>; roles: Set<string> }>>
+>;
+
+type LunchBuckets = Record<'regular'|'commuter',
+  Record<string, Record<string, { days: Set<DayLetter>; roles: Set<string> }>>
 >;
 
 // ---------- DB helpers ----------
@@ -162,6 +171,11 @@ function isAllowedByAvail(day: DayLetter, seg: Seg, row: WithAvail): boolean {
   return ac === seg;
 }
 
+function isAllowedForLunch(day: DayLetter, row: WithAvail): boolean {
+  const ac = availCodeFor(day, row);
+  return ac === 'AM' || ac === 'PM' || ac === 'B';
+}
+
 export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   requireDb();
 
@@ -216,8 +230,10 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   for (const row of perDays) {
     const dayLetter = weekdayToLetter(row.weekday);
     if (!dayLetter) continue;
+    const segNorm = (row.segment || '').toString().trim().toUpperCase();
+    if (segNorm === 'LUNCH') continue;
 
-    const segs = expandSegments(row.segment);
+    const segs = expandSegments(segNorm);
     for (const s of segs) {
       if (!isAllowedByAvail(dayLetter, s, row)) continue; // skip days not allowed by availability
 
@@ -247,8 +263,10 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   for (const row of defaults) {
     const code = GROUP_INFO[row.group_name]?.code;
     if (!code) continue;
+    const segNorm = (row.segment || '').toString().trim().toUpperCase();
+    if (segNorm === 'LUNCH') continue;
 
-    const segs = expandSegments(row.segment);
+    const segs = expandSegments(segNorm);
     for (const s of segs) {
       const dayMap = perDayMap.get(psKey(row.person_id, s));
 
@@ -424,6 +442,179 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     paneState.dining = afterRegular + 1;
 
     renderSection('commuter');
+  }
+
+  // ---------- Lunch jobs sheet ----------
+  const lunchDefaults = all<DefaultRow>(
+    `SELECT md.person_id, md.segment,
+            g.name AS group_name, r.id AS role_id, r.name AS role_name,
+            (p.last_name || ', ' || p.first_name) AS person,
+            p.commuter AS commuter,
+            p.avail_mon, p.avail_tue, p.avail_wed, p.avail_thu, p.avail_fri,
+            md.month as month
+       FROM monthly_default md
+      JOIN role r ON r.id = md.role_id
+      JOIN grp  g ON g.id = r.group_id
+      JOIN person p ON p.id = md.person_id
+      WHERE ${mdMonth.where} AND p.active = 1 AND TRIM(UPPER(md.segment)) = 'LUNCH'
+      ORDER BY g.name, person`,
+    mdMonth.params
+  );
+
+  const lunchPerDays = all<DayRow>(
+    `SELECT mdd.person_id, mdd.weekday, mdd.segment,
+            g.name AS group_name, r.id AS role_id, r.name AS role_name,
+            (p.last_name || ', ' || p.first_name) AS person,
+            p.commuter AS commuter,
+            p.avail_mon, p.avail_tue, p.avail_wed, p.avail_thu, p.avail_fri,
+            mdd.month as month
+       FROM monthly_default_day mdd
+      JOIN role r ON r.id = mdd.role_id
+      JOIN grp  g ON g.id = r.group_id
+      JOIN person p ON p.id = mdd.person_id
+      WHERE ${mddMonth.where} AND p.active = 1 AND TRIM(UPPER(mdd.segment)) = 'LUNCH'`,
+    mddMonth.params
+  );
+
+  const lunchBuckets: LunchBuckets = { regular: {}, commuter: {} };
+  const lunchPerDayMap = new Map<number, Map<DayLetter, number>>();
+
+  for (const row of lunchPerDays) {
+    const dayLetter = weekdayToLetter(row.weekday);
+    if (!dayLetter) continue;
+    if (!isAllowedForLunch(dayLetter, row)) continue;
+    const code = GROUP_INFO[row.group_name]?.code;
+    if (!code) continue;
+    const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
+    const groupBucket = lunchBuckets[kind][code] || (lunchBuckets[kind][code] = {});
+    const personBucket = groupBucket[row.person] || (groupBucket[row.person] = { days: new Set<DayLetter>(), roles: new Set<string>() });
+    personBucket.roles.add(row.role_name);
+    personBucket.days.add(dayLetter);
+    let dayMap = lunchPerDayMap.get(row.person_id);
+    if (!dayMap) {
+      dayMap = new Map<DayLetter, number>();
+      lunchPerDayMap.set(row.person_id, dayMap);
+    }
+    dayMap.set(dayLetter, row.role_id);
+  }
+
+  for (const row of lunchDefaults) {
+    const code = GROUP_INFO[row.group_name]?.code;
+    if (!code) continue;
+    const dayMap = lunchPerDayMap.get(row.person_id);
+    const keepLetters: DayLetter[] = [];
+    for (const d of DAY_ORDER) {
+      if (!isAllowedForLunch(d, row)) continue;
+      const overriddenRoleId = dayMap?.get(d);
+      if (overriddenRoleId == null || overriddenRoleId === row.role_id) {
+        keepLetters.push(d);
+      }
+    }
+    if (keepLetters.length === 0) continue;
+    const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
+    const groupBucket = lunchBuckets[kind][code] || (lunchBuckets[kind][code] = {});
+    const personBucket = groupBucket[row.person] || (groupBucket[row.person] = { days: new Set<DayLetter>(), roles: new Set<string>() });
+    personBucket.roles.add(row.role_name);
+    for (const d of keepLetters) personBucket.days.add(d);
+  }
+
+  const wsL = wb.addWorksheet('Lunch Jobs', {
+    pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
+  });
+  wsL.columns = [
+    { width: 30 }, { width: 20 }, { width: 10 }, { width: 18 }
+  ];
+
+  wsL.mergeCells(1, 1, 1, 4);
+  const lunchTitle = wsL.getCell(1, 1);
+  lunchTitle.value = `Lunch Jobs — ${titleText}`;
+  lunchTitle.font = { bold: true, size: 18, name: 'Calibri' };
+  lunchTitle.alignment = { horizontal: 'center' };
+
+  let lunchRow = 2;
+
+  function renderLunchBlock(group: string, people: Record<string, { days: Set<DayLetter>; roles: Set<string> }>) {
+    if (!people || !Object.keys(people).length) return;
+    wsL.mergeCells(lunchRow, 1, lunchRow, 4);
+    const hcell = wsL.getCell(lunchRow, 1);
+    hcell.value = group;
+    hcell.alignment = { horizontal: 'left' };
+    const fill = GROUP_INFO[group]?.color || 'FFEFEFEF';
+    hcell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
+    for (let c = 1; c <= 4; c++) {
+      wsL.getCell(lunchRow, c).font = { bold: true, size: 18 };
+    }
+    setRowBorders(wsL.getRow(lunchRow), 1, 4);
+
+    function simplifyRole(role: string): string | null {
+      if (role === group) return null;
+      const prefix = group + ' ';
+      if (role.startsWith(prefix)) {
+        return role.slice(prefix.length);
+      }
+      return role;
+    }
+
+    let r = lunchRow + 1;
+    const names = Object.keys(people).sort((a, b) => a.localeCompare(b));
+    for (const name of names) {
+      const info = people[name];
+      wsL.getCell(r, 1).value = name;
+      const roleNames = Array.from(info.roles)
+        .map(simplifyRole)
+        .filter((v): v is string => Boolean(v));
+      const roleText = Array.from(new Set(roleNames)).sort().join('/');
+      wsL.getCell(r, 2).value = roleText;
+      wsL.getCell(r, 3).value = 'Lunch';
+      const dayList = DAY_ORDER.filter(d => info.days.has(d));
+      const days = dayList.length === DAY_ORDER.length ? 'Full-Time' : dayList.join('/');
+      wsL.getCell(r, 4).value = days;
+      for (let c = 1; c <= 4; c++) {
+        wsL.getCell(r, c).font = { size: 16 };
+      }
+      setRowBorders(wsL.getRow(r), 1, 4);
+      r++;
+    }
+    lunchRow = r;
+  }
+
+  function renderLunchSection(kind: 'regular' | 'commuter') {
+    for (const g of KITCHEN_COL1_GROUPS) {
+      const code = GROUP_INFO[g]?.code;
+      if (!code) continue;
+      const people = lunchBuckets[kind][code];
+      if (people && Object.keys(people).length) renderLunchBlock(g, people);
+    }
+    for (const g of KITCHEN_COL2_GROUPS) {
+      const code = GROUP_INFO[g]?.code;
+      if (!code) continue;
+      const people = lunchBuckets[kind][code];
+      if (people && Object.keys(people).length) renderLunchBlock(g, people);
+    }
+    for (const g of DINING_GROUPS) {
+      const code = GROUP_INFO[g]?.code;
+      if (!code) continue;
+      const people = lunchBuckets[kind][code];
+      if (people && Object.keys(people).length) renderLunchBlock(g, people);
+    }
+  }
+
+  renderLunchSection('regular');
+
+  const lunchHasAny = (kind: 'regular' | 'commuter') =>
+    Object.values(lunchBuckets[kind]).some(groupMap => groupMap && Object.keys(groupMap).length);
+
+  if (lunchHasAny('commuter')) {
+    wsL.mergeCells(lunchRow, 1, lunchRow, 4);
+    const commCell = wsL.getCell(lunchRow, 1);
+    commCell.value = 'COMMUTERS';
+    commCell.font = { bold: true, size: 18 };
+    commCell.alignment = { horizontal: 'left' };
+    commCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFEFEF' } };
+    commCell.border = { top: { style: 'thick' } };
+    lunchRow += 1;
+
+    renderLunchSection('commuter');
   }
 
   const buffer = await wb.xlsx.writeBuffer();
