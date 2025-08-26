@@ -26,6 +26,11 @@ function loadExportGroups(): { info: GroupInfo; col1: string[]; col2: string[]; 
     else if (r.column_group === 'kitchen2') col2.push(r.group_name);
     else if (r.column_group === 'dining') dining.push(r.group_name);
   }
+  // Ensure Lunch group is available even if export_group lacks an entry
+  if (!info['Lunch']) {
+    info['Lunch'] = { code: 'LUNCH', color: 'FFF9A8D4', column_group: 'dining' };
+    dining.push('Lunch');
+  }
   return { info, col1, col2, dining };
 }
 
@@ -447,7 +452,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
       JOIN role r ON r.id = md.role_id
       JOIN grp  g ON g.id = r.group_id
       JOIN person p ON p.id = md.person_id
-      WHERE ${mdMonth.where} AND p.active = 1 AND UPPER(md.segment) = 'LUNCH'
+      WHERE ${mdMonth.where} AND p.active = 1 AND TRIM(UPPER(md.segment)) = 'LUNCH'
       ORDER BY g.name, person`,
     mdMonth.params
   );
@@ -463,7 +468,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
       JOIN role r ON r.id = mdd.role_id
       JOIN grp  g ON g.id = r.group_id
       JOIN person p ON p.id = mdd.person_id
-      WHERE ${mddMonth.where} AND p.active = 1 AND UPPER(mdd.segment) = 'LUNCH'`,
+      WHERE ${mddMonth.where} AND p.active = 1 AND TRIM(UPPER(mdd.segment)) = 'LUNCH'`,
     mddMonth.params
   );
 
