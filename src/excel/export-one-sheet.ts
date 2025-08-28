@@ -1,4 +1,5 @@
 import { loadExcelJS } from './exceljs-loader';
+import { availabilityFor } from '../services/availability';
 
 type ExportGroupRow = {
   group_name: string;
@@ -152,26 +153,29 @@ function weekdayToLetter(weekday: number): DayLetter | undefined {
   return undefined;
 }
 
-/** Get availability code for a given day letter. Returns uppercased 'AM' | 'PM' | 'B' | '' */
-function availCodeFor(day: DayLetter, row: WithAvail): string {
-  const raw =
-    day === 'M'  ? row.avail_mon :
-    day === 'T'  ? row.avail_tue :
-    day === 'W'  ? row.avail_wed :
-    day === 'TH' ? row.avail_thu :
-                   row.avail_fri;
-  return (raw || '').toString().trim().toUpperCase();
+function dateForDay(month: string, day: DayLetter): Date {
+  const [y, m] = month.split('-').map((n) => parseInt(n, 10));
+  const first = new Date(y, m - 1, 1);
+  const target = day === 'M' ? 1 : day === 'T' ? 2 : day === 'W' ? 3 : day === 'TH' ? 4 : 5;
+  const diff = (target - first.getDay() + 7) % 7;
+  return new Date(y, m - 1, 1 + diff);
+}
+
+/** Get availability code for a given day letter using overrides. */
+function availCodeFor(day: DayLetter, row: WithAvail & { person_id: number; month: string }): string {
+  const db = requireDb();
+  const date = dateForDay(row.month, day);
+  return availabilityFor(db, row.person_id, date);
 }
 
 /** Whether this segment is allowed by availability for the given day. */
-function isAllowedByAvail(day: DayLetter, seg: Seg, row: WithAvail): boolean {
+function isAllowedByAvail(day: DayLetter, seg: Seg, row: WithAvail & { person_id: number; month: string }): boolean {
   const ac = availCodeFor(day, row);
-  if (!ac) return false;
   if (ac === 'B') return true;
   return ac === seg;
 }
 
-function isAllowedForLunch(day: DayLetter, row: WithAvail): boolean {
+function isAllowedForLunch(day: DayLetter, row: WithAvail & { person_id: number; month: string }): boolean {
   const ac = availCodeFor(day, row);
   return ac === 'AM' || ac === 'PM' || ac === 'B';
 }
