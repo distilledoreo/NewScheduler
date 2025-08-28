@@ -1104,6 +1104,10 @@ function PeopleEditor(){
   const [editing,setEditing] = useState<any|null>(null);
   const [qualifications,setQualifications] = useState<Set<number>>(new Set());
   const [showModal,setShowModal] = useState(false);
+  const [showBulk,setShowBulk] = useState(false);
+  const [bulkAction,setBulkAction] = useState<'add'|'remove'>('add');
+  const [bulkPeople,setBulkPeople] = useState<Set<number>>(new Set());
+  const [bulkRoles,setBulkRoles] = useState<Set<number>>(new Set());
 
   // Query all people, including inactive entries, so they can be edited
   const people = all(`SELECT * FROM person ORDER BY last_name, first_name`);
@@ -1145,6 +1149,33 @@ function PeopleEditor(){
     closeModal();
   }
 
+  function closeBulk(){
+    setShowBulk(false);
+    setBulkPeople(new Set());
+    setBulkRoles(new Set());
+    setBulkAction('add');
+  }
+
+  function applyBulk(){
+    for(const pid of bulkPeople){
+      if(bulkAction==='add'){
+        for(const rid of bulkRoles){
+          run(
+            `INSERT INTO training (person_id, role_id, status, source) VALUES (?,?, 'Qualified', 'manual')
+             ON CONFLICT(person_id, role_id) DO UPDATE SET status='Qualified', source='manual'`,
+            [pid, rid]
+          );
+        }
+      } else {
+        for(const rid of bulkRoles){
+          run(`DELETE FROM training WHERE person_id=? AND role_id=? AND source='manual'`, [pid, rid]);
+        }
+      }
+    }
+    refreshCaches();
+    closeBulk();
+  }
+
     const useStyles = makeStyles({
     root: { padding: tokens.spacingHorizontalM },
     tableWrap: {
@@ -1168,6 +1199,7 @@ function PeopleEditor(){
     col2: { gridColumn: 'span 2' },
     col3: { gridColumn: 'span 3' },
     col4: { gridColumn: 'span 4' },
+    col6: { gridColumn: 'span 6' },
     centerRow: { display: 'flex', alignItems: 'center' },
     smallLabel: { color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS, fontSize: tokens.fontSizeBase200 },
     qualGrid: {
@@ -1191,7 +1223,10 @@ function PeopleEditor(){
       <div className="w-full">
         <div className={s.header}>
           <div className={s.title}>People</div>
-          <Button appearance="primary" onClick={()=>openModal()}>Add Person</Button>
+          <div className={s.actions}>
+            <Button appearance="secondary" onClick={()=>setShowBulk(true)}>Bulk Edit Qualifications</Button>
+            <Button appearance="primary" onClick={()=>openModal()}>Add Person</Button>
+          </div>
         </div>
 
         <div className={s.tableWrap}>
@@ -1232,6 +1267,66 @@ function PeopleEditor(){
           </Table>
         </div>
       </div>
+      <Dialog open={showBulk} onOpenChange={(_, d) => setShowBulk(d.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Bulk Edit Qualifications</DialogTitle>
+            <DialogContent>
+              <div className={s.formGrid}>
+                <div className={s.col6}>
+                  <div className={s.smallLabel}>People</div>
+                  <Dropdown
+                    multiselect
+                    selectedOptions={[...bulkPeople].map(String)}
+                    onOptionSelect={(_, data) =>
+                      setBulkPeople(new Set((data.selectedOptions as string[]).map(Number)))
+                    }
+                  >
+                    {people.map((p: any) => (
+                      <Option key={p.id} value={String(p.id)}>
+                        {p.last_name}, {p.first_name}
+                      </Option>
+                    ))}
+                  </Dropdown>
+                </div>
+                <div className={s.col6}>
+                  <div className={s.smallLabel}>Action</div>
+                  <Dropdown
+                    selectedOptions={[bulkAction]}
+                    onOptionSelect={(_, data) =>
+                      setBulkAction((data.optionValue ?? data.optionText) as 'add' | 'remove')
+                    }
+                  >
+                    <Option value="add">Add</Option>
+                    <Option value="remove">Remove</Option>
+                  </Dropdown>
+                </div>
+              </div>
+              <div>
+                <div className={s.smallLabel}>Roles</div>
+                <div className={s.qualGrid}>
+                  {roles.map((r: any) => (
+                    <Checkbox
+                      key={r.id}
+                      label={r.name}
+                      checked={bulkRoles.has(r.id)}
+                      onChange={(_, data) => {
+                        const next = new Set(bulkRoles);
+                        if (data.checked) next.add(r.id); else next.delete(r.id);
+                        setBulkRoles(next);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={closeBulk}>Cancel</Button>
+              <Button appearance="primary" onClick={applyBulk}>Apply</Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
 
       <Dialog open={showModal} onOpenChange={(_, d) => setShowModal(d.open)}>
         <DialogSurface>
