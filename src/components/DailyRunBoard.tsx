@@ -333,11 +333,21 @@ export default function DailyRunBoard({
     for (const srow of segments) {
       map[srow.name] = { start: mk(srow.start_time), end: mk(srow.end_time) };
     }
-    const rows = all(`SELECT DISTINCT segment FROM assignment WHERE date=?`, [ymd(selectedDateObj)]);
-    const present = new Set(rows.map((r: any) => r.segment));
+    const rows = all(`SELECT segment, role_id FROM assignment WHERE date=?`, [ymd(selectedDateObj)]);
+    const segRoleMap = new Map<string, Set<number>>();
+    for (const r of rows) {
+      let set = segRoleMap.get(r.segment);
+      if (!set) {
+        set = new Set<number>();
+        segRoleMap.set(r.segment, set);
+      }
+      set.add(r.role_id);
+    }
     const addMinutes = (d: Date, mins: number) => new Date(d.getTime() + mins * 60000);
     for (const adj of segmentAdjustments) {
-      if (!present.has(adj.condition_segment)) continue;
+      const roles = segRoleMap.get(adj.condition_segment);
+      if (!roles) continue;
+      if (adj.condition_role_id != null && !roles.has(adj.condition_role_id)) continue;
       const target = map[adj.target_segment];
       if (!target) continue;
       const cond = map[adj.condition_segment];
@@ -497,11 +507,21 @@ export default function DailyRunBoard({
       for (const srow of segments) {
         map[srow.name] = { start: mk(srow.start_time), end: mk(srow.end_time) };
       }
-      const rows = all(`SELECT DISTINCT segment FROM assignment WHERE date=?`, [ymd(selectedDateObj)]);
-      const present = new Set(rows.map((r: any) => r.segment));
+      const rows = all(`SELECT segment, role_id FROM assignment WHERE date=?`, [ymd(selectedDateObj)]);
+      const segRoleMap = new Map<string, Set<number>>();
+      for (const r of rows) {
+        let set = segRoleMap.get(r.segment);
+        if (!set) {
+          set = new Set<number>();
+          segRoleMap.set(r.segment, set);
+        }
+        set.add(r.role_id);
+      }
       const addMinutes = (d: Date, mins: number) => new Date(d.getTime() + mins * 60000);
       for (const adj of segmentAdjustments) {
-        if (!present.has(adj.condition_segment)) continue;
+        const roles = segRoleMap.get(adj.condition_segment);
+        if (!roles) continue;
+        if (adj.condition_role_id != null && !roles.has(adj.condition_role_id)) continue;
         const target = map[adj.target_segment];
         if (!target) continue;
         const cond = map[adj.condition_segment];

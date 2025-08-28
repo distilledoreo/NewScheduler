@@ -35,6 +35,7 @@ const baselineOpts = [
 export default function SegmentAdjustmentEditor({ all, run, refresh, segments }: Props) {
   const empty: Omit<SegmentAdjustmentRow, "id"> = {
     condition_segment: "",
+    condition_role_id: null,
     target_segment: "",
     target_field: "start",
     baseline: "condition.start",
@@ -44,9 +45,11 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
   const [editing, setEditing] = useState<any | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const [form, setForm] = useState<typeof empty>(empty);
+  const [roles, setRoles] = useState<any[]>([]);
 
   function load() {
-    setRows(all(`SELECT id,condition_segment,target_segment,target_field,baseline,offset_minutes FROM segment_adjustment`));
+    setRows(all(`SELECT id,condition_segment,condition_role_id,target_segment,target_field,baseline,offset_minutes FROM segment_adjustment`));
+    setRoles(all(`SELECT id,name FROM role ORDER BY name`));
   }
   useEffect(load, []);
 
@@ -60,6 +63,7 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
     setEditing(r);
     setForm({
       condition_segment: r.condition_segment,
+      condition_role_id: r.condition_role_id ?? null,
       target_segment: r.target_segment,
       target_field: r.target_field,
       baseline: r.baseline,
@@ -75,6 +79,7 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
     }
     const params = [
       form.condition_segment,
+      form.condition_role_id,
       form.target_segment,
       form.target_field,
       form.baseline,
@@ -82,12 +87,12 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
     ];
     if (editing) {
       run(
-        `UPDATE segment_adjustment SET condition_segment=?, target_segment=?, target_field=?, baseline=?, offset_minutes=? WHERE id=?`,
+        `UPDATE segment_adjustment SET condition_segment=?, condition_role_id=?, target_segment=?, target_field=?, baseline=?, offset_minutes=? WHERE id=?`,
         [...params, editing.id]
       );
     } else {
       run(
-        `INSERT INTO segment_adjustment (condition_segment,target_segment,target_field,baseline,offset_minutes) VALUES (?,?,?,?,?)`,
+        `INSERT INTO segment_adjustment (condition_segment,condition_role_id,target_segment,target_field,baseline,offset_minutes) VALUES (?,?,?,?,?,?)`,
         params
       );
     }
@@ -139,7 +144,8 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
         <Table aria-label="Segment adjustments">
           <TableHeader>
             <TableRow>
-              <TableHeaderCell>Condition</TableHeaderCell>
+              <TableHeaderCell>Condition Segment</TableHeaderCell>
+              <TableHeaderCell>Condition Role</TableHeaderCell>
               <TableHeaderCell>Target</TableHeaderCell>
               <TableHeaderCell>Field</TableHeaderCell>
               <TableHeaderCell>Baseline</TableHeaderCell>
@@ -151,6 +157,7 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
             {rows.map((r: any) => (
               <TableRow key={r.id}>
                 <TableCell>{r.condition_segment}</TableCell>
+                <TableCell>{roles.find((ro:any)=>ro.id===r.condition_role_id)?.name || ""}</TableCell>
                 <TableCell>{r.target_segment}</TableCell>
                 <TableCell>{r.target_field}</TableCell>
                 <TableCell>{r.baseline}</TableCell>
@@ -181,6 +188,21 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
                 {segments.map((sg) => (
                   <Option key={sg.name} value={sg.name}>
                     {sg.name}
+                  </Option>
+                ))}
+              </Dropdown>
+            </Field>
+            <Field label="Condition Role" className={s.flex1}>
+              <Dropdown
+                selectedOptions={[form.condition_role_id == null ? "" : String(form.condition_role_id)]}
+                onOptionSelect={(_, d) =>
+                  setForm({ ...form, condition_role_id: d.optionValue ? Number(d.optionValue) : null })
+                }
+              >
+                <Option value="">Any</Option>
+                {roles.map((ro: any) => (
+                  <Option key={ro.id} value={String(ro.id)}>
+                    {ro.name}
                   </Option>
                 ))}
               </Dropdown>

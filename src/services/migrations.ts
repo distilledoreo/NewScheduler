@@ -99,6 +99,12 @@ export const migrate14AddSegmentAdjustment: Migration = (db) => {
     `);
 };
 
+export const migrate15AddSegmentAdjustmentRole: Migration = (db) => {
+  try {
+    db.run(`ALTER TABLE segment_adjustment ADD COLUMN condition_role_id INTEGER REFERENCES role(id);`);
+  } catch {}
+};
+
 export const migrate6AddExportGroup: Migration = (db) => {
   db.run(`CREATE TABLE IF NOT EXISTS export_group (
       group_id INTEGER PRIMARY KEY,
@@ -600,6 +606,7 @@ const migrations: Record<number, Migration> = {
   12: migrate12AddMonthlyNotes,
   13: migrate13AddAvailabilityOverride,
   14: migrate14AddSegmentAdjustment,
+  15: migrate15AddSegmentAdjustmentRole,
 };
 
 export function addMigration(version: number, fn: Migration) {

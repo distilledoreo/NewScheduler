@@ -499,9 +499,19 @@ export default function App() {
     }
 
     const assigns = listAssignmentsForDate(fmtDateMDY(date));
-    const present = new Set(assigns.map((a: any) => a.segment));
+    const segRoleMap = new Map<string, Set<number>>();
+    for (const a of assigns) {
+      let set = segRoleMap.get(a.segment);
+      if (!set) {
+        set = new Set<number>();
+        segRoleMap.set(a.segment, set);
+      }
+      set.add(a.role_id);
+    }
     for (const adj of segmentAdjustments) {
-      if (!present.has(adj.condition_segment)) continue;
+      const roles = segRoleMap.get(adj.condition_segment);
+      if (!roles) continue;
+      if (adj.condition_role_id != null && !roles.has(adj.condition_role_id)) continue;
       const target = out[adj.target_segment];
       if (!target) continue;
       const cond = out[adj.condition_segment];
