@@ -1518,7 +1518,7 @@ function PeopleEditor(){
           )}
           {activeTab === 'ADMIN' && (
             <Suspense fallback={<div className="p-4 text-slate-600">Loading Admin…</div>}>
-              <AdminView all={all} run={run} refresh={refreshCaches} segments={segments} />
+              <AdminView sqlDb={sqlDb} all={all} run={run} refresh={refreshCaches} segments={segments} />
             </Suspense>
           )}
         </>
