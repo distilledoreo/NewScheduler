@@ -32,6 +32,13 @@ const baselineOpts = [
   { value: "target.end", label: "Target End" },
 ];
 
+const mins = (t: string) => {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+};
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const fmt = (m: number) => `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`;
+
 export default function SegmentAdjustmentEditor({ all, run, refresh, segments }: Props) {
   const empty: Omit<SegmentAdjustmentRow, "id"> = {
     condition_segment: "",
@@ -46,6 +53,46 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
   const [formVisible, setFormVisible] = useState(false);
   const [form, setForm] = useState<typeof empty>(empty);
   const [roles, setRoles] = useState<any[]>([]);
+
+  const condSeg = segments.find((s) => s.name === form.condition_segment);
+  const targetSeg = segments.find((s) => s.name === form.target_segment);
+  let preview: {
+    condStart: number;
+    condEnd: number;
+    targetStart: number;
+    targetEnd: number;
+    newStart: number;
+    newEnd: number;
+  } | null = null;
+  if (condSeg && targetSeg) {
+    const condStart = mins(condSeg.start_time);
+    const condEnd = mins(condSeg.end_time);
+    const targetStart = mins(targetSeg.start_time);
+    const targetEnd = mins(targetSeg.end_time);
+    let base: number | null = null;
+    switch (form.baseline) {
+      case "condition.start":
+        base = condStart;
+        break;
+      case "condition.end":
+        base = condEnd;
+        break;
+      case "target.start":
+        base = targetStart;
+        break;
+      case "target.end":
+        base = targetEnd;
+        break;
+    }
+    if (base != null) {
+      const adj = base + form.offset_minutes;
+      let newStart = targetStart;
+      let newEnd = targetEnd;
+      if (form.target_field === "start") newStart = adj;
+      else newEnd = adj;
+      preview = { condStart, condEnd, targetStart, targetEnd, newStart, newEnd };
+    }
+  }
 
   function load() {
     setRows(all(`SELECT id,condition_segment,condition_role_id,target_segment,target_field,baseline,offset_minutes FROM segment_adjustment`));
@@ -129,6 +176,11 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
     flex1: { flex: 1 },
     actionsRow: { display: "flex", gap: tokens.spacingHorizontalS, justifyContent: "flex-end" },
     number: { width: "12ch" },
+    previewWrap: { display: "flex", flexDirection: "column", rowGap: tokens.spacingVerticalXS, marginTop: tokens.spacingVerticalS },
+    timeline: { position: "relative", height: 8, background: tokens.colorNeutralBackground5, borderRadius: tokens.borderRadiusSmall },
+    condBar: { position: "absolute", top: 0, bottom: 0, background: tokens.colorNeutralForeground3, opacity: 0.3 },
+    targetBar: { position: "absolute", top: 0, bottom: 0, background: tokens.colorNeutralForeground2, opacity: 0.4 },
+    adjustedBar: { position: "absolute", top: 0, bottom: 0, background: tokens.colorBrandBackground },
   });
   const s = useStyles();
 
@@ -256,6 +308,37 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
               />
             </Field>
           </div>
+          {preview && (
+            <div className={s.previewWrap}>
+              <Text size={200}>Preview</Text>
+              <div className={s.timeline}>
+                <div
+                  className={s.condBar}
+                  style={{
+                    left: `${(preview.condStart / (24 * 60)) * 100}%`,
+                    width: `${((preview.condEnd - preview.condStart) / (24 * 60)) * 100}%`,
+                  }}
+                />
+                <div
+                  className={s.targetBar}
+                  style={{
+                    left: `${(preview.targetStart / (24 * 60)) * 100}%`,
+                    width: `${((preview.targetEnd - preview.targetStart) / (24 * 60)) * 100}%`,
+                  }}
+                />
+                <div
+                  className={s.adjustedBar}
+                  style={{
+                    left: `${(preview.newStart / (24 * 60)) * 100}%`,
+                    width: `${((preview.newEnd - preview.newStart) / (24 * 60)) * 100}%`,
+                  }}
+                />
+              </div>
+              <Text size={200}>
+                {form.target_segment}: {fmt(preview.targetStart)}-{fmt(preview.targetEnd)} → {fmt(preview.newStart)}-{fmt(preview.newEnd)}
+              </Text>
+            </div>
+          )}
           <div className={s.row}>
             <Button appearance="primary" onClick={save}>
               Save
