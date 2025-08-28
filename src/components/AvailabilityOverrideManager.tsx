@@ -32,6 +32,10 @@ function ymd(d: Date) {
   ).padStart(2, "0")}`;
 }
 
+function parseDate(s: string) {
+  return new Date(`${s}T00:00:00`);
+}
+
 function startOfWeek(d: Date) {
   const day = d.getDay();
   const diff = (day + 6) % 7;
@@ -102,7 +106,7 @@ export default function AvailabilityOverrideManager({
 
   React.useEffect(() => {
     if (personId == null) return;
-    const start = startOfWeek(new Date(weekDate));
+    const start = startOfWeek(parseDate(weekDate));
     const end = new Date(start);
     end.setDate(start.getDate() + 4);
     const res = all(
@@ -112,7 +116,7 @@ export default function AvailabilityOverrideManager({
     const vals: Availability[] = ["B", "B", "B", "B", "B"];
     res.forEach((r: any) => {
       const idx = Math.floor(
-        (new Date(r.date).getTime() - start.getTime()) / (24 * 60 * 60 * 1000)
+        (parseDate(r.date).getTime() - start.getTime()) / (24 * 60 * 60 * 1000)
       );
       if (idx >= 0 && idx < 5) vals[idx] = r.avail as Availability;
     });
@@ -121,7 +125,7 @@ export default function AvailabilityOverrideManager({
 
   function updateWeek() {
     if (!sqlDb || personId == null) return;
-    const start = startOfWeek(new Date(weekDate));
+    const start = startOfWeek(parseDate(weekDate));
     for (let i = 0; i < 5; i++) {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
