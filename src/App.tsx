@@ -429,8 +429,13 @@ export default function App() {
     // Only adjust manual-sourced entries; preserve monthly-derived training which reflects history
     run(`DELETE FROM training WHERE person_id=? AND source='manual'`, [personId]);
     for (const rid of rolesSet) {
-      run(`INSERT INTO training (person_id, role_id, status, source) VALUES (?,?, 'Qualified', 'manual')`, [personId, rid]);
+      run(
+        `INSERT INTO training (person_id, role_id, status, source) VALUES (?,?, 'Qualified', 'manual')
+         ON CONFLICT(person_id, role_id) DO UPDATE SET status='Qualified', source='manual'`,
+        [personId, rid]
+      );
     }
+    refreshCaches();
   }
 
   // Assignments
