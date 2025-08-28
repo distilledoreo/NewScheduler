@@ -1,6 +1,7 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { applyMigrations } from "./services/migrations";
 import { listSegments, type Segment, type SegmentRow } from "./services/segments";
+import { listSegmentAdjustments, type SegmentAdjustmentRow } from "./services/segmentAdjustments";
 import { availabilityFor } from "./services/availability";
 import SideRail from "./components/SideRail";
 import TopBar from "./components/TopBar";
@@ -136,6 +137,7 @@ export default function App() {
   const [roles, setRoles] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [segments, setSegments] = useState<SegmentRow[]>([]);
+  const [segmentAdjustments, setSegmentAdjustments] = useState<SegmentAdjustmentRow[]>([]);
 
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const d = new Date();
@@ -366,6 +368,8 @@ export default function App() {
     setPeople(p);
     const s = listSegments(db);
     setSegments(s);
+    const adj = listSegmentAdjustments(db);
+    setSegmentAdjustments(adj);
   // Keep training in sync with monthly defaults; does not affect manual entries
   syncTrainingFromMonthly(db);
   }
@@ -495,15 +499,31 @@ export default function App() {
     }
 
     const assigns = listAssignmentsForDate(fmtDateMDY(date));
-    const hasLunch = assigns.some((a: any) => a.segment === "Lunch");
-    const hasEarly = assigns.some((a: any) => a.segment === "Early");
-
-    if (hasLunch && out["Lunch"]) {
-      if (out["AM"]) out["AM"].end = out["Lunch"].start;
-      if (out["PM"]) out["PM"].start = addMinutes(out["Lunch"].end, 60);
+    const segRoleMap = new Map<string, Set<number>>();
+    for (const a of assigns) {
+      let set = segRoleMap.get(a.segment);
+      if (!set) {
+        set = new Set<number>();
+        segRoleMap.set(a.segment, set);
+      }
+      set.add(a.role_id);
     }
-    if (hasEarly && out["PM"]) {
-      out["PM"].end = addMinutes(out["PM"].end, -60);
+    for (const adj of segmentAdjustments) {
+      const roles = segRoleMap.get(adj.condition_segment);
+      if (!roles) continue;
+      if (adj.condition_role_id != null && !roles.has(adj.condition_role_id)) continue;
+      const target = out[adj.target_segment];
+      if (!target) continue;
+      const cond = out[adj.condition_segment];
+      let base: Date | undefined;
+      switch (adj.baseline) {
+        case 'condition.start': base = cond?.start; break;
+        case 'condition.end': base = cond?.end; break;
+        case 'target.start': base = target.start; break;
+        case 'target.end': base = target.end; break;
+      }
+      if (!base) continue;
+      target[adj.target_field] = addMinutes(base, adj.offset_minutes);
     }
 
     return out;
@@ -1437,6 +1457,7 @@ function PeopleEditor(){
                   addAssignment={addAssignment}
                   deleteAssignment={deleteAssignment}
                   isDark={themeName === "dark"}
+                  segmentAdjustments={segmentAdjustments}
                 />
               </Suspense>
             )}

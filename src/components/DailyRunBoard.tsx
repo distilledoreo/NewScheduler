@@ -3,6 +3,7 @@ import GridLayout, { WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import type { Segment, SegmentRow } from "../services/segments";
+import type { SegmentAdjustmentRow } from "../services/segmentAdjustments";
 import "../styles/scrollbar.css";
 import PersonName from "./PersonName";
 import {
@@ -201,6 +202,7 @@ interface DailyRunBoardProps {
   ) => void;
   deleteAssignment: (id: number) => void;
   isDark: boolean;
+  segmentAdjustments: SegmentAdjustmentRow[];
 }
 
 export default function DailyRunBoard({
@@ -225,6 +227,7 @@ export default function DailyRunBoard({
   addAssignment,
   deleteAssignment,
   isDark,
+  segmentAdjustments,
 }: DailyRunBoardProps) {
   // Height of each react-grid-layout row in pixels. Increase to make group cards taller.
   const RGL_ROW_HEIGHT = 110;
@@ -330,20 +333,36 @@ export default function DailyRunBoard({
     for (const srow of segments) {
       map[srow.name] = { start: mk(srow.start_time), end: mk(srow.end_time) };
     }
-    // Detect Lunch/Early presence on date
-    const rows = all(`SELECT DISTINCT segment FROM assignment WHERE date=?`, [ymd(selectedDateObj)]);
-    const hasLunch = rows.some((r: any) => r.segment === "Lunch");
-    const hasEarly = rows.some((r: any) => r.segment === "Early");
-    const addMinutes = (d: Date, mins: number) => new Date(d.getTime() + mins * 60000);
-    if (hasLunch) {
-      if (map["AM"] && map["Lunch"]) map["AM"].end = map["Lunch"].start;
-      if (map["PM"] && map["Lunch"]) map["PM"].start = addMinutes(map["Lunch"].end, 60);
+    const rows = all(`SELECT segment, role_id FROM assignment WHERE date=?`, [ymd(selectedDateObj)]);
+    const segRoleMap = new Map<string, Set<number>>();
+    for (const r of rows) {
+      let set = segRoleMap.get(r.segment);
+      if (!set) {
+        set = new Set<number>();
+        segRoleMap.set(r.segment, set);
+      }
+      set.add(r.role_id);
     }
-    if (hasEarly && map["PM"]) {
-      map["PM"].end = addMinutes(map["PM"].end, -60);
+    const addMinutes = (d: Date, mins: number) => new Date(d.getTime() + mins * 60000);
+    for (const adj of segmentAdjustments) {
+      const roles = segRoleMap.get(adj.condition_segment);
+      if (!roles) continue;
+      if (adj.condition_role_id != null && !roles.has(adj.condition_role_id)) continue;
+      const target = map[adj.target_segment];
+      if (!target) continue;
+      const cond = map[adj.condition_segment];
+      let base: Date | undefined;
+      switch (adj.baseline) {
+        case 'condition.start': base = cond?.start; break;
+        case 'condition.end': base = cond?.end; break;
+        case 'target.start': base = target.start; break;
+        case 'target.end': base = target.end; break;
+      }
+      if (!base) continue;
+      target[adj.target_field] = addMinutes(base, adj.offset_minutes);
     }
     return map;
-  }, [all, segments, selectedDateObj, ymd]);
+  }, [all, segments, selectedDateObj, ymd, segmentAdjustments]);
 
   const segDurationMinutesTop = useMemo(() => {
     const st = segTimesTop[seg]?.start;
@@ -488,20 +507,36 @@ export default function DailyRunBoard({
       for (const srow of segments) {
         map[srow.name] = { start: mk(srow.start_time), end: mk(srow.end_time) };
       }
-      // Detect Lunch/Early presence on date
-      const rows = all(`SELECT DISTINCT segment FROM assignment WHERE date=?`, [ymd(selectedDateObj)]);
-      const hasLunch = rows.some((r: any) => r.segment === "Lunch");
-      const hasEarly = rows.some((r: any) => r.segment === "Early");
-      const addMinutes = (d: Date, mins: number) => new Date(d.getTime() + mins * 60000);
-      if (hasLunch) {
-        if (map["AM"] && map["Lunch"]) map["AM"].end = map["Lunch"].start;
-        if (map["PM"] && map["Lunch"]) map["PM"].start = addMinutes(map["Lunch"].end, 60);
+      const rows = all(`SELECT segment, role_id FROM assignment WHERE date=?`, [ymd(selectedDateObj)]);
+      const segRoleMap = new Map<string, Set<number>>();
+      for (const r of rows) {
+        let set = segRoleMap.get(r.segment);
+        if (!set) {
+          set = new Set<number>();
+          segRoleMap.set(r.segment, set);
+        }
+        set.add(r.role_id);
       }
-      if (hasEarly && map["PM"]) {
-        map["PM"].end = addMinutes(map["PM"].end, -60);
+      const addMinutes = (d: Date, mins: number) => new Date(d.getTime() + mins * 60000);
+      for (const adj of segmentAdjustments) {
+        const roles = segRoleMap.get(adj.condition_segment);
+        if (!roles) continue;
+        if (adj.condition_role_id != null && !roles.has(adj.condition_role_id)) continue;
+        const target = map[adj.target_segment];
+        if (!target) continue;
+        const cond = map[adj.condition_segment];
+        let base: Date | undefined;
+        switch (adj.baseline) {
+          case 'condition.start': base = cond?.start; break;
+          case 'condition.end': base = cond?.end; break;
+          case 'target.start': base = target.start; break;
+          case 'target.end': base = target.end; break;
+        }
+        if (!base) continue;
+        target[adj.target_field] = addMinutes(base, adj.offset_minutes);
       }
       return map;
-    }, [all, segments, selectedDateObj, ymd]);
+    }, [all, segments, selectedDateObj, ymd, segmentAdjustments]);
 
     // Compute time-off overlap vs this segment; derive partial/heavy flags
     const overlapByPerson = useMemo(() => {

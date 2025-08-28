@@ -10,6 +10,7 @@ import {
   DialogActions,
 } from "@fluentui/react-components";
 import SegmentEditor from "./SegmentEditor";
+import SegmentAdjustmentEditor from "./SegmentAdjustmentEditor";
 import GroupEditor from "./GroupEditor";
 import RoleEditor from "./RoleEditor";
 import ExportGroupEditor from "./ExportGroupEditor";
@@ -56,6 +57,7 @@ export default function AdminView({ sqlDb, all, run, refresh, segments }: AdminV
       )}
       <TimeOffManager all={all} run={run} refresh={refresh} />
       <SegmentEditor all={all} run={run} refresh={refresh} />
+      <SegmentAdjustmentEditor all={all} run={run} refresh={refresh} segments={segments} />
       <GroupEditor all={all} run={run} refresh={refresh} />
       <RoleEditor all={all} run={run} refresh={refresh} segments={segments} />
       <ExportGroupEditor all={all} run={run} refresh={refresh} />

@@ -83,6 +83,28 @@ export const migrate13AddAvailabilityOverride: Migration = (db) => {
     );`);
 };
 
+export const migrate14AddSegmentAdjustment: Migration = (db) => {
+  db.run(`CREATE TABLE IF NOT EXISTS segment_adjustment (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      condition_segment TEXT NOT NULL,
+      target_segment TEXT NOT NULL,
+      target_field TEXT CHECK(target_field IN ('start','end')) NOT NULL,
+      baseline TEXT CHECK(baseline IN ('condition.start','condition.end','target.start','target.end')) NOT NULL,
+      offset_minutes INTEGER NOT NULL DEFAULT 0
+    );`);
+  db.run(`INSERT INTO segment_adjustment (condition_segment,target_segment,target_field,baseline,offset_minutes) VALUES
+      ('Lunch','AM','end','condition.start',0),
+      ('Lunch','PM','start','condition.end',60),
+      ('Early','PM','end','target.end',-60)
+    `);
+};
+
+export const migrate15AddSegmentAdjustmentRole: Migration = (db) => {
+  try {
+    db.run(`ALTER TABLE segment_adjustment ADD COLUMN condition_role_id INTEGER REFERENCES role(id);`);
+  } catch {}
+};
+
 export const migrate6AddExportGroup: Migration = (db) => {
   db.run(`CREATE TABLE IF NOT EXISTS export_group (
       group_id INTEGER PRIMARY KEY,
@@ -583,6 +605,8 @@ const migrations: Record<number, Migration> = {
   11: migrate11AddTrainingSource,
   12: migrate12AddMonthlyNotes,
   13: migrate13AddAvailabilityOverride,
+  14: migrate14AddSegmentAdjustment,
+  15: migrate15AddSegmentAdjustmentRole,
 };
 
 export function addMigration(version: number, fn: Migration) {
