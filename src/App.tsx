@@ -1,7 +1,7 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { applyMigrations } from "./services/migrations";
 import { listSegments, type Segment, type SegmentRow } from "./services/segments";
-import { getOverride } from "./services/availabilityOverrides";
+import { availabilityFor } from "./services/availability";
 import SideRail from "./components/SideRail";
 import TopBar from "./components/TopBar";
 const DailyRunBoard = React.lazy(() => import("./components/DailyRunBoard"));
@@ -530,24 +530,6 @@ export default function App() {
       .map((r) => ({ start: r.start < startDay ? startDay : r.start, end: r.end > endDay ? endDay : r.end, reason: r.reason }));
   }
 
-  function availabilityFor(personId: number, date: Date): 'U' | 'AM' | 'PM' | 'B' {
-    if (!sqlDb) return 'U';
-    const override = getOverride(sqlDb, personId, ymd(date));
-    if (override) return override;
-    const wd = weekdayName(date);
-    const field =
-      wd === 'Monday'
-        ? 'avail_mon'
-        : wd === 'Tuesday'
-        ? 'avail_tue'
-        : wd === 'Wednesday'
-        ? 'avail_wed'
-        : wd === 'Thursday'
-        ? 'avail_thu'
-        : 'avail_fri';
-    const row = all(`SELECT ${field} AS avail FROM person WHERE id=?`, [personId]);
-    return (row[0]?.avail || 'U') as 'U' | 'AM' | 'PM' | 'B';
-  }
 
   // Monthly default assignments
   function loadMonthlyDefaults(month: string) {
@@ -666,7 +648,7 @@ export default function App() {
         const wdName = weekdayName(d);
         if (wdName === 'Weekend') continue;
         const wdNum = d.getDay(); // 1=Mon..5=Fri
-        const avail = availabilityFor(person.id, d);
+        const avail = availabilityFor(sqlDb, person.id, d);
         for (const seg of segments.map(s => s.name as Segment)) {
           let roleId = overrideMap.get(`${person.id}|${wdNum}|${seg}`);
           if (roleId === undefined) roleId = defaultMap.get(`${person.id}|${seg}`);
@@ -959,7 +941,7 @@ async function exportShifts() {
 
     return rows
       .filter((p: any) => {
-        const avail = availabilityFor(p.id, date);
+        const avail = availabilityFor(sqlDb, p.id, date);
         let availOk: boolean;
         if (segment === "AM" || segment === "Early") {
           availOk = avail === "AM" || avail === "B";
