@@ -32,6 +32,14 @@ function ymd(d: Date) {
   ).padStart(2, "0")}`;
 }
 
+function startOfWeek(d: Date) {
+  const day = d.getDay();
+  const diff = (day + 6) % 7;
+  const res = new Date(d);
+  res.setDate(d.getDate() - diff);
+  return res;
+}
+
 const useStyles = makeStyles({
   root: {
     border: `1px solid ${tokens.colorNeutralStroke2}`,
@@ -39,15 +47,15 @@ const useStyles = makeStyles({
     padding: tokens.spacingHorizontalM,
     backgroundColor: tokens.colorNeutralBackground1,
   },
-  grid: {
+  topRow: {
     display: "grid",
-    gridTemplateColumns: "repeat(12, 1fr)",
+    gridTemplateColumns: "repeat(7, 1fr)",
     gap: tokens.spacingHorizontalS,
     marginBottom: tokens.spacingVerticalM,
   },
-  col2: { gridColumn: "span 2" },
-  col3: { gridColumn: "span 3" },
-  col4: { gridColumn: "span 4" },
+  personCol: { gridColumn: "span 4" },
+  dateCol: { gridColumn: "span 3" },
+  weekTable: { marginBottom: tokens.spacingVerticalM },
   tableWrap: {
     border: `1px solid ${tokens.colorNeutralStroke2}`,
     borderRadius: tokens.borderRadiusMedium,
@@ -72,8 +80,14 @@ export default function AvailabilityOverrideManager({
   const [personId, setPersonId] = React.useState<number | null>(
     people[0]?.id ?? null
   );
-  const [date, setDate] = React.useState<string>(ymd(new Date()));
-  const [avail, setAvail] = React.useState<Availability>("AM");
+  const [weekDate, setWeekDate] = React.useState<string>(ymd(new Date()));
+  const [weekAvail, setWeekAvail] = React.useState<Availability[]>([
+    "B",
+    "B",
+    "B",
+    "B",
+    "B",
+  ]);
   const [rev, setRev] = React.useState(0);
 
   const rows = React.useMemo(
@@ -86,9 +100,39 @@ export default function AvailabilityOverrideManager({
     [all, rev]
   );
 
-  function addOverride() {
-    if (!sqlDb || personId == null || !date) return;
-    setOverride(sqlDb, personId, date, avail);
+  React.useEffect(() => {
+    if (personId == null) return;
+    const start = startOfWeek(new Date(weekDate));
+    const end = new Date(start);
+    end.setDate(start.getDate() + 4);
+    const res = all(
+      `SELECT date, avail FROM availability_override WHERE person_id=? AND date BETWEEN ? AND ?`,
+      [personId, ymd(start), ymd(end)]
+    );
+    const vals: Availability[] = ["B", "B", "B", "B", "B"];
+    res.forEach((r: any) => {
+      const idx = Math.floor(
+        (new Date(r.date).getTime() - start.getTime()) / (24 * 60 * 60 * 1000)
+      );
+      if (idx >= 0 && idx < 5) vals[idx] = r.avail as Availability;
+    });
+    setWeekAvail(vals);
+  }, [personId, weekDate, all, rev]);
+
+  function updateWeek() {
+    if (!sqlDb || personId == null) return;
+    const start = startOfWeek(new Date(weekDate));
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const ds = ymd(d);
+      const val = weekAvail[i];
+      if (val === "B") {
+        deleteOverride(sqlDb, personId, ds);
+      } else {
+        setOverride(sqlDb, personId, ds, val);
+      }
+    }
     setRev((r) => r + 1);
     refresh();
   }
@@ -102,9 +146,9 @@ export default function AvailabilityOverrideManager({
 
   return (
     <div className={s.root}>
-      <div className={s.grid}>
+      <div className={s.topRow}>
         <Dropdown
-          className={s.col4}
+          className={s.personCol}
           value={personId != null ? String(personId) : ""}
           onOptionSelect={(_, d) => setPersonId(Number(d.optionValue))}
         >
@@ -115,25 +159,49 @@ export default function AvailabilityOverrideManager({
           ))}
         </Dropdown>
         <Input
-          className={s.col3}
+          className={s.dateCol}
           type="date"
-          value={date}
-          onChange={(_, d) => setDate(d.value)}
+          value={weekDate}
+          onChange={(_, d) => setWeekDate(d.value)}
         />
-        <Dropdown
-          className={s.col2}
-          value={avail}
-          onOptionSelect={(_, d) => setAvail(d.optionValue as Availability)}
-        >
-          <Option value="AM">AM</Option>
-          <Option value="PM">PM</Option>
-          <Option value="B">B</Option>
-          <Option value="U">U</Option>
-        </Dropdown>
-        <Button className={s.col3} onClick={addOverride} appearance="primary">
-          Add / Update
-        </Button>
       </div>
+      <Table size="small" className={s.weekTable}>
+        <TableHeader>
+          <TableRow>
+            <TableHeaderCell>Mon</TableHeaderCell>
+            <TableHeaderCell>Tue</TableHeaderCell>
+            <TableHeaderCell>Wed</TableHeaderCell>
+            <TableHeaderCell>Thu</TableHeaderCell>
+            <TableHeaderCell>Fri</TableHeaderCell>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow>
+            {weekAvail.map((v, i) => (
+              <TableCell key={i}>
+                <Dropdown
+                  value={v}
+                  onOptionSelect={(_, d) =>
+                    setWeekAvail((vals) => {
+                      const n = [...vals];
+                      n[i] = d.optionValue as Availability;
+                      return n;
+                    })
+                  }
+                >
+                  <Option value="U">Unavailable</Option>
+                  <Option value="AM">AM</Option>
+                  <Option value="PM">PM</Option>
+                  <Option value="B">Both</Option>
+                </Dropdown>
+              </TableCell>
+            ))}
+          </TableRow>
+        </TableBody>
+      </Table>
+      <Button onClick={updateWeek} appearance="primary" className={s.weekTable}>
+        Update
+      </Button>
       <div className={s.tableWrap}>
         <Table size="small">
           <TableHeader>
