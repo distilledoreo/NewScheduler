@@ -72,6 +72,17 @@ export const migrate12AddMonthlyNotes: Migration = (db) => {
     );`);
 };
 
+export const migrate13AddAvailabilityOverride: Migration = (db) => {
+  db.run(`CREATE TABLE IF NOT EXISTS availability_override (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      person_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      avail TEXT CHECK(avail IN ('U','AM','PM','B')) NOT NULL,
+      UNIQUE(person_id, date),
+      FOREIGN KEY (person_id) REFERENCES person(id)
+    );`);
+};
+
 export const migrate6AddExportGroup: Migration = (db) => {
   db.run(`CREATE TABLE IF NOT EXISTS export_group (
       group_id INTEGER PRIMARY KEY,
@@ -571,6 +582,7 @@ const migrations: Record<number, Migration> = {
   10: migrate10BackfillGroupCustomColor,
   11: migrate11AddTrainingSource,
   12: migrate12AddMonthlyNotes,
+  13: migrate13AddAvailabilityOverride,
 };
 
 export function addMigration(version: number, fn: Migration) {
