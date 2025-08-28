@@ -92,6 +92,16 @@ export default function AvailabilityOverrideManager({
     "B",
     "B",
   ]);
+  const [defaultAvail, setDefaultAvail] = React.useState<Availability[]>([
+    "B",
+    "B",
+    "B",
+    "B",
+    "B",
+  ]);
+  const [origOverrides, setOrigOverrides] = React.useState<(
+    Availability | null
+  )[]>([null, null, null, null, null]);
   const [rev, setRev] = React.useState(0);
 
   const rows = React.useMemo(
@@ -109,30 +119,70 @@ export default function AvailabilityOverrideManager({
     const start = startOfWeek(parseDate(weekDate));
     const end = new Date(start);
     end.setDate(start.getDate() + 4);
+    const defs = all(
+      `SELECT avail_mon, avail_tue, avail_wed, avail_thu, avail_fri FROM person WHERE id=?`,
+      [personId]
+    )[0];
+    const defaults: Availability[] = [
+      (defs?.avail_mon || "U") as Availability,
+      (defs?.avail_tue || "U") as Availability,
+      (defs?.avail_wed || "U") as Availability,
+      (defs?.avail_thu || "U") as Availability,
+      (defs?.avail_fri || "U") as Availability,
+    ];
     const res = all(
       `SELECT date, avail FROM availability_override WHERE person_id=? AND date BETWEEN ? AND ?`,
       [personId, ymd(start), ymd(end)]
     );
-    const vals: Availability[] = ["B", "B", "B", "B", "B"];
+    const overrides: (Availability | null)[] = [
+      null,
+      null,
+      null,
+      null,
+      null,
+    ];
+    const vals: Availability[] = [...defaults];
     res.forEach((r: any) => {
       const idx = Math.floor(
         (parseDate(r.date).getTime() - start.getTime()) / (24 * 60 * 60 * 1000)
       );
-      if (idx >= 0 && idx < 5) vals[idx] = r.avail as Availability;
+      if (idx >= 0 && idx < 5) {
+        overrides[idx] = r.avail as Availability;
+        vals[idx] = r.avail as Availability;
+      }
     });
+    setDefaultAvail(defaults);
     setWeekAvail(vals);
+    setOrigOverrides(overrides);
   }, [personId, weekDate, all, rev]);
 
   function updateWeek() {
     if (!sqlDb || personId == null) return;
     const start = startOfWeek(parseDate(weekDate));
+    let anyChange = false;
+    for (let i = 0; i < 5; i++) {
+      const val = weekAvail[i];
+      const def = defaultAvail[i];
+      const orig = origOverrides[i];
+      if (val === def) {
+        if (orig != null) anyChange = true;
+      } else {
+        anyChange = true;
+      }
+    }
+    if (!anyChange) {
+      alert("Availability unchanged");
+      return;
+    }
     for (let i = 0; i < 5; i++) {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
       const ds = ymd(d);
       const val = weekAvail[i];
-      if (val === "B") {
-        deleteOverride(sqlDb, personId, ds);
+      const def = defaultAvail[i];
+      const orig = origOverrides[i];
+      if (val === def) {
+        if (orig != null) deleteOverride(sqlDb, personId, ds);
       } else {
         setOverride(sqlDb, personId, ds, val);
       }
