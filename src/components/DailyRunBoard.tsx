@@ -95,7 +95,7 @@ const useStyles = makeStyles({
     alignItems: "flex-start",
     gap: tokens.spacingHorizontalL,
     marginBottom: tokens.spacingHorizontalL,
-    [`@media (min-width: 1024px)`]: {
+    ["@media (min-width: 1024px)"]: {
       flexDirection: "row",
       alignItems: "center",
     },
@@ -438,41 +438,75 @@ export default function DailyRunBoard({
 
     while (queue.length) {
       const { role, group } = queue.shift()!;
-      const opts = (optionsByRole.get(role.id) || []).filter((o) => !used.has(o.id));
-      const trainedOpts = opts.filter((o) => o.trained);
       let selected: number | null = null;
-      let candidates = opts;
+      let candidates: Array<{ id: number; label: string }> = [];
 
-      if (trainedOpts.length > 0) {
-        // Step 0: use any available trained members
-        selected = trainedOpts[0].id;
-        used.add(selected);
-        assignmentByPerson.set(selected, { role_id: role.id, group_id: group.id, label: trainedOpts[0].label });
-        assignedCounts.set(role.id, (assignedCounts.get(role.id) || 0) + 1);
-      } else {
-        // Steps 1-8
-        let moved =
-          findCandidate(role, group.id, "same", "trained", true, false) || // Step 1
-          findCandidate(role, group.id, "other", "trained", true, false) || // Step 2
-          findCandidate(role, group.id, "same", "trained", false, true) || // Step 3
-          findCandidate(role, group.id, "other", "trained", false, true) || // Step 5
-          findCandidate(role, group.id, "same", "untrained", true, false) || // Step 7
-          findCandidate(role, group.id, "other", "untrained", true, false); // Step 8
-
-        if (moved) {
-          selected = moved.person_id;
-          candidates = [{ id: moved.person_id, label: moved.label }];
+      // Special rule: promote assistants when coordinator/supervisor is missing
+      if (/Coordinator|Supervisor/i.test(role.name)) {
+        const trainedTarget = trainedSetForRole(role);
+        let promoted: { person_id: number; role_id: number; label: string } | null = null;
+        for (const [pid, info] of assignmentByPerson.entries()) {
+          if (used.has(pid)) continue;
+          if (info.group_id !== group.id) continue;
+          const srcRole = rolesById.get(info.role_id)!;
+          if (!/Assistant/i.test(srcRole.name)) continue;
+          if (!trainedTarget.has(pid)) continue;
+          promoted = { person_id: pid, role_id: info.role_id, label: info.label };
+          break;
+        }
+        if (promoted) {
+          selected = promoted.person_id;
+          candidates = [{ id: promoted.person_id, label: promoted.label }];
           used.add(selected);
-          const fromCount = (assignedCounts.get(moved.role_id) || 0) - 1;
-          assignedCounts.set(moved.role_id, fromCount);
-          const reqFrom = requiredByRole.get(moved.role_id) || 0;
+          const fromCount = (assignedCounts.get(promoted.role_id) || 0) - 1;
+          assignedCounts.set(promoted.role_id, fromCount);
+          const reqFrom = requiredByRole.get(promoted.role_id) || 0;
           if (fromCount < reqFrom) {
-            const fromRole = rolesById.get(moved.role_id)!;
+            const fromRole = rolesById.get(promoted.role_id)!;
             const fromGroup = groupMap.get(fromRole.group_id)!;
             queue.push({ role: fromRole, group: fromGroup });
           }
-          assignmentByPerson.set(selected, { role_id: role.id, group_id: group.id, label: moved.label });
+          assignmentByPerson.set(selected, { role_id: role.id, group_id: group.id, label: promoted.label });
           assignedCounts.set(role.id, (assignedCounts.get(role.id) || 0) + 1);
+        }
+      }
+
+      if (selected == null) {
+        const opts = (optionsByRole.get(role.id) || []).filter((o) => !used.has(o.id));
+        candidates = opts;
+        const trainedOpts = opts.filter((o) => o.trained);
+
+        if (trainedOpts.length > 0) {
+          // Step 0: use any available trained members
+          selected = trainedOpts[0].id;
+          used.add(selected);
+          assignmentByPerson.set(selected, { role_id: role.id, group_id: group.id, label: trainedOpts[0].label });
+          assignedCounts.set(role.id, (assignedCounts.get(role.id) || 0) + 1);
+        } else {
+          // Steps 1-8
+          let moved =
+            findCandidate(role, group.id, "same", "trained", true, false) || // Step 1
+            findCandidate(role, group.id, "other", "trained", true, false) || // Step 2
+            findCandidate(role, group.id, "same", "trained", false, true) || // Step 3
+            findCandidate(role, group.id, "other", "trained", false, true) || // Step 5
+            findCandidate(role, group.id, "same", "untrained", true, false) || // Step 7
+            findCandidate(role, group.id, "other", "untrained", true, false); // Step 8
+
+          if (moved) {
+            selected = moved.person_id;
+            candidates = [{ id: moved.person_id, label: moved.label }];
+            used.add(selected);
+            const fromCount = (assignedCounts.get(moved.role_id) || 0) - 1;
+            assignedCounts.set(moved.role_id, fromCount);
+            const reqFrom = requiredByRole.get(moved.role_id) || 0;
+            if (fromCount < reqFrom) {
+              const fromRole = rolesById.get(moved.role_id)!;
+              const fromGroup = groupMap.get(fromRole.group_id)!;
+              queue.push({ role: fromRole, group: fromGroup });
+            }
+            assignmentByPerson.set(selected, { role_id: role.id, group_id: group.id, label: moved.label });
+            assignedCounts.set(role.id, (assignedCounts.get(role.id) || 0) + 1);
+          }
         }
       }
 
@@ -531,7 +565,7 @@ export default function DailyRunBoard({
         case 'target.end': base = target.end; break;
       }
       if (!base) continue;
-      target[adj.target_field] = addMinutes(base, adj.offset_minutes);
+      (target as any)[adj.target_field] = addMinutes(base, adj.offset_minutes);
     }
     return map;
   }, [all, segments, selectedDateObj, ymd, segmentAdjustments]);
@@ -705,7 +739,7 @@ export default function DailyRunBoard({
           case 'target.end': base = target.end; break;
         }
         if (!base) continue;
-        target[adj.target_field] = addMinutes(base, adj.offset_minutes);
+        (target as any)[adj.target_field] = addMinutes(base, adj.offset_minutes);
       }
       return map;
     }, [all, segments, selectedDateObj, ymd, segmentAdjustments]);
@@ -1114,4 +1148,3 @@ export default function DailyRunBoard({
     </div>
   );
 }
-
