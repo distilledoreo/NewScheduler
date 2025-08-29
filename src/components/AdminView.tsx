@@ -17,6 +17,7 @@ import ExportGroupEditor from "./ExportGroupEditor";
 import type { SegmentRow } from "../services/segments";
 import TimeOffManager from "./TimeOffManager";
 import AvailabilityOverrideManager from "./AvailabilityOverrideManager";
+import AutoFillSettings from "./AutoFillSettings";
 
 interface AdminViewProps {
   sqlDb: any;
@@ -37,6 +38,7 @@ export default function AdminView({ sqlDb, all, run, refresh, segments }: AdminV
   });
   const s = useStyles();
   const [showOverrides, setShowOverrides] = React.useState(false);
+  const [showAutoFillSettings, setShowAutoFillSettings] = React.useState(false);
   return (
     <div className={s.root}>
       <Button onClick={() => setShowOverrides(true)}>Availability Overrides</Button>
@@ -54,6 +56,10 @@ export default function AdminView({ sqlDb, all, run, refresh, segments }: AdminV
             </DialogBody>
           </DialogSurface>
         </Dialog>
+      )}
+      <Button onClick={() => setShowAutoFillSettings(true)}>Auto-Fill Settings</Button>
+      {showAutoFillSettings && (
+        <AutoFillSettings open={showAutoFillSettings} onClose={() => setShowAutoFillSettings(false)} />
       )}
       <TimeOffManager all={all} run={run} refresh={refresh} />
       <SegmentEditor all={all} run={run} refresh={refresh} />

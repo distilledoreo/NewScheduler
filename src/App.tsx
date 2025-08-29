@@ -982,11 +982,13 @@ async function exportShifts() {
         return true;
       })
       .map((p: any) => {
-        const warn = trained.has(p.id) ? "" : "(Untrained)";
+        const isTrained = trained.has(p.id);
+        const warn = isTrained ? "" : "(Untrained)";
         return {
           id: p.id,
           label: `${p.last_name}, ${p.first_name}${warn ? ` ${warn}` : ""}`,
           blocked: false,
+          trained: isTrained,
         };
       });
   }

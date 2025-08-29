@@ -6,6 +6,7 @@ import type { Segment, SegmentRow } from "../services/segments";
 import type { SegmentAdjustmentRow } from "../services/segmentAdjustments";
 import "../styles/scrollbar.css";
 import PersonName from "./PersonName";
+import { getAutoFillPriority } from "./AutoFillSettings";
 import {
   Button,
   Dropdown,
@@ -94,7 +95,7 @@ const useStyles = makeStyles({
     alignItems: "flex-start",
     gap: tokens.spacingHorizontalL,
     marginBottom: tokens.spacingHorizontalL,
-    [`@media (min-width: 1024px)`]: {
+    ["@media (min-width: 1024px)"]: {
       flexDirection: "row",
       alignItems: "center",
     },
@@ -187,7 +188,7 @@ interface DailyRunBoardProps {
     date: Date,
     segment: Segment,
     role: any
-  ) => Array<{ id: number; label: string; blocked: boolean }>;
+  ) => Array<{ id: number; label: string; blocked: boolean; trained: boolean }>;
   getRequiredFor: (
     date: Date,
     groupId: number,
@@ -247,9 +248,13 @@ export default function DailyRunBoard({
   const [layoutLoaded, setLayoutLoaded] = useState(false);
   const [moveContext, setMoveContext] = useState<{
     assignment: any;
-  targets: Array<{ role: any; group: any; need: number }>;
+    targets: Array<{ role: any; group: any; need: number }>;
   } | null>(null);
   const [moveTargetId, setMoveTargetId] = useState<number | null>(null);
+  const [autoFillOpen, setAutoFillOpen] = useState(false);
+  const [autoFillSuggestions, setAutoFillSuggestions] = useState<
+    Array<{ role: any; group: any; candidates: Array<{ id: number; label: string }>; selected: number | null }>
+  >([]);
 
   const roles = useMemo(() => roleListForSegment(seg), [roleListForSegment, seg]);
 
@@ -308,19 +313,225 @@ export default function DailyRunBoard({
     return new Map<number, number>(rows.map((r: any) => [r.role_id, r.c]));
   }, [all, selectedDateObj, seg, ymd]);
 
+  const assignedIdSet = useMemo(
+    () =>
+      new Set(
+        all(`SELECT person_id FROM assignment WHERE date=? AND segment=?`, [ymd(selectedDateObj), seg]).map(
+          (r: any) => r.person_id
+        )
+      ),
+    [all, selectedDateObj, seg, ymd]
+  );
+
   const groupMap = useMemo(() => new Map(groups.map((g: any) => [g.id, g])), [groups]);
 
   const deficitRoles = useMemo(() => {
-    return (
-      roles
-        .map((r: any) => {
-          const assigned = assignedCountMap.get(r.id) || 0;
-          const req = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
-          return assigned < req ? { role: r, group: groupMap.get(r.group_id) } : null;
-        })
-        .filter(Boolean) as Array<{ role: any; group: any }>
-    );
+    const deficits: Array<{ role: any; group: any }> = [];
+    for (const r of roles) {
+      const assigned = assignedCountMap.get(r.id) || 0;
+      const req = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
+      const missing = req - assigned;
+      for (let i = 0; i < missing; i++) {
+        deficits.push({ role: r, group: groupMap.get(r.group_id) });
+      }
+    }
+    return deficits;
   }, [roles, assignedCountMap, getRequiredFor, selectedDateObj, seg, groupMap]);
+
+  function handleAutoFill() {
+    if (!deficitRoles.length) {
+      alert("No unmet needs for this segment.");
+      return;
+    }
+
+    const priority = getAutoFillPriority();
+    const assignedCounts = new Map(assignedCountMap);
+    const requiredByRole = new Map<number, number>();
+    const rolesById = new Map<number, any>();
+    for (const r of roles) {
+      rolesById.set(r.id, r);
+      requiredByRole.set(r.id, getRequiredFor(selectedDateObj, r.group_id, r.id, seg));
+    }
+
+    const assignments = all(
+      `SELECT a.person_id, a.role_id, r.group_id, p.last_name, p.first_name
+       FROM assignment a
+       JOIN role r ON r.id=a.role_id
+       JOIN person p ON p.id=a.person_id
+       WHERE a.date=? AND a.segment=?`,
+      [ymd(selectedDateObj), seg]
+    ) as Array<{ person_id: number; role_id: number; group_id: number; last_name: string; first_name: string }>;
+    const assignmentByPerson = new Map<number, { role_id: number; group_id: number; label: string }>();
+    for (const a of assignments) {
+      assignmentByPerson.set(a.person_id, {
+        role_id: a.role_id,
+        group_id: a.group_id,
+        label: `${a.last_name}, ${a.first_name}`,
+      });
+    }
+
+    const optionsByRole = new Map<number, Array<{ id: number; label: string; trained: boolean }>>();
+    for (const r of roles) {
+      let opts = peopleOptionsForSegment(selectedDateObj, seg, r).filter((o) => !assignmentByPerson.has(o.id));
+      opts.sort((a, b) => {
+        if (priority === "alphabetical") return a.label.localeCompare(b.label);
+        if (a.trained !== b.trained) return a.trained ? -1 : 1;
+        return a.label.localeCompare(b.label);
+      });
+      optionsByRole.set(r.id, opts);
+    }
+
+    const trainedCache = new Map<number, Set<number>>();
+    function trainedSetForRole(role: any) {
+      let set = trainedCache.get(role.id);
+      if (!set) {
+        set = new Set<number>([
+          ...all(`SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`, [role.id]).map((r: any) => r.person_id),
+          ...all(
+            `SELECT DISTINCT person_id FROM monthly_default WHERE role_id=? AND segment=?
+             UNION
+             SELECT DISTINCT person_id FROM monthly_default_day WHERE role_id=? AND segment=?`,
+            [role.id, seg, role.id, seg]
+          ).map((r: any) => r.person_id),
+        ]);
+        trainedCache.set(role.id, set);
+      }
+      return set;
+    }
+
+    const used = new Set<number>();
+    const queue = deficitRoles.slice();
+    const suggestions: Array<{ role: any; group: any; candidates: any[]; selected: number | null }> = [];
+
+    function findCandidate(
+      targetRole: any,
+      targetGroupId: number,
+      mode: "same" | "other" | "any",
+      training: "trained" | "untrained" | "any",
+      overstaffed: boolean,
+      replaceable: boolean
+    ) {
+      const trainedTarget = trainedSetForRole(targetRole);
+      for (const [pid, info] of assignmentByPerson.entries()) {
+        if (used.has(pid)) continue;
+        const rinfo = rolesById.get(info.role_id)!;
+        if (mode === "same" && rinfo.group_id !== targetGroupId) continue;
+        if (mode === "other" && rinfo.group_id === targetGroupId) continue;
+        if (info.role_id === targetRole.id) continue;
+        if (overstaffed) {
+          const req = requiredByRole.get(rinfo.id) || 0;
+          if ((assignedCounts.get(rinfo.id) || 0) <= req) continue;
+        }
+        if (replaceable) {
+          const optsForSrc = optionsByRole
+            .get(rinfo.id)
+            ?.filter((o) => o.trained && !assignmentByPerson.has(o.id) && !used.has(o.id));
+          if (!optsForSrc || optsForSrc.length === 0) continue;
+        }
+        const isTrained = trainedTarget.has(pid);
+        if (training === "trained" && !isTrained) continue;
+        if (training === "untrained" && isTrained) continue;
+        return { person_id: pid, role_id: info.role_id, label: info.label, group_id: rinfo.group_id };
+      }
+      return null;
+    }
+
+    while (queue.length) {
+      const { role, group } = queue.shift()!;
+      let selected: number | null = null;
+      let candidates: Array<{ id: number; label: string }> = [];
+
+      // Special rule: promote assistants when coordinator/supervisor is missing
+      if (/Coordinator|Supervisor/i.test(role.name)) {
+        const trainedTarget = trainedSetForRole(role);
+        let trainedPromoted: { person_id: number; role_id: number; label: string } | null = null;
+        let untrainedPromoted: { person_id: number; role_id: number; label: string } | null = null;
+        for (const [pid, info] of assignmentByPerson.entries()) {
+          if (used.has(pid)) continue;
+          if (info.group_id !== group.id) continue;
+          const srcRole = rolesById.get(info.role_id)!;
+          if (!/Assistant/i.test(srcRole.name)) continue;
+          const candidate = { person_id: pid, role_id: info.role_id, label: info.label };
+          if (trainedTarget.has(pid)) {
+            if (!trainedPromoted) trainedPromoted = candidate;
+          } else if (!untrainedPromoted) {
+            untrainedPromoted = candidate;
+          }
+        }
+        const promoted = trainedPromoted || untrainedPromoted;
+        if (promoted) {
+          selected = promoted.person_id;
+          candidates = [{ id: promoted.person_id, label: promoted.label }];
+          used.add(selected);
+          const fromCount = (assignedCounts.get(promoted.role_id) || 0) - 1;
+          assignedCounts.set(promoted.role_id, fromCount);
+          const reqFrom = requiredByRole.get(promoted.role_id) || 0;
+          if (fromCount < reqFrom) {
+            const fromRole = rolesById.get(promoted.role_id)!;
+            const fromGroup = groupMap.get(fromRole.group_id)!;
+            queue.push({ role: fromRole, group: fromGroup });
+          }
+          assignmentByPerson.set(selected, { role_id: role.id, group_id: group.id, label: promoted.label });
+          assignedCounts.set(role.id, (assignedCounts.get(role.id) || 0) + 1);
+        }
+      }
+
+      if (selected == null) {
+        const opts = (optionsByRole.get(role.id) || []).filter((o) => !used.has(o.id));
+        candidates = opts;
+        const trainedOpts = opts.filter((o) => o.trained);
+
+        if (trainedOpts.length > 0) {
+          // Step 0: use any available trained members
+          selected = trainedOpts[0].id;
+          used.add(selected);
+          assignmentByPerson.set(selected, { role_id: role.id, group_id: group.id, label: trainedOpts[0].label });
+          assignedCounts.set(role.id, (assignedCounts.get(role.id) || 0) + 1);
+        } else {
+          // Steps 1-8
+          let moved =
+            findCandidate(role, group.id, "same", "trained", true, false) || // Step 1
+            findCandidate(role, group.id, "other", "trained", true, false) || // Step 2
+            findCandidate(role, group.id, "same", "trained", false, true) || // Step 3
+            findCandidate(role, group.id, "other", "trained", false, true) || // Step 5
+            findCandidate(role, group.id, "same", "untrained", true, false) || // Step 7
+            findCandidate(role, group.id, "other", "untrained", true, false); // Step 8
+
+          if (moved) {
+            selected = moved.person_id;
+            candidates = [{ id: moved.person_id, label: moved.label }];
+            used.add(selected);
+            const fromCount = (assignedCounts.get(moved.role_id) || 0) - 1;
+            assignedCounts.set(moved.role_id, fromCount);
+            const reqFrom = requiredByRole.get(moved.role_id) || 0;
+            if (fromCount < reqFrom) {
+              const fromRole = rolesById.get(moved.role_id)!;
+              const fromGroup = groupMap.get(fromRole.group_id)!;
+              queue.push({ role: fromRole, group: fromGroup });
+            }
+            assignmentByPerson.set(selected, { role_id: role.id, group_id: group.id, label: moved.label });
+            assignedCounts.set(role.id, (assignedCounts.get(role.id) || 0) + 1);
+          }
+        }
+      }
+
+      suggestions.push({ role, group, candidates: candidates.map((c) => ({ id: c.id, label: c.label })), selected });
+    }
+
+    setAutoFillSuggestions(suggestions);
+    setAutoFillOpen(true);
+  }
+
+  function applyAutoFill() {
+    for (const s of autoFillSuggestions) {
+      if (s.selected != null) addAssignment(selectedDate, s.selected, s.role.id, seg);
+    }
+    setAutoFillOpen(false);
+  }
+
+  function cancelAutoFill() {
+    setAutoFillOpen(false);
+  }
 
   // Precompute segment times for the selected date at top-level for reuse in move dialog
   const segTimesTop = useMemo(() => {
@@ -359,7 +570,7 @@ export default function DailyRunBoard({
         case 'target.end': base = target.end; break;
       }
       if (!base) continue;
-      target[adj.target_field] = addMinutes(base, adj.offset_minutes);
+      (target as any)[adj.target_field] = addMinutes(base, adj.offset_minutes);
     }
     return map;
   }, [all, segments, selectedDateObj, ymd, segmentAdjustments]);
@@ -533,7 +744,7 @@ export default function DailyRunBoard({
           case 'target.end': base = target.end; break;
         }
         if (!base) continue;
-        target[adj.target_field] = addMinutes(base, adj.offset_minutes);
+        (target as any)[adj.target_field] = addMinutes(base, adj.offset_minutes);
       }
       return map;
     }, [all, segments, selectedDateObj, ymd, segmentAdjustments]);
@@ -838,6 +1049,7 @@ export default function DailyRunBoard({
           </TabList>
         </div>
         <div className={s.headerRight}>
+          <Button appearance="secondary" onClick={handleAutoFill}>Auto Fill</Button>
           <Button appearance="secondary" onClick={() => setShowNeedsEditor(true)}>
             Edit Needs for This Day
           </Button>
@@ -900,7 +1112,44 @@ export default function DailyRunBoard({
           </DialogSurface>
         </Dialog>
       )}
+      {autoFillOpen && (
+        <Dialog open onOpenChange={(_, d) => { if (!d.open) cancelAutoFill(); }}>
+          <DialogSurface>
+            <DialogBody>
+              <DialogTitle>Auto-Fill Suggestions</DialogTitle>
+              <DialogContent>
+                {autoFillSuggestions.length === 0 && <Body1>No suggestions available.</Body1>}
+                {autoFillSuggestions.map((s, idx) => (
+                  <div key={s.role.id} style={{ marginBottom: tokens.spacingVerticalS }}>
+                    <Subtitle2>{`${s.group.name} - ${s.role.name}`}</Subtitle2>
+                    <Dropdown
+                      selectedOptions={s.selected != null ? [String(s.selected)] : []}
+                      onOptionSelect={(_, data) => {
+                        const val = data.optionValue ? Number(data.optionValue) : null;
+                        setAutoFillSuggestions((prev) =>
+                          prev.map((p, i) => (i === idx ? { ...p, selected: val } : p))
+                        );
+                      }}
+                      style={{ width: "100%" }}
+                    >
+                      <Option value="">None</Option>
+                      {s.candidates.map((c) => (
+                        <Option key={c.id} value={String(c.id)}>
+                          {c.label}
+                        </Option>
+                      ))}
+                    </Dropdown>
+                  </div>
+                ))}
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={cancelAutoFill}>Cancel</Button>
+                <Button appearance="primary" onClick={applyAutoFill}>Confirm</Button>
+              </DialogActions>
+            </DialogBody>
+          </DialogSurface>
+        </Dialog>
+      )}
     </div>
   );
 }
-
