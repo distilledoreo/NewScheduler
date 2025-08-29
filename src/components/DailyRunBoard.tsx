@@ -6,6 +6,7 @@ import type { Segment, SegmentRow } from "../services/segments";
 import type { SegmentAdjustmentRow } from "../services/segmentAdjustments";
 import "../styles/scrollbar.css";
 import PersonName from "./PersonName";
+import { getAutoFillPriority } from "./AutoFillSettings";
 import {
   Button,
   Dropdown,
@@ -247,9 +248,13 @@ export default function DailyRunBoard({
   const [layoutLoaded, setLayoutLoaded] = useState(false);
   const [moveContext, setMoveContext] = useState<{
     assignment: any;
-  targets: Array<{ role: any; group: any; need: number }>;
+    targets: Array<{ role: any; group: any; need: number }>;
   } | null>(null);
   const [moveTargetId, setMoveTargetId] = useState<number | null>(null);
+  const [autoFillOpen, setAutoFillOpen] = useState(false);
+  const [autoFillSuggestions, setAutoFillSuggestions] = useState<
+    Array<{ role: any; group: any; candidates: Array<{ id: number; label: string }>; selected: number | null }>
+  >([]);
 
   const roles = useMemo(() => roleListForSegment(seg), [roleListForSegment, seg]);
 
@@ -308,6 +313,16 @@ export default function DailyRunBoard({
     return new Map<number, number>(rows.map((r: any) => [r.role_id, r.c]));
   }, [all, selectedDateObj, seg, ymd]);
 
+  const assignedIdSet = useMemo(
+    () =>
+      new Set(
+        all(`SELECT person_id FROM assignment WHERE date=? AND segment=?`, [ymd(selectedDateObj), seg]).map(
+          (r: any) => r.person_id
+        )
+      ),
+    [all, selectedDateObj, seg, ymd]
+  );
+
   const groupMap = useMemo(() => new Map(groups.map((g: any) => [g.id, g])), [groups]);
 
   const deficitRoles = useMemo(() => {
@@ -321,6 +336,38 @@ export default function DailyRunBoard({
         .filter(Boolean) as Array<{ role: any; group: any }>
     );
   }, [roles, assignedCountMap, getRequiredFor, selectedDateObj, seg, groupMap]);
+
+  function handleAutoFill() {
+    if (!deficitRoles.length) {
+      alert("No unmet needs for this segment.");
+      return;
+    }
+    const priority = getAutoFillPriority();
+    const sugg = deficitRoles.map(({ role, group }) => {
+      let candidates = peopleOptionsForSegment(selectedDateObj, seg, role).filter((o) => !assignedIdSet.has(o.id));
+      candidates.sort((a, b) => {
+        if (priority === "alphabetical") return a.label.localeCompare(b.label);
+        const ta = /\(Untrained\)$/.test(a.label) ? 0 : 1;
+        const tb = /\(Untrained\)$/.test(b.label) ? 0 : 1;
+        if (ta !== tb) return tb - ta;
+        return a.label.localeCompare(b.label);
+      });
+      return { role, group, candidates, selected: candidates[0]?.id || null };
+    });
+    setAutoFillSuggestions(sugg);
+    setAutoFillOpen(true);
+  }
+
+  function applyAutoFill() {
+    for (const s of autoFillSuggestions) {
+      if (s.selected != null) addAssignment(selectedDate, s.selected, s.role.id, seg);
+    }
+    setAutoFillOpen(false);
+  }
+
+  function cancelAutoFill() {
+    setAutoFillOpen(false);
+  }
 
   // Precompute segment times for the selected date at top-level for reuse in move dialog
   const segTimesTop = useMemo(() => {
@@ -838,6 +885,7 @@ export default function DailyRunBoard({
           </TabList>
         </div>
         <div className={s.headerRight}>
+          <Button appearance="secondary" onClick={handleAutoFill}>Auto Fill</Button>
           <Button appearance="secondary" onClick={() => setShowNeedsEditor(true)}>
             Edit Needs for This Day
           </Button>
@@ -895,6 +943,44 @@ export default function DailyRunBoard({
               <DialogActions>
                 <Button onClick={cancelMove}>Cancel</Button>
                 <Button appearance="primary" disabled={moveTargetId == null} onClick={confirmMove}>Move</Button>
+              </DialogActions>
+            </DialogBody>
+          </DialogSurface>
+        </Dialog>
+      )}
+      {autoFillOpen && (
+        <Dialog open onOpenChange={(_, d) => { if (!d.open) cancelAutoFill(); }}>
+          <DialogSurface>
+            <DialogBody>
+              <DialogTitle>Auto-Fill Suggestions</DialogTitle>
+              <DialogContent>
+                {autoFillSuggestions.length === 0 && <Body1>No suggestions available.</Body1>}
+                {autoFillSuggestions.map((s, idx) => (
+                  <div key={s.role.id} style={{ marginBottom: tokens.spacingVerticalS }}>
+                    <Subtitle2>{`${s.group.name} - ${s.role.name}`}</Subtitle2>
+                    <Dropdown
+                      selectedOptions={s.selected != null ? [String(s.selected)] : []}
+                      onOptionSelect={(_, data) => {
+                        const val = data.optionValue ? Number(data.optionValue) : null;
+                        setAutoFillSuggestions((prev) =>
+                          prev.map((p, i) => (i === idx ? { ...p, selected: val } : p))
+                        );
+                      }}
+                      style={{ width: "100%" }}
+                    >
+                      <Option value="">None</Option>
+                      {s.candidates.map((c) => (
+                        <Option key={c.id} value={String(c.id)}>
+                          {c.label}
+                        </Option>
+                      ))}
+                    </Dropdown>
+                  </div>
+                ))}
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={cancelAutoFill}>Cancel</Button>
+                <Button appearance="primary" onClick={applyAutoFill}>Confirm</Button>
               </DialogActions>
             </DialogBody>
           </DialogSurface>
