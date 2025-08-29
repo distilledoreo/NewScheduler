@@ -326,15 +326,16 @@ export default function DailyRunBoard({
   const groupMap = useMemo(() => new Map(groups.map((g: any) => [g.id, g])), [groups]);
 
   const deficitRoles = useMemo(() => {
-    return (
-      roles
-        .map((r: any) => {
-          const assigned = assignedCountMap.get(r.id) || 0;
-          const req = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
-          return assigned < req ? { role: r, group: groupMap.get(r.group_id) } : null;
-        })
-        .filter(Boolean) as Array<{ role: any; group: any }>
-    );
+    const deficits: Array<{ role: any; group: any }> = [];
+    for (const r of roles) {
+      const assigned = assignedCountMap.get(r.id) || 0;
+      const req = getRequiredFor(selectedDateObj, r.group_id, r.id, seg);
+      const missing = req - assigned;
+      for (let i = 0; i < missing; i++) {
+        deficits.push({ role: r, group: groupMap.get(r.group_id) });
+      }
+    }
+    return deficits;
   }, [roles, assignedCountMap, getRequiredFor, selectedDateObj, seg, groupMap]);
 
   function handleAutoFill() {
@@ -343,8 +344,9 @@ export default function DailyRunBoard({
       return;
     }
     const priority = getAutoFillPriority();
+    const assignedIds = new Set(assignedIdSet);
     const sugg = deficitRoles.map(({ role, group }) => {
-      let candidates = peopleOptionsForSegment(selectedDateObj, seg, role).filter((o) => !assignedIdSet.has(o.id));
+      let candidates = peopleOptionsForSegment(selectedDateObj, seg, role).filter((o) => !assignedIds.has(o.id));
       candidates.sort((a, b) => {
         if (priority === "alphabetical") return a.label.localeCompare(b.label);
         const ta = /\(Untrained\)$/.test(a.label) ? 0 : 1;
@@ -352,7 +354,9 @@ export default function DailyRunBoard({
         if (ta !== tb) return tb - ta;
         return a.label.localeCompare(b.label);
       });
-      return { role, group, candidates, selected: candidates[0]?.id || null };
+      const selected = candidates[0]?.id || null;
+      if (selected != null) assignedIds.add(selected);
+      return { role, group, candidates, selected };
     });
     setAutoFillSuggestions(sugg);
     setAutoFillOpen(true);
