@@ -95,7 +95,7 @@ const useStyles = makeStyles({
     alignItems: "flex-start",
     gap: tokens.spacingHorizontalL,
     marginBottom: tokens.spacingHorizontalL,
-    [`@media (min-width: 1024px)`]: {
+    ["@media (min-width: 1024px)"]: {
       flexDirection: "row",
       alignItems: "center",
     },
@@ -565,7 +565,7 @@ export default function DailyRunBoard({
         case 'target.end': base = target.end; break;
       }
       if (!base) continue;
-      target[adj.target_field] = addMinutes(base, adj.offset_minutes);
+      (target as any)[adj.target_field] = addMinutes(base, adj.offset_minutes);
     }
     return map;
   }, [all, segments, selectedDateObj, ymd, segmentAdjustments]);
@@ -739,7 +739,7 @@ export default function DailyRunBoard({
           case 'target.end': base = target.end; break;
         }
         if (!base) continue;
-        target[adj.target_field] = addMinutes(base, adj.offset_minutes);
+        (target as any)[adj.target_field] = addMinutes(base, adj.offset_minutes);
       }
       return map;
     }, [all, segments, selectedDateObj, ymd, segmentAdjustments]);
@@ -1148,4 +1148,3 @@ export default function DailyRunBoard({
     </div>
   );
 }
-
