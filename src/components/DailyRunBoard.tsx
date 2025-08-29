@@ -188,7 +188,7 @@ interface DailyRunBoardProps {
     date: Date,
     segment: Segment,
     role: any
-  ) => Array<{ id: number; label: string; blocked: boolean }>;
+  ) => Array<{ id: number; label: string; blocked: boolean; trained: boolean }>;
   getRequiredFor: (
     date: Date,
     groupId: number,
@@ -343,22 +343,143 @@ export default function DailyRunBoard({
       alert("No unmet needs for this segment.");
       return;
     }
+
     const priority = getAutoFillPriority();
-    const assignedIds = new Set(assignedIdSet);
-    const sugg = deficitRoles.map(({ role, group }) => {
-      let candidates = peopleOptionsForSegment(selectedDateObj, seg, role).filter((o) => !assignedIds.has(o.id));
-      candidates.sort((a, b) => {
+    const assignedCounts = new Map(assignedCountMap);
+    const requiredByRole = new Map<number, number>();
+    const rolesById = new Map<number, any>();
+    for (const r of roles) {
+      rolesById.set(r.id, r);
+      requiredByRole.set(r.id, getRequiredFor(selectedDateObj, r.group_id, r.id, seg));
+    }
+
+    const assignments = all(
+      `SELECT a.person_id, a.role_id, r.group_id, p.last_name, p.first_name
+       FROM assignment a
+       JOIN role r ON r.id=a.role_id
+       JOIN person p ON p.id=a.person_id
+       WHERE a.date=? AND a.segment=?`,
+      [ymd(selectedDateObj), seg]
+    ) as Array<{ person_id: number; role_id: number; group_id: number; last_name: string; first_name: string }>;
+    const assignmentByPerson = new Map<number, { role_id: number; group_id: number; label: string }>();
+    for (const a of assignments) {
+      assignmentByPerson.set(a.person_id, {
+        role_id: a.role_id,
+        group_id: a.group_id,
+        label: `${a.last_name}, ${a.first_name}`,
+      });
+    }
+
+    const optionsByRole = new Map<number, Array<{ id: number; label: string; trained: boolean }>>();
+    for (const r of roles) {
+      let opts = peopleOptionsForSegment(selectedDateObj, seg, r).filter((o) => !assignmentByPerson.has(o.id));
+      opts.sort((a, b) => {
         if (priority === "alphabetical") return a.label.localeCompare(b.label);
-        const ta = /\(Untrained\)$/.test(a.label) ? 0 : 1;
-        const tb = /\(Untrained\)$/.test(b.label) ? 0 : 1;
-        if (ta !== tb) return tb - ta;
+        if (a.trained !== b.trained) return a.trained ? -1 : 1;
         return a.label.localeCompare(b.label);
       });
-      const selected = candidates[0]?.id || null;
-      if (selected != null) assignedIds.add(selected);
-      return { role, group, candidates, selected };
-    });
-    setAutoFillSuggestions(sugg);
+      optionsByRole.set(r.id, opts);
+    }
+
+    const trainedCache = new Map<number, Set<number>>();
+    function trainedSetForRole(role: any) {
+      let set = trainedCache.get(role.id);
+      if (!set) {
+        set = new Set<number>([
+          ...all(`SELECT person_id FROM training WHERE role_id=? AND status='Qualified'`, [role.id]).map((r: any) => r.person_id),
+          ...all(
+            `SELECT DISTINCT person_id FROM monthly_default WHERE role_id=? AND segment=?
+             UNION
+             SELECT DISTINCT person_id FROM monthly_default_day WHERE role_id=? AND segment=?`,
+            [role.id, seg, role.id, seg]
+          ).map((r: any) => r.person_id),
+        ]);
+        trainedCache.set(role.id, set);
+      }
+      return set;
+    }
+
+    const used = new Set<number>();
+    const queue = deficitRoles.slice();
+    const suggestions: Array<{ role: any; group: any; candidates: any[]; selected: number | null }> = [];
+
+    function findCandidate(
+      targetRole: any,
+      targetGroupId: number,
+      mode: "same" | "other" | "any",
+      training: "trained" | "untrained" | "any",
+      overstaffed: boolean,
+      replaceable: boolean
+    ) {
+      const trainedTarget = trainedSetForRole(targetRole);
+      for (const [pid, info] of assignmentByPerson.entries()) {
+        if (used.has(pid)) continue;
+        const rinfo = rolesById.get(info.role_id)!;
+        if (mode === "same" && rinfo.group_id !== targetGroupId) continue;
+        if (mode === "other" && rinfo.group_id === targetGroupId) continue;
+        if (info.role_id === targetRole.id) continue;
+        if (overstaffed) {
+          const req = requiredByRole.get(rinfo.id) || 0;
+          if ((assignedCounts.get(rinfo.id) || 0) <= req) continue;
+        }
+        if (replaceable) {
+          const optsForSrc = optionsByRole
+            .get(rinfo.id)
+            ?.filter((o) => o.trained && !assignmentByPerson.has(o.id) && !used.has(o.id));
+          if (!optsForSrc || optsForSrc.length === 0) continue;
+        }
+        const isTrained = trainedTarget.has(pid);
+        if (training === "trained" && !isTrained) continue;
+        if (training === "untrained" && isTrained) continue;
+        return { person_id: pid, role_id: info.role_id, label: info.label, group_id: rinfo.group_id };
+      }
+      return null;
+    }
+
+    while (queue.length) {
+      const { role, group } = queue.shift()!;
+      const opts = (optionsByRole.get(role.id) || []).filter((o) => !used.has(o.id));
+      const trainedOpts = opts.filter((o) => o.trained);
+      let selected: number | null = null;
+      let candidates = opts;
+
+      if (trainedOpts.length > 0) {
+        // Step 0: use any available trained members
+        selected = trainedOpts[0].id;
+        used.add(selected);
+        assignmentByPerson.set(selected, { role_id: role.id, group_id: group.id, label: trainedOpts[0].label });
+        assignedCounts.set(role.id, (assignedCounts.get(role.id) || 0) + 1);
+      } else {
+        // Steps 1-8
+        let moved =
+          findCandidate(role, group.id, "same", "trained", true, false) || // Step 1
+          findCandidate(role, group.id, "other", "trained", true, false) || // Step 2
+          findCandidate(role, group.id, "same", "trained", false, true) || // Step 3
+          findCandidate(role, group.id, "other", "trained", false, true) || // Step 5
+          findCandidate(role, group.id, "same", "untrained", true, false) || // Step 7
+          findCandidate(role, group.id, "other", "untrained", true, false); // Step 8
+
+        if (moved) {
+          selected = moved.person_id;
+          candidates = [{ id: moved.person_id, label: moved.label }];
+          used.add(selected);
+          const fromCount = (assignedCounts.get(moved.role_id) || 0) - 1;
+          assignedCounts.set(moved.role_id, fromCount);
+          const reqFrom = requiredByRole.get(moved.role_id) || 0;
+          if (fromCount < reqFrom) {
+            const fromRole = rolesById.get(moved.role_id)!;
+            const fromGroup = groupMap.get(fromRole.group_id)!;
+            queue.push({ role: fromRole, group: fromGroup });
+          }
+          assignmentByPerson.set(selected, { role_id: role.id, group_id: group.id, label: moved.label });
+          assignedCounts.set(role.id, (assignedCounts.get(role.id) || 0) + 1);
+        }
+      }
+
+      suggestions.push({ role, group, candidates: candidates.map((c) => ({ id: c.id, label: c.label })), selected });
+    }
+
+    setAutoFillSuggestions(suggestions);
     setAutoFillOpen(true);
   }
 
