@@ -444,16 +444,21 @@ export default function DailyRunBoard({
       // Special rule: promote assistants when coordinator/supervisor is missing
       if (/Coordinator|Supervisor/i.test(role.name)) {
         const trainedTarget = trainedSetForRole(role);
-        let promoted: { person_id: number; role_id: number; label: string } | null = null;
+        let trainedPromoted: { person_id: number; role_id: number; label: string } | null = null;
+        let untrainedPromoted: { person_id: number; role_id: number; label: string } | null = null;
         for (const [pid, info] of assignmentByPerson.entries()) {
           if (used.has(pid)) continue;
           if (info.group_id !== group.id) continue;
           const srcRole = rolesById.get(info.role_id)!;
           if (!/Assistant/i.test(srcRole.name)) continue;
-          if (!trainedTarget.has(pid)) continue;
-          promoted = { person_id: pid, role_id: info.role_id, label: info.label };
-          break;
+          const candidate = { person_id: pid, role_id: info.role_id, label: info.label };
+          if (trainedTarget.has(pid)) {
+            if (!trainedPromoted) trainedPromoted = candidate;
+          } else if (!untrainedPromoted) {
+            untrainedPromoted = candidate;
+          }
         }
+        const promoted = trainedPromoted || untrainedPromoted;
         if (promoted) {
           selected = promoted.person_id;
           candidates = [{ id: promoted.person_id, label: promoted.label }];
