@@ -21,11 +21,15 @@ const useStyles = makeStyles({
   body: {
     maxHeight: "60vh",
     overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalM,
   },
   grid: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
-    gap: tokens.spacingHorizontalS,
+    columnGap: tokens.spacingHorizontalS,
+    rowGap: tokens.spacingVerticalXS,
     marginTop: tokens.spacingVerticalXS,
   },
   sectionTitle: {
@@ -35,6 +39,16 @@ const useStyles = makeStyles({
   },
   cell: { fontSize: tokens.fontSizeBase300 },
   list: { marginTop: tokens.spacingVerticalXS, paddingLeft: tokens.spacingHorizontalL },
+  trainingList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalXS,
+    marginTop: tokens.spacingVerticalXS,
+  },
+  trainingRow: {
+    display: "flex",
+    justifyContent: "space-between",
+  },
   divider: { margin: `${tokens.spacingVerticalM} 0` },
 });
 
@@ -123,12 +137,17 @@ export default function PersonProfileModal({ personId, onClose, all }: PersonPro
           <Divider className={s.divider} />
           <div>
             <div className={s.sectionTitle}>Training</div>
-            <ul className={s.list}>
-              {trainings.map((t: any, idx: number) => (
-                <li key={idx} className={s.cell}>{t.name} — {t.status}</li>
-              ))}
-              {trainings.length === 0 && <div className={s.cell}>No training records.</div>}
-            </ul>
+            {trainings.length === 0 && <div className={s.cell}>No training records.</div>}
+            {trainings.length > 0 && (
+              <div className={s.trainingList}>
+                {trainings.map((t: any, idx: number) => (
+                  <div key={idx} className={s.trainingRow}>
+                    <span className={s.cell}>{t.name}</span>
+                    <span className={s.cell}>{t.status}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <Divider className={s.divider} />
           <div>
