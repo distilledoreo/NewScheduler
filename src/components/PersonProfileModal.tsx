@@ -7,6 +7,7 @@ import {
   DialogActions,
   Button,
   makeStyles,
+  Divider,
   tokens,
 } from "@fluentui/react-components";
 
@@ -17,6 +18,10 @@ interface PersonProfileModalProps {
 }
 
 const useStyles = makeStyles({
+  body: {
+    maxHeight: "60vh",
+    overflowY: "auto",
+  },
   grid: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
@@ -29,8 +34,8 @@ const useStyles = makeStyles({
     marginBottom: tokens.spacingVerticalXS,
   },
   cell: { fontSize: tokens.fontSizeBase300 },
-  mtM: { marginTop: tokens.spacingVerticalM },
   list: { marginTop: tokens.spacingVerticalXS, paddingLeft: tokens.spacingHorizontalL },
+  divider: { margin: `${tokens.spacingVerticalM} 0` },
 });
 
 function fmtAvail(v: string) {
@@ -94,60 +99,70 @@ export default function PersonProfileModal({ personId, onClose, all }: PersonPro
     <Dialog open onOpenChange={(_, d) => { if (!d.open) onClose(); }}>
       <DialogSurface aria-describedby={undefined}>
         <DialogTitle>{person.first_name} {person.last_name}</DialogTitle>
-        <DialogBody>
-          <div className={s.sectionTitle}>Info</div>
-          <div className={s.grid}>
-            <div className={s.cell}><b>Email:</b> {person.work_email}</div>
-            <div className={s.cell}><b>Status:</b> {person.active ? "Active" : "Inactive"}</div>
-            <div className={s.cell}><b>Brother/Sister:</b> {person.brother_sister || "-"}</div>
-            <div className={s.cell}><b>Commuter:</b> {person.commuter ? "Yes" : "No"}</div>
-          </div>
-
-          <div className={`${s.sectionTitle} ${s.mtM}`}>Availability</div>
-          <div className={s.grid}>
-            <div className={s.cell}><b>Mon:</b> {fmtAvail(person.avail_mon)}</div>
-            <div className={s.cell}><b>Tue:</b> {fmtAvail(person.avail_tue)}</div>
-            <div className={s.cell}><b>Wed:</b> {fmtAvail(person.avail_wed)}</div>
-            <div className={s.cell}><b>Thu:</b> {fmtAvail(person.avail_thu)}</div>
-            <div className={s.cell}><b>Fri:</b> {fmtAvail(person.avail_fri)}</div>
-          </div>
-
-          <div className={`${s.sectionTitle} ${s.mtM}`}>Training</div>
-          <ul className={s.list}>
-            {trainings.map((t: any, idx: number) => (
-              <li key={idx} className={s.cell}>{t.name} — {t.status}</li>
-            ))}
-            {trainings.length === 0 && <div className={s.cell}>No training records.</div>}
-          </ul>
-
-          <div className={`${s.sectionTitle} ${s.mtM}`}>Monthly Defaults</div>
-          {shownMonths.map((m) => (
-            <div key={m}>
-              <div className={s.cell}><b>{fmtMonth(m)}</b></div>
-              <ul className={s.list}>
-                {defaultsByMonth[m].map((d: any, idx: number) => (
-                  <li key={idx} className={s.cell}>
-                    {d.segment} — {d.group_name} / {d.role_name}
-                  </li>
-                ))}
-              </ul>
+        <DialogBody className={s.body}>
+          <div>
+            <div className={s.sectionTitle}>Info</div>
+            <div className={s.grid}>
+              <div className={s.cell}><b>Email:</b> {person.work_email}</div>
+              <div className={s.cell}><b>Status:</b> {person.active ? "Active" : "Inactive"}</div>
+              <div className={s.cell}><b>Brother/Sister:</b> {person.brother_sister || "-"}</div>
+              <div className={s.cell}><b>Commuter:</b> {person.commuter ? "Yes" : "No"}</div>
             </div>
-          ))}
-          {monthKeys.length > 3 && (
-            <Button appearance="subtle" onClick={() => setShowAllDefaults(!showAllDefaults)}>
-              {showAllDefaults ? 'Show Less' : 'Show More'}
-            </Button>
-          )}
-
-          <div className={`${s.sectionTitle} ${s.mtM}`}>Upcoming Time Off</div>
-          <ul className={s.list}>
-            {timeOff.map((t: any, idx: number) => (
-              <li key={idx} className={s.cell}>
-                {new Date(t.start_ts).toLocaleString()} — {new Date(t.end_ts).toLocaleString()} {t.reason ? `— ${t.reason}` : ''}
-              </li>
+          </div>
+          <Divider className={s.divider} />
+          <div>
+            <div className={s.sectionTitle}>Availability</div>
+            <div className={s.grid}>
+              <div className={s.cell}><b>Mon:</b> {fmtAvail(person.avail_mon)}</div>
+              <div className={s.cell}><b>Tue:</b> {fmtAvail(person.avail_tue)}</div>
+              <div className={s.cell}><b>Wed:</b> {fmtAvail(person.avail_wed)}</div>
+              <div className={s.cell}><b>Thu:</b> {fmtAvail(person.avail_thu)}</div>
+              <div className={s.cell}><b>Fri:</b> {fmtAvail(person.avail_fri)}</div>
+            </div>
+          </div>
+          <Divider className={s.divider} />
+          <div>
+            <div className={s.sectionTitle}>Training</div>
+            <ul className={s.list}>
+              {trainings.map((t: any, idx: number) => (
+                <li key={idx} className={s.cell}>{t.name} — {t.status}</li>
+              ))}
+              {trainings.length === 0 && <div className={s.cell}>No training records.</div>}
+            </ul>
+          </div>
+          <Divider className={s.divider} />
+          <div>
+            <div className={s.sectionTitle}>Monthly Defaults</div>
+            {shownMonths.map((m) => (
+              <div key={m}>
+                <div className={s.cell}><b>{fmtMonth(m)}</b></div>
+                <ul className={s.list}>
+                  {defaultsByMonth[m].map((d: any, idx: number) => (
+                    <li key={idx} className={s.cell}>
+                      {d.segment} — {d.group_name} / {d.role_name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-            {timeOff.length === 0 && <div className={s.cell}>No upcoming time off.</div>}
-          </ul>
+            {monthKeys.length > 3 && (
+              <Button appearance="subtle" onClick={() => setShowAllDefaults(!showAllDefaults)}>
+                {showAllDefaults ? 'Show Less' : 'Show More'}
+              </Button>
+            )}
+          </div>
+          <Divider className={s.divider} />
+          <div>
+            <div className={s.sectionTitle}>Upcoming Time Off</div>
+            <ul className={s.list}>
+              {timeOff.map((t: any, idx: number) => (
+                <li key={idx} className={s.cell}>
+                  {new Date(t.start_ts).toLocaleString()} — {new Date(t.end_ts).toLocaleString()} {t.reason ? `— ${t.reason}` : ''}
+                </li>
+              ))}
+              {timeOff.length === 0 && <div className={s.cell}>No upcoming time off.</div>}
+            </ul>
+          </div>
         </DialogBody>
         <DialogActions>
           <Button appearance="primary" onClick={onClose}>Close</Button>
