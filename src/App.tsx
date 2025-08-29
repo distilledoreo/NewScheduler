@@ -153,6 +153,17 @@ export default function App() {
   const [monthlyOverrides, setMonthlyOverrides] = useState<any[]>([]);
   const [monthlyNotes, setMonthlyNotes] = useState<any[]>([]);
 
+  // Assignment conflict prompt
+  const [conflictPrompt, setConflictPrompt] = useState<
+    | null
+    | {
+        person: any;
+        date: Date;
+        segment: Segment;
+        resolve: (action: 'overwrite' | 'skip' | 'overwriteAll' | 'skipAll') => void;
+      }
+  >(null);
+
   // UI: simple dialogs
   const [showNeedsEditor, setShowNeedsEditor] = useState(false);
   const [profilePersonId, setProfilePersonId] = useState<number | null>(null);
@@ -655,7 +666,7 @@ export default function App() {
     setStatus(`Copied monthly defaults from ${fromMonth}.`);
   }
 
-  function applyMonthlyDefaults(month: string) {
+  async function applyMonthlyDefaults(month: string) {
     if (!sqlDb) return;
     const [y,m] = month.split('-').map(n=>parseInt(n,10));
     const days = new Date(y, m, 0).getDate();
@@ -667,6 +678,8 @@ export default function App() {
     for (const ov of monthlyOverrides) {
       overrideMap.set(`${ov.person_id}|${ov.weekday}|${ov.segment}`, ov.role_id);
     }
+    let overwriteAll = false;
+    let skipAll = false;
     for (const person of people) {
       for (let day=1; day<=days; day++) {
         const d = new Date(y, m-1, day);
@@ -685,8 +698,26 @@ export default function App() {
           else ok = avail === 'AM' || avail === 'PM' || avail === 'B';
           if (!ok) continue;
           if (seg !== 'Early' && isSegmentBlockedByTimeOff(person.id, d, seg)) continue;
+          const dateStr = ymd(d);
+          const existing = all(
+            `SELECT role_id FROM assignment WHERE date=? AND person_id=? AND segment=?`,
+            [dateStr, person.id, seg]
+          );
+          if (existing.length) {
+            if (skipAll) continue;
+            if (!overwriteAll) {
+              const action = await new Promise<'overwrite'|'skip'|'overwriteAll'|'skipAll'>(resolve => {
+                setConflictPrompt({ person, date: d, segment: seg, resolve });
+              });
+              if (action === 'skip' || action === 'skipAll') {
+                if (action === 'skipAll') skipAll = true;
+                continue;
+              }
+              if (action === 'overwriteAll') overwriteAll = true;
+            }
+          }
           run(`INSERT OR REPLACE INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`,
-              [ymd(d), person.id, roleId, seg]);
+              [dateStr, person.id, roleId, seg]);
         }
       }
     }
@@ -1634,6 +1665,24 @@ function PeopleEditor(){
           onClose={() => setProfilePersonId(null)}
           all={all}
         />
+      )}
+      {conflictPrompt && (
+        <Dialog open>
+          <DialogSurface>
+            <DialogBody>
+              <DialogTitle>Assignment Conflict</DialogTitle>
+              <DialogContent>
+                {conflictPrompt.person.first_name} {conflictPrompt.person.last_name} is already assigned on {conflictPrompt.date.toLocaleDateString()} for {conflictPrompt.segment}. What would you like to do?
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => { conflictPrompt.resolve('overwrite'); setConflictPrompt(null); }}>Overwrite</Button>
+                <Button onClick={() => { conflictPrompt.resolve('skip'); setConflictPrompt(null); }}>Skip</Button>
+                <Button onClick={() => { conflictPrompt.resolve('overwriteAll'); setConflictPrompt(null); }}>Overwrite All</Button>
+                <Button onClick={() => { conflictPrompt.resolve('skipAll'); setConflictPrompt(null); }}>Skip All</Button>
+              </DialogActions>
+            </DialogBody>
+          </DialogSurface>
+        </Dialog>
       )}
         </div>
         </main>

@@ -24,7 +24,7 @@ interface MonthlyDefaultsProps {
   setWeeklyOverride: (personId: number, weekday: number, segment: Segment, roleId: number | null) => void;
   setMonthlyNote: (personId: number, note: string | null) => void;
   copyMonthlyDefaults: (fromMonth: string, toMonth: string) => void;
-  applyMonthlyDefaults: (month: string) => void;
+  applyMonthlyDefaults: (month: string) => Promise<void> | void;
   exportMonthlyDefaults: (month: string) => void;
   roleListForSegment: (segment: Segment) => any[];
 }
@@ -230,7 +230,7 @@ export default function MonthlyDefaults({
           <span className={styles.label}>Month</span>
           <Input className={styles.field} type="month" value={selectedMonth} onChange={(_, d) => setSelectedMonth(d.value)} />
         </div>
-        <Button onClick={() => applyMonthlyDefaults(selectedMonth)}>Apply to Month</Button>
+        <Button onClick={() => void applyMonthlyDefaults(selectedMonth)}>Apply to Month</Button>
         <div>
           <span className={styles.label}>Copy From</span>
           <Input className={styles.field} type="month" value={copyFromMonth} onChange={(_, d) => setCopyFromMonth(d.value)} />
