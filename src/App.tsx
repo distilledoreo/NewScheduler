@@ -477,8 +477,10 @@ export default function App() {
       [dYMD, personId, segment]
     );
     if (existing.length) {
+      const person = people.find((p:any) => p.id === personId);
+      const personName = person ? `${person.first_name} ${person.last_name}` : "This person";
       const details = existing.map((e:any)=> `${e.group_name} - ${e.role_name}`).join("; ");
-      const proceed = confirm(`This person is already assigned in ${segment}: ${details}.\n\nClick OK to continue and remove the other assignment(s), or Cancel to abort.`);
+      const proceed = confirm(`${personName} is already assigned in ${segment}: ${details}.\n\nClick OK to continue and remove the other assignment(s), or Cancel to abort.`);
       if (!proceed) return;
       for (const e of existing) {
         run(`DELETE FROM assignment WHERE id=?`, [e.id]);
