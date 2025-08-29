@@ -57,14 +57,38 @@ export default function PersonProfileModal({ personId, onClose, all }: PersonPro
     [personId]
   );
 
-  const historySql =
-    'SELECT a.date, a.segment, r.name as role_name, g.name as group_name ' +
-    'FROM assignment a ' +
-    'JOIN role r ON r.id=a.role_id ' +
-    'JOIN grp g ON g.id=r.group_id ' +
-    'WHERE a.person_id=? ORDER BY a.date DESC LIMIT 30';
+  const [showAllDefaults, setShowAllDefaults] = React.useState(false);
 
-  const history = all(historySql, [personId]);
+  const defaults = all(
+    'SELECT md.month, md.segment, r.name as role_name, g.name as group_name ' +
+    'FROM monthly_default md ' +
+    'JOIN role r ON r.id=md.role_id ' +
+    'JOIN grp g ON g.id=r.group_id ' +
+    'WHERE md.person_id=? ORDER BY md.month DESC, md.segment',
+    [personId]
+  );
+
+  const defaultsByMonth = React.useMemo(() => {
+    const map: Record<string, any[]> = {};
+    for (const d of defaults) {
+      (map[d.month] ||= []).push(d);
+    }
+    return map;
+  }, [defaults]);
+
+  const monthKeys = Object.keys(defaultsByMonth).sort((a, b) => b.localeCompare(a));
+  const shownMonths = showAllDefaults ? monthKeys : monthKeys.slice(0, 3);
+
+  function fmtMonth(m: string) {
+    const [y, mo] = m.split('-').map((n) => parseInt(n, 10));
+    return new Date(y, mo - 1, 1).toLocaleString(undefined, { month: 'long', year: 'numeric' });
+  }
+
+  const nowIso = new Date().toISOString();
+  const timeOff = all(
+    'SELECT start_ts, end_ts, reason FROM timeoff WHERE person_id=? AND end_ts>=? ORDER BY start_ts ASC',
+    [personId, nowIso]
+  );
 
   return (
     <Dialog open onOpenChange={(_, d) => { if (!d.open) onClose(); }}>
@@ -96,14 +120,33 @@ export default function PersonProfileModal({ personId, onClose, all }: PersonPro
             {trainings.length === 0 && <div className={s.cell}>No training records.</div>}
           </ul>
 
-          <div className={`${s.sectionTitle} ${s.mtM}`}>Recent Assignments</div>
+          <div className={`${s.sectionTitle} ${s.mtM}`}>Monthly Defaults</div>
+          {shownMonths.map((m) => (
+            <div key={m}>
+              <div className={s.cell}><b>{fmtMonth(m)}</b></div>
+              <ul className={s.list}>
+                {defaultsByMonth[m].map((d: any, idx: number) => (
+                  <li key={idx} className={s.cell}>
+                    {d.segment} — {d.group_name} / {d.role_name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          {monthKeys.length > 3 && (
+            <Button appearance="subtle" onClick={() => setShowAllDefaults(!showAllDefaults)}>
+              {showAllDefaults ? 'Show Less' : 'Show More'}
+            </Button>
+          )}
+
+          <div className={`${s.sectionTitle} ${s.mtM}`}>Upcoming Time Off</div>
           <ul className={s.list}>
-            {history.map((h: any, idx: number) => (
+            {timeOff.map((t: any, idx: number) => (
               <li key={idx} className={s.cell}>
-                {new Date(h.date).toLocaleDateString()} — {h.segment} — {h.group_name} / {h.role_name}
+                {new Date(t.start_ts).toLocaleString()} — {new Date(t.end_ts).toLocaleString()} {t.reason ? `— ${t.reason}` : ''}
               </li>
             ))}
-            {history.length === 0 && <div className={s.cell}>No recent assignments.</div>}
+            {timeOff.length === 0 && <div className={s.cell}>No upcoming time off.</div>}
           </ul>
         </DialogBody>
         <DialogActions>
