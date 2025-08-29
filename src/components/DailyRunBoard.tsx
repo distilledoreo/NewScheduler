@@ -381,6 +381,36 @@ export default function DailyRunBoard({
       optionsByRole.set(r.id, opts);
     }
 
+    // Map monthly default assignments for quick lookup
+    const monthKey = `${selectedDateObj.getFullYear()}-${String(selectedDateObj.getMonth() + 1).padStart(2, "0")}`;
+    const weekday = selectedDateObj.getDay() === 0 ? 7 : selectedDateObj.getDay(); // 1=Mon .. 7=Sun
+    const defDayRows = all(
+      `SELECT person_id, role_id FROM monthly_default_day WHERE month=? AND weekday=? AND segment=?`,
+      [monthKey, weekday, seg]
+    ) as Array<{ person_id: number; role_id: number }>;
+    const defMonthRows = all(
+      `SELECT person_id, role_id FROM monthly_default WHERE month=? AND segment=?`,
+      [monthKey, seg]
+    ) as Array<{ person_id: number; role_id: number }>;
+    const defaultsDay = new Map<number, number[]>();
+    for (const r of defDayRows) {
+      let arr = defaultsDay.get(r.role_id);
+      if (!arr) {
+        arr = [];
+        defaultsDay.set(r.role_id, arr);
+      }
+      arr.push(r.person_id);
+    }
+    const defaultsMonth = new Map<number, number[]>();
+    for (const r of defMonthRows) {
+      let arr = defaultsMonth.get(r.role_id);
+      if (!arr) {
+        arr = [];
+        defaultsMonth.set(r.role_id, arr);
+      }
+      arr.push(r.person_id);
+    }
+
     const trainedCache = new Map<number, Set<number>>();
     function trainedSetForRole(role: any) {
       let set = trainedCache.get(role.id);
@@ -440,9 +470,27 @@ export default function DailyRunBoard({
       const { role, group } = queue.shift()!;
       let selected: number | null = null;
       let candidates: Array<{ id: number; label: string }> = [];
+      // Step -1: check monthly defaults for this role
+      const defIds = [
+        ...(defaultsDay.get(role.id) || []),
+        ...(defaultsMonth.get(role.id) || []),
+      ];
+      for (const pid of defIds) {
+        if (selected != null) break;
+        if (used.has(pid)) continue;
+        if (assignmentByPerson.has(pid)) continue;
+        const opt = (optionsByRole.get(role.id) || []).find((o) => o.id === pid && !used.has(o.id));
+        if (opt) {
+          selected = pid;
+          candidates = [{ id: pid, label: opt.label }];
+          used.add(pid);
+          assignmentByPerson.set(pid, { role_id: role.id, group_id: group.id, label: opt.label });
+          assignedCounts.set(role.id, (assignedCounts.get(role.id) || 0) + 1);
+        }
+      }
 
       // Special rule: promote assistants when coordinator/supervisor is missing
-      if (/Coordinator|Supervisor/i.test(role.name)) {
+      if (selected == null && /Coordinator|Supervisor/i.test(role.name)) {
         const trainedTarget = trainedSetForRole(role);
         let trainedPromoted: { person_id: number; role_id: number; label: string } | null = null;
         let untrainedPromoted: { person_id: number; role_id: number; label: string } | null = null;
