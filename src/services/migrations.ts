@@ -105,6 +105,17 @@ export const migrate15AddSegmentAdjustmentRole: Migration = (db) => {
   } catch {}
 };
 
+export const migrate16AddCompetency: Migration = (db) => {
+  db.run(`CREATE TABLE IF NOT EXISTS competency (
+      person_id INTEGER NOT NULL,
+      role_id INTEGER NOT NULL,
+      rating INTEGER CHECK(rating BETWEEN 1 AND 5) NOT NULL,
+      PRIMARY KEY (person_id, role_id),
+      FOREIGN KEY (person_id) REFERENCES person(id),
+      FOREIGN KEY (role_id) REFERENCES role(id)
+    );`);
+};
+
 export const migrate6AddExportGroup: Migration = (db) => {
   db.run(`CREATE TABLE IF NOT EXISTS export_group (
       group_id INTEGER PRIMARY KEY,
@@ -607,6 +618,7 @@ const migrations: Record<number, Migration> = {
   13: migrate13AddAvailabilityOverride,
   14: migrate14AddSegmentAdjustment,
   15: migrate15AddSegmentAdjustmentRole,
+  16: migrate16AddCompetency,
 };
 
 export function addMigration(version: number, fn: Migration) {

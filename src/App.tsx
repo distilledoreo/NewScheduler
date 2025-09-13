@@ -3,7 +3,7 @@ import { applyMigrations } from "./services/migrations";
 import { listSegments, type Segment, type SegmentRow } from "./services/segments";
 import { listSegmentAdjustments, type SegmentAdjustmentRow } from "./services/segmentAdjustments";
 import { availabilityFor } from "./services/availability";
-import SideRail from "./components/SideRail";
+import SideRail, { TabKey } from "./components/SideRail";
 import TopBar from "./components/TopBar";
 const DailyRunBoard = React.lazy(() => import("./components/DailyRunBoard"));
 const AdminView = React.lazy(() => import("./components/AdminView"));
@@ -16,6 +16,7 @@ import { Button, Checkbox, Dropdown, Input, Option, Table, TableHeader, TableHea
 import { FluentProvider, webDarkTheme, webLightTheme } from "@fluentui/react-components";
 import MonthlyDefaults from "./components/MonthlyDefaults";
 import CrewHistoryView from "./components/CrewHistoryView";
+import SkillTracker from "./components/SkillTracker";
 
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
@@ -129,7 +130,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState<string>(() => fmtDateMDY(new Date()));
   const [exportStart, setExportStart] = useState<string>(() => ymd(new Date()));
   const [exportEnd, setExportEnd] = useState<string>(() => ymd(new Date()));
-  const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "ADMIN">("RUN");
+  const [activeTab, setActiveTab] = useState<TabKey>("RUN");
   const [activeRunSegment, setActiveRunSegment] = useState<Segment>("AM");
 
   // People cache for quick UI (id -> record)
@@ -1597,6 +1598,9 @@ function PeopleEditor(){
               </Suspense>
             )}
           {activeTab === 'PEOPLE' && <PeopleEditor />}
+          {activeTab === 'SKILLS' && (
+            <SkillTracker people={people} roles={roles} all={all} run={run} />
+          )}
           {activeTab === 'NEEDS' && <BaselineView />}
           {activeTab === 'EXPORT' && (
             <Suspense fallback={<div className="p-4 text-slate-600">Loading Export Preview…</div>}>
