@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Table, TableHeader, TableRow, TableHeaderCell, TableBody, TableCell, Dropdown, Option, makeStyles, tokens } from "@fluentui/react-components";
+import { Dropdown, Option, makeStyles, tokens } from "@fluentui/react-components";
 
 interface SkillTrackerProps {
   people: any[];
@@ -63,7 +63,16 @@ export default function SkillTracker({ people, roles, all, run }: SkillTrackerPr
       borderRadius: tokens.borderRadiusLarge,
       overflow: "auto",
       maxHeight: "60vh",
+      width: "100%",
+      boxShadow: tokens.shadow2,
     },
+    table: { width: "100%", borderCollapse: "collapse" },
+    headerCell: {
+      padding: tokens.spacingHorizontalS,
+      textAlign: "left",
+      backgroundColor: tokens.colorNeutralBackground2,
+    },
+    cell: { padding: tokens.spacingHorizontalS, textAlign: "center" },
     cellDropdown: { width: "60px" },
   });
   const s = useStyles();
@@ -72,25 +81,27 @@ export default function SkillTracker({ people, roles, all, run }: SkillTrackerPr
     <div className={s.root}>
       <div className={s.title}>Skill Competency Tracker</div>
       <div className={s.tableWrap}>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHeaderCell>Person</TableHeaderCell>
+        <table className={s.table}>
+          <thead>
+            <tr>
+              <th className={s.headerCell}>Person</th>
               {roles.map((r: any) => (
-                <TableHeaderCell key={r.id}>{r.name}</TableHeaderCell>
+                <th key={r.id} className={s.headerCell}>
+                  {r.name}
+                </th>
               ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+            </tr>
+          </thead>
+          <tbody>
             {people.map((p: any) => (
-              <TableRow key={p.id}>
-                <TableCell>
+              <tr key={p.id}>
+                <td className={s.cell}>
                   {p.last_name}, {p.first_name}
-                </TableCell>
+                </td>
                 {roles.map((r: any) => {
                   const rating = ratings[p.id]?.[r.id];
                   return (
-                    <TableCell key={r.id}>
+                    <td key={r.id} className={s.cell}>
                       <Dropdown
                         className={s.cellDropdown}
                         selectedOptions={rating ? [String(rating)] : []}
@@ -107,13 +118,13 @@ export default function SkillTracker({ people, roles, all, run }: SkillTrackerPr
                         <Option value="4">4</Option>
                         <Option value="5">5</Option>
                       </Dropdown>
-                    </TableCell>
+                    </td>
                   );
                 })}
-              </TableRow>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
     </div>
   );
