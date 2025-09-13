@@ -2,7 +2,7 @@ import React from "react";
 import { Button, Tab, TabList, Tooltip, Spinner, Text, Switch, Toolbar as FluentToolbar, ToolbarButton, ToolbarDivider, makeStyles, tokens } from "@fluentui/react-components";
 import { Add20Regular, FolderOpen20Regular, Save20Regular, SaveCopy20Regular } from "@fluentui/react-icons";
 
-type TabKey = "RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "ADMIN";
+type TabKey = "RUN" | "PEOPLE" | "SKILLS" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "ADMIN";
 
 interface ToolbarProps {
   ready: boolean;
@@ -102,6 +102,7 @@ export default function Toolbar({
         >
           <Tab value="RUN">Daily Run</Tab>
           <Tab value="PEOPLE">People</Tab>
+          <Tab value="SKILLS">Skills</Tab>
           <Tab value="NEEDS">Baseline Needs</Tab>
           <Tab value="EXPORT">Export Preview</Tab>
           <Tab value="MONTHLY">Monthly Defaults</Tab>
