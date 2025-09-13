@@ -8,6 +8,7 @@ import TopBar from "./components/TopBar";
 const DailyRunBoard = React.lazy(() => import("./components/DailyRunBoard"));
 const AdminView = React.lazy(() => import("./components/AdminView"));
 const ExportPreview = React.lazy(() => import("./components/ExportPreview"));
+const CompetencyTracker = React.lazy(() => import("./components/CompetencyTracker"));
 import { exportMonthOneSheetXlsx } from "./excel/export-one-sheet";
 import PersonName from "./components/PersonName";
 import PersonProfileModal from "./components/PersonProfileModal";
@@ -129,7 +130,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState<string>(() => fmtDateMDY(new Date()));
   const [exportStart, setExportStart] = useState<string>(() => ymd(new Date()));
   const [exportEnd, setExportEnd] = useState<string>(() => ymd(new Date()));
-  const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "ADMIN">("RUN");
+  const [activeTab, setActiveTab] = useState<"RUN" | "PEOPLE" | "SKILLS" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "ADMIN">("RUN");
   const [activeRunSegment, setActiveRunSegment] = useState<Segment>("AM");
 
   // People cache for quick UI (id -> record)
@@ -1597,6 +1598,11 @@ function PeopleEditor(){
               </Suspense>
             )}
           {activeTab === 'PEOPLE' && <PeopleEditor />}
+          {activeTab === 'SKILLS' && (
+            <Suspense fallback={<div className="p-4 text-slate-600">Loading Skills…</div>}>
+              <CompetencyTracker people={people} roles={roles} all={all} run={run} />
+            </Suspense>
+          )}
           {activeTab === 'NEEDS' && <BaselineView />}
           {activeTab === 'EXPORT' && (
             <Suspense fallback={<div className="p-4 text-slate-600">Loading Export Preview…</div>}>

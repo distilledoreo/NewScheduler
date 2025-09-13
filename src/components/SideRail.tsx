@@ -15,7 +15,7 @@ import {
 } from "@fluentui/react-icons";
 import "../styles/tooltip.css";
 
-export type TabKey = "RUN" | "PEOPLE" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "ADMIN";
+export type TabKey = "RUN" | "PEOPLE" | "SKILLS" | "NEEDS" | "EXPORT" | "MONTHLY" | "HISTORY" | "ADMIN";
 
 export interface SideRailProps {
   ready: boolean;
@@ -108,6 +108,7 @@ export default function SideRail({
   const baseNav: NavItem[] = [
     { type: "page", key: "RUN", label: "Run", icon: <CalendarDay20Regular /> },
     { type: "page", key: "PEOPLE", label: "People", icon: <PeopleCommunity20Regular /> },
+    { type: "page", key: "SKILLS", label: "Skills", icon: <TableSimple20Regular /> },
     { type: "page", key: "NEEDS", label: "Needs", icon: <DocumentTable20Regular /> },
     { type: "page", key: "EXPORT", label: "Export", icon: <Share20Regular /> },
     { type: "page", key: "MONTHLY", label: "Monthly", icon: <CalendarLtr20Regular /> },
