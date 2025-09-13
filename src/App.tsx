@@ -16,7 +16,7 @@ import { Button, Checkbox, Dropdown, Input, Option, Table, TableHeader, TableHea
 import { FluentProvider, webDarkTheme, webLightTheme } from "@fluentui/react-components";
 import MonthlyDefaults from "./components/MonthlyDefaults";
 import CrewHistoryView from "./components/CrewHistoryView";
-import SkillTracker from "./components/SkillTracker";
+import Training from "./components/Training";
 
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
@@ -1598,8 +1598,14 @@ function PeopleEditor(){
               </Suspense>
             )}
           {activeTab === 'PEOPLE' && <PeopleEditor />}
-          {activeTab === 'SKILLS' && (
-            <SkillTracker people={people} roles={roles} all={all} run={run} />
+          {activeTab === 'TRAINING' && (
+            <Training
+              people={people}
+              roles={roles}
+              groups={groups}
+              all={all}
+              run={run}
+            />
           )}
           {activeTab === 'NEEDS' && <BaselineView />}
           {activeTab === 'EXPORT' && (
