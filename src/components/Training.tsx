@@ -40,7 +40,7 @@ export default function Training({
   const [ratings, setRatings] = useState<Record<number, Record<number, number>>>({});
   const [qualities, setQualities] = useState<Record<number, Record<string, number>>>({});
   const [groupId, setGroupId] = useState<number | "">("");
-  const [commuterOnly, setCommuterOnly] = useState(false);
+  const [commuterFilter, setCommuterFilter] = useState<"" | "commuter" | "non">("");
   const [activeOnly, setActiveOnly] = useState(true);
 
   useEffect(() => {
@@ -166,9 +166,13 @@ export default function Training({
   });
   const s = useStyles();
 
-  const filteredPeople = people.filter(
-    (p: any) => (!commuterOnly || p.commuter) && (!activeOnly || p.active),
-  );
+  const filteredPeople = people.filter((p: any) => {
+    const commuterMatch =
+      commuterFilter === "" ||
+      (commuterFilter === "commuter" && p.commuter) ||
+      (commuterFilter === "non" && !p.commuter);
+    return commuterMatch && (!activeOnly || p.active);
+  });
   const filteredRoles = roles.filter(
     (r: any) => !groupId || r.group_id === groupId,
   );
@@ -212,11 +216,17 @@ export default function Training({
           checked={activeOnly}
           onChange={(_, d) => setActiveOnly(!!d.checked)}
         />
-        <Checkbox
-          label="Commuter"
-          checked={commuterOnly}
-          onChange={(_, d) => setCommuterOnly(!!d.checked)}
-        />
+        <Dropdown
+          selectedOptions={commuterFilter === "" ? [] : [commuterFilter]}
+          placeholder="Commuter"
+          onOptionSelect={(_, data) =>
+            setCommuterFilter((data.optionValue as string) as "" | "commuter" | "non")
+          }
+        >
+          <Option value="">All People</Option>
+          <Option value="commuter">Commuters</Option>
+          <Option value="non">Non-Commuters</Option>
+        </Dropdown>
       </div>
       <div className={s.tableWrap}>
         {view === "skills" ? (
