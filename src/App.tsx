@@ -8,7 +8,7 @@ import TopBar from "./components/TopBar";
 const DailyRunBoard = React.lazy(() => import("./components/DailyRunBoard"));
 const AdminView = React.lazy(() => import("./components/AdminView"));
 const ExportPreview = React.lazy(() => import("./components/ExportPreview"));
-import { exportMonthOneSheetXlsx } from "./excel/export-one-sheet";
+// import { exportMonthOneSheetXlsx } from "./excel/export-one-sheet"; // not directly used here
 import PersonName from "./components/PersonName";
 import PersonProfileModal from "./components/PersonProfileModal";
 import { ProfileContext } from "./components/ProfileContext";
@@ -54,7 +54,6 @@ function pad2(n: number) {
 function fmtTime24(d: Date): string {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
-function cloneDate(d: Date) { return new Date(d.getTime()); }
 function ymd(d: Date) { return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
 
 function parseMDY(str: string): Date {
@@ -74,9 +73,6 @@ function addMinutes(date: Date, minutes: number) {
   return new Date(date.getTime() + minutes * 60000);
 }
 
-function sameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
 
 function weekdayName(d: Date): Weekday | "Weekend" {
   const n = d.getDay(); // 0 Sun .. 6 Sat
@@ -204,10 +200,6 @@ export default function App() {
   }, []);
 
   // DB helpers
-  function exec(sql: string, params: any[] = [], db = sqlDb) {
-    if (!db) throw new Error("DB not open");
-    return db.exec(sql, params);
-  }
   function run(sql: string, params: any[] = [], db = sqlDb) {
     if (!db) throw new Error("DB not open");
     const stmt = db.prepare(sql);
@@ -364,11 +356,6 @@ export default function App() {
     for (const r of stale) {
       run(`DELETE FROM training WHERE person_id=? AND role_id=? AND source='monthly'`, [r.person_id, r.role_id], db);
     }
-  }
-
-  function syncTrainingFromAssignments(db = sqlDb) {
-    // Disabled: training should be managed only via People > Qualified Roles UI
-    return;
   }
 
   function refreshCaches(db = sqlDb) {
@@ -954,7 +941,7 @@ async function exportShifts() {
     return segments.filter(x => x.end > x.start);
   }
 
-  function makeShiftRow(a: any, date: Date, start: Date, end: Date) {
+  function makeShiftRow(a: any, _date: Date, start: Date, end: Date) {
     const member = `${a.last_name}, ${a.first_name}`; // Last, First
     const workEmail = a.work_email;
     // Group logic: Breakfast forces Dining Room, otherwise from role
@@ -1032,22 +1019,7 @@ async function exportShifts() {
     return roles.filter((r) => (r.segments as Segment[]).includes(segment));
   }
 
-  function assignmentsByGroupRole(dateMDY: string, segment: Segment) {
-    const arr = listAssignmentsForDate(dateMDY).filter((a) => a.segment === segment);
-    const map: Record<string, { role: any; group: any; items: any[] }> = {};
-    for (const a of arr) {
-      const key = `${a.group_name}__${a.role_name}`;
-      if (!map[key]) map[key] = { role: { id: a.role_id, name: a.role_name }, group: { id: a.group_id, name: a.group_name }, items: [] };
-      map[key].items.push(a);
-    }
-    return map;
-  }
-
-  function countAssigned(dateMDY: string, groupId: number, roleId: number, segment: Segment) {
-    const dYMD = ymd(parseMDY(dateMDY));
-    const rows = all(`SELECT COUNT(*) as c FROM assignment WHERE date=? AND segment=? AND role_id=?`, [dYMD, segment, roleId]);
-    return rows[0]?.c || 0;
-  }
+  // Removed unused helpers assignmentsByGroupRole and countAssigned
 
   function RequiredCell({date, group, role, segment}:{date:Date|null; group:any; role:any; segment:Segment}){
     const req = date ? getRequiredFor(date, group.id, role.id, segment) : (all(`SELECT required FROM needs_baseline WHERE group_id=? AND role_id=? AND segment=?`, [group.id, role.id, segment])[0]?.required||0);
@@ -1602,7 +1574,6 @@ function PeopleEditor(){
                   getRequiredFor={getRequiredFor}
                   addAssignment={addAssignment}
                   deleteAssignment={deleteAssignment}
-                  isDark={themeName === "dark"}
                   segmentAdjustments={segmentAdjustments}
                 />
               </Suspense>

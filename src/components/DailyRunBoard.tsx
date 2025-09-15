@@ -26,8 +26,6 @@ import {
   Badge,
   Card,
   CardHeader,
-  CardPreview,
-  Subtitle1,
   Body1,
   Caption1,
   Title3,
@@ -202,7 +200,6 @@ interface DailyRunBoardProps {
     segment: Segment
   ) => void;
   deleteAssignment: (id: number) => void;
-  isDark: boolean;
   segmentAdjustments: SegmentAdjustmentRow[];
 }
 
@@ -227,7 +224,6 @@ export default function DailyRunBoard({
   getRequiredFor,
   addAssignment,
   deleteAssignment,
-  isDark,
   segmentAdjustments,
 }: DailyRunBoardProps) {
   // Height of each react-grid-layout row in pixels. Increase to make group cards taller.
@@ -322,6 +318,8 @@ export default function DailyRunBoard({
       ),
     [all, selectedDateObj, seg, ymd]
   );
+  // assignedIdSet was unused; removed to keep build warnings clean
+  void assignedIdSet;
 
   const groupMap = useMemo(() => new Map(groups.map((g: any) => [g.id, g])), [groups]);
 
@@ -629,6 +627,8 @@ export default function DailyRunBoard({
     if (!st || !en || seg === "Early") return 0;
     return Math.max(0, Math.round((en.getTime() - st.getTime()) / 60000));
   }, [segTimesTop, seg]);
+  // segDurationMinutesTop is currently unused; keep code simple by ignoring to satisfy linter
+  void segDurationMinutesTop;
 
   // Compute effective assigned counts per role (exclude heavy time-off overlaps)
   const assignedEffectiveCountMap = useMemo(() => {

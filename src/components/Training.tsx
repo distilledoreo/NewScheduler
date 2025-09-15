@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Button, Dropdown, Option, makeStyles, tokens, Label } from "@fluentui/react-components";
 import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./filters/PeopleFilters";
 
@@ -31,24 +31,30 @@ export default function Training({
   run,
 }: TrainingProps) {
   const [view, setView] = useState<"skills" | "qualities">("skills");
+  // ratings: person_id -> skill_id -> rating
   const [ratings, setRatings] = useState<Record<number, Record<number, number>>>({});
+  const [skills, setSkills] = useState<Array<{ id:number; code:string; name:string; active:number }>>([]);
   const [qualities, setQualities] = useState<Record<number, Record<string, number>>>({});
   const [groupId, setGroupId] = useState<number | "">("");
   const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters({ activeOnly: true }));
 
+  // Load skill catalog and person_skill ratings
   useEffect(() => {
     try {
-      const rows = all(`SELECT person_id, role_id, rating FROM competency`);
+      const skillRows = all(`SELECT id, code, name, active FROM skill WHERE active=1 ORDER BY name`);
+      setSkills(skillRows.map((r:any)=>({ id:r.id, code:String(r.code), name:String(r.name), active:Number(r.active)})));
+      const rows = all(`SELECT person_id, skill_id, rating FROM person_skill`);
       const map: Record<number, Record<number, number>> = {};
       for (const r of rows) {
         if (!map[r.person_id]) map[r.person_id] = {};
-        map[r.person_id][r.role_id] = r.rating;
+        map[r.person_id][r.skill_id] = r.rating;
       }
       setRatings(map);
     } catch {
+      setSkills([]);
       setRatings({});
     }
-  }, [people, roles, all]);
+  }, [people, all]);
 
   useEffect(() => {
     try {
@@ -64,33 +70,24 @@ export default function Training({
     }
   }, [people, all]);
 
-  function setRating(
-    personId: number,
-    roleId: number,
-    rating: number | null,
-  ) {
+  function setRating(personId: number, skillId: number, rating: number | null) {
     if (rating === null) {
-      run(`DELETE FROM competency WHERE person_id=? AND role_id=?`, [
-        personId,
-        roleId,
-      ]);
+      run(`DELETE FROM person_skill WHERE person_id=? AND skill_id=?`, [personId, skillId]);
       setRatings((prev) => {
         const next = { ...prev };
-        if (next[personId]) {
-          delete next[personId][roleId];
-        }
+        if (next[personId]) delete next[personId][skillId];
         return { ...next };
       });
     } else {
       run(
-        `INSERT INTO competency (person_id, role_id, rating) VALUES (?,?,?)
-         ON CONFLICT(person_id, role_id) DO UPDATE SET rating=excluded.rating`,
-        [personId, roleId, rating],
+        `INSERT INTO person_skill (person_id, skill_id, rating) VALUES (?,?,?)
+         ON CONFLICT(person_id, skill_id) DO UPDATE SET rating=excluded.rating`,
+        [personId, skillId, rating]
       );
       setRatings((prev) => {
         const next = { ...prev };
         if (!next[personId]) next[personId] = {};
-        next[personId][roleId] = rating;
+        next[personId][skillId] = rating;
         return { ...next };
       });
     }
@@ -169,9 +166,8 @@ export default function Training({
   const s = useStyles();
 
   const filteredPeople = useMemo(() => filterPeopleList(people, filters), [people, filters]);
-  const filteredRoles = roles.filter(
-    (r: any) => !groupId || r.group_id === groupId,
-  );
+  const filteredRoles = roles.filter((r: any) => !groupId || r.group_id === groupId);
+  void filteredRoles; // Roles used only in 'qualities' view for now
 
   return (
     <div className={s.root}>
@@ -193,23 +189,25 @@ export default function Training({
         </div>
       </div>
       <div className={s.filters}>
-        <div className={s.groupCell}>
-          <Label>Role group</Label>
-          <Dropdown
-            selectedOptions={groupId === "" ? [] : [String(groupId)]}
-            onOptionSelect={(_, data) => {
-              const val = data.optionValue ? parseInt(String(data.optionValue)) : "";
-              setGroupId(val as any);
-            }}
-          >
-            <Option value="">All Groups</Option>
-            {groups.map((g: any) => (
-              <Option key={g.id} value={String(g.id)}>
-                {g.name}
-              </Option>
-            ))}
-          </Dropdown>
-        </div>
+        {view === 'skills' ? null : (
+          <div className={s.groupCell}>
+            <Label>Role group</Label>
+            <Dropdown
+              selectedOptions={groupId === "" ? [] : [String(groupId)]}
+              onOptionSelect={(_, data) => {
+                const val = data.optionValue ? parseInt(String(data.optionValue)) : "";
+                setGroupId(val as any);
+              }}
+            >
+              <Option value="">All Groups</Option>
+              {groups.map((g: any) => (
+                <Option key={g.id} value={String(g.id)}>
+                  {g.name}
+                </Option>
+              ))}
+            </Dropdown>
+          </div>
+        )}
         <div className={s.grow}>
           <PeopleFiltersBar state={filters} onChange={(next) => setFilters((s) => ({ ...s, ...next }))} />
         </div>
@@ -220,9 +218,9 @@ export default function Training({
             <thead>
               <tr>
                 <th className={s.headerCell}>Person</th>
-                {filteredRoles.map((r: any) => (
-                  <th key={r.id} className={s.headerCell}>
-                    {r.name}
+                {skills.map((sk: any) => (
+                  <th key={sk.id} className={s.headerCell}>
+                    {sk.name}
                   </th>
                 ))}
               </tr>
@@ -233,10 +231,10 @@ export default function Training({
                   <td className={s.cell}>
                     {p.last_name}, {p.first_name}
                   </td>
-                  {filteredRoles.map((r: any) => {
-                    const rating = ratings[p.id]?.[r.id];
+                  {skills.map((sk: any) => {
+                    const rating = ratings[p.id]?.[sk.id];
                     return (
-                      <td key={r.id} className={s.cell}>
+                      <td key={sk.id} className={s.cell}>
                         <Dropdown
                           className={s.cellDropdown}
                           selectedOptions={rating ? [String(rating)] : []}
@@ -244,8 +242,8 @@ export default function Training({
                             const val = parseInt(
                               String(data.optionValue ?? data.optionText),
                             );
-                            if (!val) setRating(p.id, r.id, null);
-                            else setRating(p.id, r.id, val);
+                            if (!val) setRating(p.id, sk.id, null);
+                            else setRating(p.id, sk.id, val);
                           }}
                         >
                           <Option value="">-</Option>

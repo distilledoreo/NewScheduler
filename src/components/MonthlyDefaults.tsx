@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Input, Button, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, Link, makeStyles, tokens, Dropdown, Option, Tooltip, Textarea } from "@fluentui/react-components";
 import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./filters/PeopleFilters";
 import SmartSelect from "./controls/SmartSelect";
@@ -175,7 +175,6 @@ export default function MonthlyDefaults({
                       {weekdays.map(w => {
                         const ov = monthlyOverrides.find(o => o.person_id === personId && o.weekday === w && o.segment === seg);
                         const options = roleListForSegment(seg);
-                        const optionsKey = options.map((r: any) => `${r.id}:${r.name}`).join(',');
                         return (
                           <TableCell key={w}>
                             <SmartSelect
@@ -306,7 +305,6 @@ export default function MonthlyDefaults({
                       (d) => d.person_id === p.id && d.segment === seg,
                     );
                     const options = roleListForSegment(seg);
-                    const optionsKey = options.map((r: any) => `${r.id}:${r.name}`).join(',');
                     return (
                       <TableCell key={seg}>
                         <SmartSelect
