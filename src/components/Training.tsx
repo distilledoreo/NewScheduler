@@ -1,6 +1,8 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { Button, Dropdown, Option, makeStyles, tokens, Label } from "@fluentui/react-components";
 import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./filters/PeopleFilters";
+import { createDbProvider } from "../providers/factory";
+import type { TrainingSkill } from "../providers/DbProvider";
 
 interface TrainingProps {
   people: any[];
@@ -33,90 +35,125 @@ export default function Training({
   const [view, setView] = useState<"skills" | "qualities">("skills");
   // ratings: person_id -> skill_id -> rating
   const [ratings, setRatings] = useState<Record<number, Record<number, number>>>({});
-  const [skills, setSkills] = useState<Array<{ id:number; code:string; name:string; active:number; group_id:number|null }>>([]);
+  const [skills, setSkills] = useState<TrainingSkill[]>([]);
   const [qualities, setQualities] = useState<Record<number, Record<string, number>>>({});
   const [groupId, setGroupId] = useState<number | "">("");
   const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters({ activeOnly: true }));
 
+  const queryAllRef = useRef(all);
+  const runRef = useRef(run);
+
+  useEffect(() => {
+    queryAllRef.current = all;
+  }, [all]);
+
+  useEffect(() => {
+    runRef.current = run;
+  }, [run]);
+
+  const provider = useMemo(
+    () =>
+      createDbProvider(
+        (sql, params) => queryAllRef.current(sql, params),
+        (sql, params) => runRef.current(sql, params),
+      ),
+    [],
+  );
+
   // Load skill catalog and person_skill ratings
   useEffect(() => {
-    try {
-  const skillRows = all(`SELECT id, code, name, active, group_id FROM skill WHERE active=1 ORDER BY name`);
-  setSkills(skillRows.map((r:any)=>({ id:r.id, code:String(r.code), name:String(r.name), active:Number(r.active), group_id: r.group_id ?? null })));
-      const rows = all(`SELECT person_id, skill_id, rating FROM person_skill`);
-      const map: Record<number, Record<number, number>> = {};
-      for (const r of rows) {
-        if (!map[r.person_id]) map[r.person_id] = {};
-        map[r.person_id][r.skill_id] = r.rating;
+    let disposed = false;
+    (async () => {
+      try {
+        const [skillRows, ratingRows] = await Promise.all([
+          provider.getTrainingSkills(),
+          provider.getPersonSkillRatings(),
+        ]);
+        if (disposed) return;
+        setSkills(skillRows);
+        const map: Record<number, Record<number, number>> = {};
+        for (const rating of ratingRows) {
+          if (!map[rating.personId]) map[rating.personId] = {};
+          map[rating.personId][rating.skillId] = rating.rating;
+        }
+        setRatings(map);
+      } catch (error) {
+        console.error("Failed to load training data", error);
+        if (!disposed) {
+          setSkills([]);
+          setRatings({});
+        }
       }
-      setRatings(map);
-    } catch {
-      setSkills([]);
-      setRatings({});
-    }
-  }, [people, all]);
+    })();
+    return () => {
+      disposed = true;
+    };
+  }, [people, provider]);
 
   useEffect(() => {
-    try {
-      const rows = all(`SELECT * FROM person_quality`);
-      const map: Record<number, Record<string, number>> = {};
-      for (const r of rows) {
-        const { person_id, ...rest } = r;
-        map[person_id] = rest;
+    let disposed = false;
+    (async () => {
+      try {
+        const rows = await provider.getPersonQualities();
+        if (disposed) return;
+        const map: Record<number, Record<string, number>> = {};
+        for (const row of rows) {
+          map[row.personId] = row.values;
+        }
+        setQualities(map);
+      } catch (error) {
+        console.error("Failed to load person qualities", error);
+        if (!disposed) setQualities({});
       }
-      setQualities(map);
-    } catch {
-      setQualities({});
-    }
-  }, [people, all]);
+    })();
+    return () => {
+      disposed = true;
+    };
+  }, [people, provider]);
 
-  function setRating(personId: number, skillId: number, rating: number | null) {
-    if (rating === null) {
-      run(`DELETE FROM person_skill WHERE person_id=? AND skill_id=?`, [personId, skillId]);
-      setRatings((prev) => {
-        const next = { ...prev };
-        if (next[personId]) delete next[personId][skillId];
-        return { ...next };
-      });
-    } else {
-      run(
-        `INSERT INTO person_skill (person_id, skill_id, rating) VALUES (?,?,?)
-         ON CONFLICT(person_id, skill_id) DO UPDATE SET rating=excluded.rating`,
-        [personId, skillId, rating]
-      );
-      setRatings((prev) => {
-        const next = { ...prev };
-        if (!next[personId]) next[personId] = {};
-        next[personId][skillId] = rating;
-        return { ...next };
-      });
+  async function setRating(personId: number, skillId: number, rating: number | null) {
+    try {
+      await provider.setPersonSkillRating(personId, skillId, rating);
+      if (rating === null) {
+        setRatings((prev) => {
+          const next = { ...prev };
+          if (next[personId]) delete next[personId][skillId];
+          return { ...next };
+        });
+      } else {
+        setRatings((prev) => {
+          const next = { ...prev };
+          if (!next[personId]) next[personId] = {};
+          next[personId][skillId] = rating;
+          return { ...next };
+        });
+      }
+    } catch (error) {
+      console.error("Failed to update skill rating", error);
     }
   }
 
-  function setQuality(
+  async function setQuality(
     personId: number,
     key: string,
     rating: number | null,
   ) {
-    if (rating === null) {
-      run(`UPDATE person_quality SET ${key}=NULL WHERE person_id=?`, [
-        personId,
-      ]);
-      setQualities((prev) => {
-        const nextPerson: Record<string, number> = { ...(prev[personId] || {}) };
-        delete nextPerson[key];
-        return { ...prev, [personId]: nextPerson };
-      });
-    } else {
-      run(
-        `INSERT INTO person_quality (person_id, ${key}) VALUES (?, ?)
-         ON CONFLICT(person_id) DO UPDATE SET ${key}=excluded.${key}`,
-        [personId, rating],
-      );
-      setQualities((prev) => ({
-        ...prev,
-        [personId]: { ...(prev[personId] || {}), [key]: rating },
-      }));
+    try {
+      await provider.setPersonQuality(personId, key, rating);
+      if (rating === null) {
+        setQualities((prev) => {
+          const nextPerson: Record<string, number> = { ...(prev[personId] || {}) };
+          delete nextPerson[key];
+          return { ...prev, [personId]: nextPerson };
+        });
+      } else {
+        setQualities((prev) => ({
+          ...prev,
+          [personId]: { ...(prev[personId] || {}), [key]: rating },
+        }));
+      }
+    } catch (error) {
+      console.error("Failed to update person quality", error);
     }
   }
 
@@ -176,7 +213,7 @@ export default function Training({
   const visibleSkills = useMemo(() => {
     if (!groupId) return skills;
     const gid = Number(groupId);
-    return skills.filter(s => s.group_id == null || s.group_id === gid);
+    return skills.filter(s => s.groupId == null || s.groupId === gid);
   }, [skills, groupId]);
 
   return (
