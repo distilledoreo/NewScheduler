@@ -70,8 +70,15 @@ export default function CrewHistoryView({
       minWidth: 0,
       display: 'flex',
       alignItems: 'end',
-      // let children shrink/grow within the grid cell
       '& > *': { maxWidth: '100%' },
+    },
+    stack: {
+      display: 'grid',
+      gridAutoRows: 'max-content',
+      rowGap: tokens.spacingVerticalXS,
+      alignItems: 'stretch',
+      minWidth: 0,
+      '& > *': { minWidth: 0 },
     },
     full: {
       width: '100%',
@@ -393,7 +400,7 @@ export default function CrewHistoryView({
       <div className={styles.toolbar}>
         <div className={styles.controlsGrid}>
           <PeopleFiltersBar state={filters} onChange={(next) => setFilters((s) => ({ ...s, ...next }))} />
-          <div className={styles.controlCell}>
+          <div className={styles.stack}>
             <Label>Sort</Label>
             <Dropdown className={styles.full} selectedOptions={[sortField]} onOptionSelect={(_, data) => setSortField(data.optionValue as any)}>
               <Option value="last">Last Name</Option>
@@ -410,9 +417,8 @@ export default function CrewHistoryView({
                 <Option key={seg} value={seg}>{`${seg} Role`}</Option>
               ))}
             </Dropdown>
-            <Button onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}> {sortDir === "asc" ? "Asc" : "Desc"} </Button>
           </div>
-          <div className={styles.controlCell}>
+          <div className={styles.stack}>
             <Label>Filter month</Label>
             <Dropdown className={styles.full} selectedOptions={filterMonth ? [filterMonth] : []} onOptionSelect={(_, data) => setFilterMonth(data.optionValue as string)}>
               {months.map((m) => (
@@ -420,7 +426,7 @@ export default function CrewHistoryView({
               ))}
             </Dropdown>
           </div>
-          <div className={styles.controlCell}>
+          <div className={styles.stack}>
             <Label>Role groups</Label>
             <Dropdown className={styles.full} multiselect placeholder="All Groups" selectedOptions={groupFilter} onOptionSelect={(_, data) => setGroupFilter(data.selectedOptions as string[])}>
               {groups.map((g) => (
@@ -429,13 +435,14 @@ export default function CrewHistoryView({
             </Dropdown>
           </div>
           <div className={styles.controlCell}>
+            <Button onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}> {sortDir === "asc" ? "Asc" : "Desc"} </Button>
+          </div>
+          <div className={styles.controlCell}>
             <Button appearance="secondary" onClick={() => setShowAdvanced(v => !v)}>{showAdvanced ? 'Hide options' : 'More options'}</Button>
           </div>
           {showAdvanced && (
             <>
-              <div className={styles.controlCell}>
-                <Checkbox label="Edit past months" checked={editPast} onChange={(_, data) => setEditPast(!!data.checked)} />
-              </div>
+              <div className={styles.controlCell}><Checkbox label="Edit past months" checked={editPast} onChange={(_, data) => setEditPast(!!data.checked)} /></div>
               <div className={`${styles.controlCell} ${styles.monthRange}`}>
                 <span className={styles.label}>From</span>
                 <Input type="month" value={startMonth} onChange={(_, d) => setStartMonth(d.value)} />
