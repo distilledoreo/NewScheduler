@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Input, Dropdown, Option, Button, Checkbox, Table, TableHeader, TableBody, TableRow, TableHeaderCell, TableCell, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider } from "@fluentui/react-components";
+import { Input, Dropdown, Option, Button, Checkbox, Table, TableHeader, TableBody, TableRow, TableHeaderCell, TableCell, makeStyles, tokens } from "@fluentui/react-components";
 import SmartSelect from "./controls/SmartSelect";
 import PersonName from "./PersonName";
 import type { Segment } from "../services/segments";
+import PeopleFiltersBar, { defaultPeopleFilters, filterPeopleList, PeopleFiltersState } from "./filters/PeopleFilters";
 
 function pad2(n: number) {
   return n < 10 ? `0${n}` : `${n}`;
@@ -161,7 +162,7 @@ export default function CrewHistoryView({
     return style;
   }
   const [defs, setDefs] = useState<any[]>([]);
-  const [filter, setFilter] = useState("");
+  const [filters, setFilters] = useState<PeopleFiltersState>(defaultPeopleFilters);
   const segmentNames = useMemo(
     () => segments.map((s) => s.name as Segment),
     [segments],
@@ -169,9 +170,7 @@ export default function CrewHistoryView({
   const [showSeg, setShowSeg] = useState<Record<string, boolean>>(
     () => Object.fromEntries(segmentNames.map((s) => [s, true])),
   );
-  const [activeOnly, setActiveOnly] = useState(false);
-  const [commuterOnly, setCommuterOnly] = useState(false);
-  const [bsFilter, setBsFilter] = useState("");
+  // People-wide filters handled by PeopleFiltersBar
   const [groupFilter, setGroupFilter] = useState<string[]>([]);
   const [sortField, setSortField] = useState<string>("last");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -228,12 +227,8 @@ export default function CrewHistoryView({
   }, [months, filterMonth]);
 
   const filteredPeople = useMemo(() => {
-    const low = filter.toLowerCase();
     const monthsToCheck = filterMonth ? [filterMonth] : months;
-    return people
-      .filter((p: any) => !activeOnly || p.active)
-      .filter((p: any) => !commuterOnly || p.commuter)
-      .filter((p: any) => !bsFilter || p.brother_sister === bsFilter)
+    return filterPeopleList(people, filters)
       .filter((p: any) => {
         if (groupFilter.length === 0) return true;
         return monthsToCheck.some((m) =>
@@ -245,34 +240,7 @@ export default function CrewHistoryView({
             return role && groupFilter.includes(role.group_name);
           }),
         );
-      })
-      .filter((p: any) => {
-        const roleNames = monthsToCheck.flatMap((m) =>
-          segmentNames.map((seg) => {
-            const def = defs.find(
-              (d) => d.month === m && d.person_id === p.id && d.segment === seg,
-            );
-            const role = roles.find((r) => r.id === def?.role_id);
-            return role?.name || "";
-          }),
-        );
-        const text = [
-          p.first_name,
-          p.last_name,
-          p.brother_sister || "",
-          p.commuter ? "commuter" : "",
-          p.active ? "active" : "",
-          p.avail_mon,
-          p.avail_tue,
-          p.avail_wed,
-          p.avail_thu,
-          p.avail_fri,
-          ...roleNames,
-        ]
-          .join(" ")
-          .toLowerCase();
-        return text.includes(low);
-      })
+  })
       .sort((a: any, b: any) => {
         let av: any;
         let bv: any;
@@ -351,10 +319,7 @@ export default function CrewHistoryView({
     defs,
     roles,
     months,
-    filter,
-    activeOnly,
-    commuterOnly,
-    bsFilter,
+  filters,
     groupFilter,
     sortField,
     sortDir,
@@ -427,9 +392,7 @@ export default function CrewHistoryView({
     <div className={styles.root}>
       <div className={styles.toolbar}>
         <div className={styles.controlsGrid}>
-          <div className={styles.controlCell}>
-            <Input className={styles.full} placeholder="Filter people..." value={filter} onChange={(_, data) => setFilter(data.value)} />
-          </div>
+          <PeopleFiltersBar state={filters} onChange={(next) => setFilters((s) => ({ ...s, ...next }))} />
           <div className={styles.controlCell}>
             <Dropdown className={styles.full} selectedOptions={[sortField]} onOptionSelect={(_, data) => setSortField(data.optionValue as any)}>
               <Option value="last">Last Name</Option>
@@ -451,13 +414,6 @@ export default function CrewHistoryView({
             <Button onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}> {sortDir === "asc" ? "Asc" : "Desc"} </Button>
           </div>
           <div className={styles.controlCell}>
-            <Dropdown className={styles.full} selectedOptions={[bsFilter]} onOptionSelect={(_, data) => setBsFilter(data.optionValue as string)}>
-              <Option value="">All B/S</Option>
-              <Option value="Brother">Brother</Option>
-              <Option value="Sister">Sister</Option>
-            </Dropdown>
-          </div>
-          <div className={styles.controlCell}>
             <Dropdown className={styles.full} multiselect placeholder="All Groups" selectedOptions={groupFilter} onOptionSelect={(_, data) => setGroupFilter(data.selectedOptions as string[])}>
               {groups.map((g) => (
                 <Option key={g.name} value={g.name}>{g.name}</Option>
@@ -470,12 +426,6 @@ export default function CrewHistoryView({
                 <Option key={m} value={m}>{m}</Option>
               ))}
             </Dropdown>
-          </div>
-          <div className={styles.controlCell}>
-            <Checkbox label="Active" checked={activeOnly} onChange={(_, data) => setActiveOnly(!!data.checked)} />
-          </div>
-          <div className={styles.controlCell}>
-            <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data) => setCommuterOnly(!!data.checked)} />
           </div>
           <div className={styles.controlCell}>
             <Checkbox label="Edit past months" checked={editPast} onChange={(_, data) => setEditPast(!!data.checked)} />

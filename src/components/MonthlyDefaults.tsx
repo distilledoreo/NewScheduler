@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { Input, Button, Checkbox, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, Link, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider, Dropdown, Option, Tooltip, Textarea } from "@fluentui/react-components";
+import { Input, Button, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, Link, makeStyles, tokens, Dropdown, Option, Tooltip, Textarea } from "@fluentui/react-components";
+import PeopleFiltersBar, { defaultPeopleFilters, filterPeopleList, PeopleFiltersState } from "./filters/PeopleFilters";
 import SmartSelect from "./controls/SmartSelect";
 import PersonName from "./PersonName";
 import { exportMonthOneSheetXlsx } from "../excel/export-one-sheet";
@@ -97,21 +98,14 @@ export default function MonthlyDefaults({
   });
   const styles = useStyles();
   const segmentNames = useMemo(() => segments.map(s => s.name as Segment), [segments]);
-  const [filterText, setFilterText] = useState("");
+  const [filters, setFilters] = useState<PeopleFiltersState>(defaultPeopleFilters);
   const [sortKey, setSortKey] = useState<string>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [activeOnly, setActiveOnly] = useState(false);
-  const [commuterOnly, setCommuterOnly] = useState(false);
   const [weekdayPerson, setWeekdayPerson] = useState<number | null>(null);
   const [notePerson, setNotePerson] = useState<number | null>(null);
 
   const viewPeople = useMemo(() => {
-    let filtered = people.filter(p => {
-      if (activeOnly && !p.active) return false;
-      if (commuterOnly && !p.commuter) return false;
-      if (filterText && !(p.first_name + " " + p.last_name).toLowerCase().includes(filterText.toLowerCase())) return false;
-      return true;
-    });
+    const filtered = filterPeopleList(people, filters);
     const sorted = [...filtered].sort((a, b) => {
       let av: any = a[sortKey];
       let bv: any = b[sortKey];
@@ -142,7 +136,7 @@ export default function MonthlyDefaults({
       return 0;
     });
     return sorted;
-  }, [people, monthlyDefaults, filterText, sortKey, sortDir, activeOnly, commuterOnly, segmentNames, roleListForSegment]);
+  }, [people, monthlyDefaults, filters, sortKey, sortDir, segmentNames, roleListForSegment]);
 
   function WeeklyOverrideModal({ personId, onClose }: { personId: number; onClose: () => void }) {
     const person = people.find(p => p.id === personId);
@@ -237,9 +231,9 @@ export default function MonthlyDefaults({
         </div>
         <Button onClick={() => copyMonthlyDefaults(copyFromMonth, selectedMonth)}>Copy</Button>
         <Button onClick={() => setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</Button>
-        <Button onClick={() => exportMonthlyDefaults(selectedMonth)}>Export HTML</Button>
-        <Button onClick={() => exportMonthOneSheetXlsx(selectedMonth).catch((err) => alert(err.message))}>Export .xlsx</Button>
-        <Input className={styles.field} placeholder="Filter" value={filterText} onChange={(_, data) => setFilterText(data.value)} />
+  <Button onClick={() => exportMonthlyDefaults(selectedMonth)}>Export HTML</Button>
+  <Button onClick={() => exportMonthOneSheetXlsx(selectedMonth).catch((err) => alert(err.message))}>Export .xlsx</Button>
+  <PeopleFiltersBar state={filters} onChange={(next) => setFilters((s) => ({ ...s, ...next }))} />
         <Dropdown className={styles.field} selectedOptions={[sortKey]} onOptionSelect={(_, data) => setSortKey(data.optionValue as any)}>
           <Option value="name" text="Name">Name</Option>
           <Option value="email" text="Email">Email</Option>
@@ -255,9 +249,7 @@ export default function MonthlyDefaults({
             <Option key={seg} value={seg} text={`${seg} Role`}>{`${seg} Role`}</Option>
           ))}
         </Dropdown>
-        <Button onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}>{sortDir === 'asc' ? 'Asc' : 'Desc'}</Button>
-        <Checkbox label="Active" checked={activeOnly} onChange={(_, data) => setActiveOnly(!!data.checked)} />
-        <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data) => setCommuterOnly(!!data.checked)} />
+  <Button onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}>{sortDir === 'asc' ? 'Asc' : 'Desc'}</Button>
       </div>
   <div className={styles.scroll}>
         <Table size="small" aria-label="Monthly defaults">
