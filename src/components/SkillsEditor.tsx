@@ -28,6 +28,9 @@ export default function SkillsEditor({ all, run, refresh }: SkillsEditorProps) {
   const [name, setName] = React.useState("");
   const [groups, setGroups] = React.useState<GroupRow[]>([]);
   const [groupId, setGroupId] = React.useState<number | "">("");
+  const canAdd = React.useMemo(() => {
+    return code.trim().length > 0 && name.trim().length > 0 && groupId !== "";
+  }, [code, name, groupId]);
 
   const load = React.useCallback(() => {
     const res = all(`SELECT s.id, s.code, s.name, s.active, o.ordering, s.group_id, g.name AS group_name
@@ -74,6 +77,9 @@ export default function SkillsEditor({ all, run, refresh }: SkillsEditorProps) {
   }
 
   function deleteSkill(id: number) {
+  // eslint-disable-next-line no-alert
+  const ok = confirm('Delete this skill permanently? This cannot be undone.');
+  if (!ok) return;
     // Only allow delete when there are no references
     const c = all(`SELECT COUNT(1) AS c FROM person_skill WHERE skill_id=?`, [id]);
     const count = Number(c?.[0]?.c ?? 0);
@@ -143,7 +149,7 @@ export default function SkillsEditor({ all, run, refresh }: SkillsEditorProps) {
             <Option key={g.id} value={String(g.id)}>{g.name}</Option>
           ))}
         </Dropdown>
-        <Button appearance="primary" onClick={addSkill}>Add</Button>
+  <Button appearance="primary" onClick={addSkill} disabled={!canAdd}>Add</Button>
       </div>
       <div className={s.tableWrap}>
         <Table size="small" aria-label="Skills">
