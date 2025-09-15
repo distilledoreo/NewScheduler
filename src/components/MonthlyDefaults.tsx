@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { Input, Button, Checkbox, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, Link, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider, Dropdown, Option, Tooltip, Textarea } from "@fluentui/react-components";
+import { Input, Button, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, Link, makeStyles, tokens, Dropdown, Option, Tooltip, Textarea } from "@fluentui/react-components";
+import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./filters/PeopleFilters";
 import SmartSelect from "./controls/SmartSelect";
 import PersonName from "./PersonName";
 import { exportMonthOneSheetXlsx } from "../excel/export-one-sheet";
@@ -63,14 +64,24 @@ export default function MonthlyDefaults({
     },
     toolbar: {
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+      gridTemplateColumns: '1fr auto',
       alignItems: 'end',
-      gap: tokens.spacingHorizontalS,
+      gap: tokens.spacingHorizontalM,
       paddingBlockEnd: tokens.spacingVerticalS,
       minWidth: 0,
-      '& > *': {
-        minWidth: 0,
-      },
+    },
+    leftControls: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+      gap: tokens.spacingHorizontalS,
+      alignItems: 'end',
+    },
+    rightActions: {
+      display: 'flex',
+      gap: tokens.spacingHorizontalS,
+      alignItems: 'end',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
     },
     label: {
       fontSize: tokens.fontSizeBase300,
@@ -97,21 +108,14 @@ export default function MonthlyDefaults({
   });
   const styles = useStyles();
   const segmentNames = useMemo(() => segments.map(s => s.name as Segment), [segments]);
-  const [filterText, setFilterText] = useState("");
+  const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters());
   const [sortKey, setSortKey] = useState<string>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [activeOnly, setActiveOnly] = useState(false);
-  const [commuterOnly, setCommuterOnly] = useState(false);
   const [weekdayPerson, setWeekdayPerson] = useState<number | null>(null);
   const [notePerson, setNotePerson] = useState<number | null>(null);
 
   const viewPeople = useMemo(() => {
-    let filtered = people.filter(p => {
-      if (activeOnly && !p.active) return false;
-      if (commuterOnly && !p.commuter) return false;
-      if (filterText && !(p.first_name + " " + p.last_name).toLowerCase().includes(filterText.toLowerCase())) return false;
-      return true;
-    });
+    const filtered = filterPeopleList(people, filters);
     const sorted = [...filtered].sort((a, b) => {
       let av: any = a[sortKey];
       let bv: any = b[sortKey];
@@ -142,7 +146,7 @@ export default function MonthlyDefaults({
       return 0;
     });
     return sorted;
-  }, [people, monthlyDefaults, filterText, sortKey, sortDir, activeOnly, commuterOnly, segmentNames, roleListForSegment]);
+  }, [people, monthlyDefaults, filters, sortKey, sortDir, segmentNames, roleListForSegment]);
 
   function WeeklyOverrideModal({ personId, onClose }: { personId: number; onClose: () => void }) {
     const person = people.find(p => p.id === personId);
@@ -226,21 +230,18 @@ export default function MonthlyDefaults({
   return (
     <div className={styles.root}>
       <div className={styles.toolbar}>
-        <div>
+        <div className={styles.leftControls}>
+          <div>
           <span className={styles.label}>Month</span>
           <Input className={styles.field} type="month" value={selectedMonth} onChange={(_, d) => setSelectedMonth(d.value)} />
-        </div>
-        <Button onClick={() => void applyMonthlyDefaults(selectedMonth)}>Apply to Month</Button>
-        <div>
+          </div>
+          <div>
           <span className={styles.label}>Copy From</span>
           <Input className={styles.field} type="month" value={copyFromMonth} onChange={(_, d) => setCopyFromMonth(d.value)} />
-        </div>
-        <Button onClick={() => copyMonthlyDefaults(copyFromMonth, selectedMonth)}>Copy</Button>
-        <Button onClick={() => setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</Button>
-        <Button onClick={() => exportMonthlyDefaults(selectedMonth)}>Export HTML</Button>
-        <Button onClick={() => exportMonthOneSheetXlsx(selectedMonth).catch((err) => alert(err.message))}>Export .xlsx</Button>
-        <Input className={styles.field} placeholder="Filter" value={filterText} onChange={(_, data) => setFilterText(data.value)} />
-        <Dropdown className={styles.field} selectedOptions={[sortKey]} onOptionSelect={(_, data) => setSortKey(data.optionValue as any)}>
+          </div>
+          <div>
+            <span className={styles.label}>Sort by</span>
+            <Dropdown className={styles.field} selectedOptions={[sortKey]} onOptionSelect={(_, data) => setSortKey(data.optionValue as any)}>
           <Option value="name" text="Name">Name</Option>
           <Option value="email" text="Email">Email</Option>
           <Option value="brother_sister" text="B/S">B/S</Option>
@@ -254,10 +255,21 @@ export default function MonthlyDefaults({
           {segmentNames.map(seg => (
             <Option key={seg} value={seg} text={`${seg} Role`}>{`${seg} Role`}</Option>
           ))}
-        </Dropdown>
-        <Button onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}>{sortDir === 'asc' ? 'Asc' : 'Desc'}</Button>
-        <Checkbox label="Active" checked={activeOnly} onChange={(_, data) => setActiveOnly(!!data.checked)} />
-        <Checkbox label="Commuter" checked={commuterOnly} onChange={(_, data) => setCommuterOnly(!!data.checked)} />
+            </Dropdown>
+          </div>
+          <div>
+            <span className={styles.label}>People filters</span>
+            <PeopleFiltersBar state={filters} onChange={(next) => setFilters((s) => ({ ...s, ...next }))} />
+          </div>
+        </div>
+        <div className={styles.rightActions}>
+          <Button onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}>{sortDir === 'asc' ? 'Asc' : 'Desc'}</Button>
+          <Button onClick={() => setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</Button>
+          <Button onClick={() => void applyMonthlyDefaults(selectedMonth)}>Apply to Month</Button>
+          <Button onClick={() => copyMonthlyDefaults(copyFromMonth, selectedMonth)}>Copy</Button>
+          <Button onClick={() => exportMonthlyDefaults(selectedMonth)}>Export HTML</Button>
+          <Button onClick={() => exportMonthOneSheetXlsx(selectedMonth).catch((err) => alert(err.message))}>Export .xlsx</Button>
+        </div>
       </div>
   <div className={styles.scroll}>
         <Table size="small" aria-label="Monthly defaults">

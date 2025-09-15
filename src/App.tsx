@@ -17,6 +17,7 @@ import { FluentProvider, webDarkTheme, webLightTheme } from "@fluentui/react-com
 import MonthlyDefaults from "./components/MonthlyDefaults";
 import CrewHistoryView from "./components/CrewHistoryView";
 import Training from "./components/Training";
+import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./components/filters/PeopleFilters";
 
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
@@ -1144,9 +1145,11 @@ function PeopleEditor(){
   const [bulkAction,setBulkAction] = useState<'add'|'remove'>('add');
   const [bulkPeople,setBulkPeople] = useState<Set<number>>(new Set());
   const [bulkRoles,setBulkRoles] = useState<Set<number>>(new Set());
+  const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters());
 
   // Query all people, including inactive entries, so they can be edited
   const people = all(`SELECT * FROM person ORDER BY last_name, first_name`);
+  const viewPeople = useMemo(() => filterPeopleList(people, filters), [people, filters]);
 
   useEffect(()=>{
     if(editing){
@@ -1265,6 +1268,10 @@ function PeopleEditor(){
           </div>
         </div>
 
+        <div style={{ marginBottom: tokens.spacingVerticalS }}>
+          <PeopleFiltersBar state={filters} onChange={(next) => setFilters((s) => ({ ...s, ...next }))} />
+        </div>
+
         <div className={s.tableWrap}>
           <Table aria-label="People table">
             <TableHeader>
@@ -1279,7 +1286,7 @@ function PeopleEditor(){
               </TableRow>
             </TableHeader>
             <TableBody>
-              {people.map(p => (
+              {viewPeople.map(p => (
                 <TableRow key={p.id}>
                   <TableCell className={s.cellWrap}><PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName></TableCell>
                   <TableCell className={s.cellWrap}>{p.work_email}</TableCell>
@@ -1318,11 +1325,14 @@ function PeopleEditor(){
                       setBulkPeople(new Set((data.selectedOptions as string[]).map(Number)))
                     }
                   >
-                    {people.map((p: any) => (
-                      <Option key={p.id} value={String(p.id)}>
-                        {p.last_name}, {p.first_name}
-                      </Option>
-                    ))}
+                    {people.map((p: any) => {
+                      const label = `${p.last_name}, ${p.first_name}`;
+                      return (
+                        <Option key={p.id} value={String(p.id)} text={label}>
+                          {label}
+                        </Option>
+                      );
+                    })}
                   </Dropdown>
                 </div>
                 <div className={s.col6}>
@@ -1333,8 +1343,8 @@ function PeopleEditor(){
                       setBulkAction((data.optionValue ?? data.optionText) as 'add' | 'remove')
                     }
                   >
-                    <Option value="add">Add</Option>
-                    <Option value="remove">Remove</Option>
+                    <Option value="add" text="Add">Add</Option>
+                    <Option value="remove" text="Remove">Remove</Option>
                   </Dropdown>
                 </div>
               </div>
@@ -1378,8 +1388,8 @@ function PeopleEditor(){
                     selectedOptions={[form.brother_sister || 'Brother']}
                     onOptionSelect={(_, data)=> setForm({...form, brother_sister: String(data.optionValue ?? data.optionText)})}
                   >
-                    <Option value="Brother">Brother</Option>
-                    <Option value="Sister">Sister</Option>
+                    <Option value="Brother" text="Brother">Brother</Option>
+                    <Option value="Sister" text="Sister">Sister</Option>
                   </Dropdown>
                 </div>
                 <div className={`${s.col2} ${s.centerRow}`}>
@@ -1398,10 +1408,10 @@ function PeopleEditor(){
                         setForm({...form,[key]: String(data.optionValue ?? data.optionText)});
                       }}
                     >
-                      <Option value="U">Unavailable</Option>
-                      <Option value="AM">AM</Option>
-                      <Option value="PM">PM</Option>
-                      <Option value="B">Both</Option>
+                      <Option value="U" text="Unavailable">Unavailable</Option>
+                      <Option value="AM" text="AM">AM</Option>
+                      <Option value="PM" text="PM">PM</Option>
+                      <Option value="B" text="Both">Both</Option>
                     </Dropdown>
                   </div>
                 ))}

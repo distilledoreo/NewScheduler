@@ -1,12 +1,6 @@
-import React, { useEffect, useState } from "react";
-import {
-  Button,
-  Checkbox,
-  Dropdown,
-  Option,
-  makeStyles,
-  tokens,
-} from "@fluentui/react-components";
+import React, { useEffect, useState, useMemo } from "react";
+import { Button, Dropdown, Option, makeStyles, tokens, Label } from "@fluentui/react-components";
+import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./filters/PeopleFilters";
 
 interface TrainingProps {
   people: any[];
@@ -40,8 +34,7 @@ export default function Training({
   const [ratings, setRatings] = useState<Record<number, Record<number, number>>>({});
   const [qualities, setQualities] = useState<Record<number, Record<string, number>>>({});
   const [groupId, setGroupId] = useState<number | "">("");
-  const [commuterFilter, setCommuterFilter] = useState<"" | "commuter" | "non">("");
-  const [activeOnly, setActiveOnly] = useState(true);
+  const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters({ activeOnly: true }));
 
   useEffect(() => {
     try {
@@ -112,10 +105,11 @@ export default function Training({
       run(`UPDATE person_quality SET ${key}=NULL WHERE person_id=?`, [
         personId,
       ]);
-      setQualities((prev) => ({
-        ...prev,
-        [personId]: { ...(prev[personId] || {}), [key]: undefined },
-      }));
+      setQualities((prev) => {
+        const nextPerson: Record<string, number> = { ...(prev[personId] || {}) };
+        delete nextPerson[key];
+        return { ...prev, [personId]: nextPerson };
+      });
     } else {
       run(
         `INSERT INTO person_quality (person_id, ${key}) VALUES (?, ?)
@@ -146,7 +140,15 @@ export default function Training({
       display: "flex",
       gap: tokens.spacingHorizontalS,
       alignItems: "center",
+      flexWrap: "wrap",
+      width: "100%",
     },
+    groupCell: {
+      display: "grid",
+      gap: tokens.spacingHorizontalXS,
+      minWidth: "220px",
+    },
+    grow: { flex: 1, minWidth: "260px" },
     tableWrap: {
       border: `1px solid ${tokens.colorNeutralStroke2}`,
       borderRadius: tokens.borderRadiusLarge,
@@ -166,13 +168,7 @@ export default function Training({
   });
   const s = useStyles();
 
-  const filteredPeople = people.filter((p: any) => {
-    const commuterMatch =
-      commuterFilter === "" ||
-      (commuterFilter === "commuter" && p.commuter) ||
-      (commuterFilter === "non" && !p.commuter);
-    return commuterMatch && (!activeOnly || p.active);
-  });
+  const filteredPeople = useMemo(() => filterPeopleList(people, filters), [people, filters]);
   const filteredRoles = roles.filter(
     (r: any) => !groupId || r.group_id === groupId,
   );
@@ -197,36 +193,26 @@ export default function Training({
         </div>
       </div>
       <div className={s.filters}>
-        <Dropdown
-          selectedOptions={groupId === "" ? [] : [String(groupId)]}
-          onOptionSelect={(_, data) => {
-            const val = data.optionValue ? parseInt(String(data.optionValue)) : "";
-            setGroupId(val as any);
-          }}
-        >
-          <Option value="">All Groups</Option>
-          {groups.map((g: any) => (
-            <Option key={g.id} value={String(g.id)}>
-              {g.name}
-            </Option>
-          ))}
-        </Dropdown>
-        <Checkbox
-          label="Active"
-          checked={activeOnly}
-          onChange={(_, d) => setActiveOnly(!!d.checked)}
-        />
-        <Dropdown
-          selectedOptions={commuterFilter === "" ? [] : [commuterFilter]}
-          placeholder="Commuter"
-          onOptionSelect={(_, data) =>
-            setCommuterFilter((data.optionValue as string) as "" | "commuter" | "non")
-          }
-        >
-          <Option value="">All People</Option>
-          <Option value="commuter">Commuters</Option>
-          <Option value="non">Non-Commuters</Option>
-        </Dropdown>
+        <div className={s.groupCell}>
+          <Label>Role group</Label>
+          <Dropdown
+            selectedOptions={groupId === "" ? [] : [String(groupId)]}
+            onOptionSelect={(_, data) => {
+              const val = data.optionValue ? parseInt(String(data.optionValue)) : "";
+              setGroupId(val as any);
+            }}
+          >
+            <Option value="">All Groups</Option>
+            {groups.map((g: any) => (
+              <Option key={g.id} value={String(g.id)}>
+                {g.name}
+              </Option>
+            ))}
+          </Dropdown>
+        </div>
+        <div className={s.grow}>
+          <PeopleFiltersBar state={filters} onChange={(next) => setFilters((s) => ({ ...s, ...next }))} />
+        </div>
       </div>
       <div className={s.tableWrap}>
         {view === "skills" ? (
