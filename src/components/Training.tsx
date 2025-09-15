@@ -201,7 +201,7 @@ export default function Training({
       <div className={s.filters}>
         {view === 'skills' ? (
           <div className={s.groupCell}>
-            <Label>Export group (filters visible skills)</Label>
+            <Label>Group (filters visible skills)</Label>
             <Dropdown
               selectedOptions={groupId === "" ? [] : [String(groupId)]}
               onOptionSelect={(_, data) => {

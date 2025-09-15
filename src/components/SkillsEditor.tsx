@@ -40,10 +40,7 @@ export default function SkillsEditor({ all, run, refresh }: SkillsEditorProps) {
       group_id: r.group_id ?? null, group_name: r.group_name ?? null,
     }));
     setRows(list);
-    const g = all(`SELECT g.id, g.name
-                   FROM grp g
-                   INNER JOIN export_group eg ON eg.group_id = g.id
-                   ORDER BY g.name`);
+  const g = all(`SELECT id, name FROM grp ORDER BY name`);
     const gList: GroupRow[] = (g || []).map((x: any) => ({ id: Number(x.id), name: String(x.name) }));
     setGroups(gList);
     if (gList.length && groupId === "") setGroupId(gList[0].id);
@@ -99,16 +96,30 @@ export default function SkillsEditor({ all, run, refresh }: SkillsEditorProps) {
   }
 
   function move(id: number, dir: -1 | 1) {
-    const ordered = rows.map(r => r).sort((a,b) => (a.ordering ?? 9999) - (b.ordering ?? 9999));
+    const ordered = rows.slice().sort((a,b) => (a.ordering ?? 9999) - (b.ordering ?? 9999) || a.name.localeCompare(b.name));
     const idx = ordered.findIndex(r => r.id === id);
-    const swapIdx = idx + dir;
-    if (idx < 0 || swapIdx < 0 || swapIdx >= ordered.length) return;
-    const a = ordered[idx];
-    const b = ordered[swapIdx];
-    const aOrd = a.ordering ?? (idx+1);
-    const bOrd = b.ordering ?? (swapIdx+1);
-    run(`INSERT INTO skill_order (skill_id, ordering) VALUES (?,?) ON CONFLICT(skill_id) DO UPDATE SET ordering=excluded.ordering`, [a.id, bOrd]);
-    run(`INSERT INTO skill_order (skill_id, ordering) VALUES (?,?) ON CONFLICT(skill_id) DO UPDATE SET ordering=excluded.ordering`, [b.id, aOrd]);
+    const newIdx = idx + dir;
+    if (idx < 0 || newIdx < 0 || newIdx >= ordered.length) return;
+    const [item] = ordered.splice(idx, 1);
+    ordered.splice(newIdx, 0, item);
+    // Two-pass write to avoid UNIQUE collisions on ordering
+    const TEMP_BASE = 1000000;
+    for (let i = 0; i < ordered.length; i++) {
+      const r = ordered[i];
+      run(
+        `INSERT INTO skill_order (skill_id, ordering) VALUES (?,?)
+         ON CONFLICT(skill_id) DO UPDATE SET ordering=excluded.ordering`,
+        [r.id, TEMP_BASE + i]
+      );
+    }
+    for (let i = 0; i < ordered.length; i++) {
+      const r = ordered[i];
+      run(
+        `INSERT INTO skill_order (skill_id, ordering) VALUES (?,?)
+         ON CONFLICT(skill_id) DO UPDATE SET ordering=excluded.ordering`,
+        [r.id, i + 1]
+      );
+    }
     load();
     refresh();
   }
@@ -140,7 +151,7 @@ export default function SkillsEditor({ all, run, refresh }: SkillsEditorProps) {
             <TableRow>
               <TableHeaderCell>Code</TableHeaderCell>
               <TableHeaderCell>Name</TableHeaderCell>
-              <TableHeaderCell>Export Group</TableHeaderCell>
+              <TableHeaderCell>Group</TableHeaderCell>
               <TableHeaderCell>Active</TableHeaderCell>
               <TableHeaderCell>Order</TableHeaderCell>
               <TableHeaderCell></TableHeaderCell>
