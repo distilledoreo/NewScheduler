@@ -358,7 +358,6 @@ export default function CrewHistoryView({
     def: any;
   }) {
   const options = roleListForSegment(seg);
-  const optionsKey = options.map((r: any) => `${r.id}:${r.name}`).join(',');
     return (
       <SmartSelect
         options={[{ value: "", label: "--" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name }))]}

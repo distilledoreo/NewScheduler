@@ -133,6 +133,38 @@ export const migrate17AddPersonQuality: Migration = (db) => {
     );`);
 };
 
+// 18. Add skill catalog and person_skill ratings
+export const migrate18AddSkillCatalog: Migration = (db) => {
+  db.run(`CREATE TABLE IF NOT EXISTS skill (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL UNIQUE,
+  active INTEGER NOT NULL DEFAULT 1,
+  group_id INTEGER REFERENCES grp(id)
+    );`);
+  db.run(`CREATE TABLE IF NOT EXISTS person_skill (
+      person_id INTEGER NOT NULL,
+      skill_id INTEGER NOT NULL,
+      rating INTEGER CHECK(rating BETWEEN 1 AND 5) NOT NULL,
+      PRIMARY KEY (person_id, skill_id),
+      FOREIGN KEY (person_id) REFERENCES person(id),
+      FOREIGN KEY (skill_id) REFERENCES skill(id)
+    );`);
+  // Optional order table to let admins manage display order
+  db.run(`CREATE TABLE IF NOT EXISTS skill_order (
+      skill_id INTEGER PRIMARY KEY,
+      ordering INTEGER NOT NULL UNIQUE,
+      FOREIGN KEY (skill_id) REFERENCES skill(id)
+    );`);
+};
+
+// 19. Add group assignment to skills for export grouping
+export const migrate19AddSkillGroupId: Migration = (db) => {
+  try {
+    db.run(`ALTER TABLE skill ADD COLUMN group_id INTEGER REFERENCES grp(id);`);
+  } catch {}
+};
+
 export const migrate6AddExportGroup: Migration = (db) => {
   db.run(`CREATE TABLE IF NOT EXISTS export_group (
       group_id INTEGER PRIMARY KEY,
@@ -163,7 +195,7 @@ export const migrate6AddExportGroup: Migration = (db) => {
   }
 };
 
-export const migrate7SegmentRefs: Migration = (db) => {
+export const migrate7SegmentRefs: Migration = (_db) => {
   // Skip this migration - we'll handle it in migration 8
   console.log('Migration 7 skipped - will be handled by migration 8');
 };
@@ -637,6 +669,8 @@ const migrations: Record<number, Migration> = {
   15: migrate15AddSegmentAdjustmentRole,
   16: migrate16AddCompetency,
   17: migrate17AddPersonQuality,
+  18: migrate18AddSkillCatalog,
+  19: migrate19AddSkillGroupId,
 };
 
 export function addMigration(version: number, fn: Migration) {

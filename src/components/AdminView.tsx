@@ -18,6 +18,7 @@ import type { SegmentRow } from "../services/segments";
 import TimeOffManager from "./TimeOffManager";
 import AvailabilityOverrideManager from "./AvailabilityOverrideManager";
 import AutoFillSettings from "./AutoFillSettings";
+import SkillsEditor from "./SkillsEditor";
 
 interface AdminViewProps {
   sqlDb: any;
@@ -67,6 +68,11 @@ export default function AdminView({ sqlDb, all, run, refresh, segments }: AdminV
       <GroupEditor all={all} run={run} refresh={refresh} />
       <RoleEditor all={all} run={run} refresh={refresh} segments={segments} />
       <ExportGroupEditor all={all} run={run} refresh={refresh} />
+      {/* Skills Catalog */}
+      <div>
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>Skills Catalog</div>
+        <SkillsEditor all={all} run={run} refresh={refresh} />
+      </div>
     </div>
   );
 }
