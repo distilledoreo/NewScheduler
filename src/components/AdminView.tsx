@@ -68,7 +68,11 @@ export default function AdminView({ sqlDb, all, run, refresh, segments }: AdminV
       <GroupEditor all={all} run={run} refresh={refresh} />
       <RoleEditor all={all} run={run} refresh={refresh} segments={segments} />
       <ExportGroupEditor all={all} run={run} refresh={refresh} />
-  <SkillsEditor all={all} run={run} refresh={refresh} />
+      {/* Skills Catalog */}
+      <div>
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>Skills Catalog</div>
+        <SkillsEditor all={all} run={run} refresh={refresh} />
+      </div>
     </div>
   );
 }

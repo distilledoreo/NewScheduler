@@ -139,7 +139,8 @@ export const migrate18AddSkillCatalog: Migration = (db) => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       code TEXT NOT NULL UNIQUE,
       name TEXT NOT NULL UNIQUE,
-      active INTEGER NOT NULL DEFAULT 1
+  active INTEGER NOT NULL DEFAULT 1,
+  group_id INTEGER REFERENCES grp(id)
     );`);
   db.run(`CREATE TABLE IF NOT EXISTS person_skill (
       person_id INTEGER NOT NULL,
@@ -155,6 +156,13 @@ export const migrate18AddSkillCatalog: Migration = (db) => {
       ordering INTEGER NOT NULL UNIQUE,
       FOREIGN KEY (skill_id) REFERENCES skill(id)
     );`);
+};
+
+// 19. Add group assignment to skills for export grouping
+export const migrate19AddSkillGroupId: Migration = (db) => {
+  try {
+    db.run(`ALTER TABLE skill ADD COLUMN group_id INTEGER REFERENCES grp(id);`);
+  } catch {}
 };
 
 export const migrate6AddExportGroup: Migration = (db) => {
@@ -662,6 +670,7 @@ const migrations: Record<number, Migration> = {
   16: migrate16AddCompetency,
   17: migrate17AddPersonQuality,
   18: migrate18AddSkillCatalog,
+  19: migrate19AddSkillGroupId,
 };
 
 export function addMigration(version: number, fn: Migration) {
