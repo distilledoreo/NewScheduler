@@ -4,7 +4,7 @@ import {
   CalendarLtr20Regular,
   CalendarDay20Regular,
   PeopleCommunity20Regular,
-  TableSimple20Regular,
+  LearningApp20Regular,
   DocumentTable20Regular,
   History20Regular,
   Settings20Regular,
@@ -18,7 +18,7 @@ import "../styles/tooltip.css";
 export type TabKey =
   | "RUN"
   | "PEOPLE"
-  | "SKILLS"
+  | "TRAINING"
   | "NEEDS"
   | "EXPORT"
   | "MONTHLY"
@@ -116,7 +116,7 @@ export default function SideRail({
   const baseNav: NavItem[] = [
     { type: "page", key: "RUN", label: "Run", icon: <CalendarDay20Regular /> },
     { type: "page", key: "PEOPLE", label: "People", icon: <PeopleCommunity20Regular /> },
-    { type: "page", key: "SKILLS", label: "Skills", icon: <TableSimple20Regular /> },
+    { type: "page", key: "TRAINING", label: "Training", icon: <LearningApp20Regular /> },
     { type: "page", key: "NEEDS", label: "Needs", icon: <DocumentTable20Regular /> },
     { type: "page", key: "EXPORT", label: "Export", icon: <Share20Regular /> },
     { type: "page", key: "MONTHLY", label: "Monthly", icon: <CalendarLtr20Regular /> },

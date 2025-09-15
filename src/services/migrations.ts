@@ -116,6 +116,23 @@ export const migrate16AddCompetency: Migration = (db) => {
     );`);
 };
 
+export const migrate17AddPersonQuality: Migration = (db) => {
+  db.run(`CREATE TABLE IF NOT EXISTS person_quality (
+      person_id INTEGER PRIMARY KEY,
+      work_capabilities INTEGER CHECK(work_capabilities BETWEEN 1 AND 5),
+      work_habits INTEGER CHECK(work_habits BETWEEN 1 AND 5),
+      spirituality INTEGER CHECK(spirituality BETWEEN 1 AND 5),
+      dealings_with_others INTEGER CHECK(dealings_with_others BETWEEN 1 AND 5),
+      health INTEGER CHECK(health BETWEEN 1 AND 5),
+      dress_grooming INTEGER CHECK(dress_grooming BETWEEN 1 AND 5),
+      attitude_safety INTEGER CHECK(attitude_safety BETWEEN 1 AND 5),
+      response_counsel INTEGER CHECK(response_counsel BETWEEN 1 AND 5),
+      training_ability INTEGER CHECK(training_ability BETWEEN 1 AND 5),
+      potential_future_use INTEGER CHECK(potential_future_use BETWEEN 1 AND 5),
+      FOREIGN KEY (person_id) REFERENCES person(id)
+    );`);
+};
+
 export const migrate6AddExportGroup: Migration = (db) => {
   db.run(`CREATE TABLE IF NOT EXISTS export_group (
       group_id INTEGER PRIMARY KEY,
@@ -619,6 +636,7 @@ const migrations: Record<number, Migration> = {
   14: migrate14AddSegmentAdjustment,
   15: migrate15AddSegmentAdjustmentRole,
   16: migrate16AddCompetency,
+  17: migrate17AddPersonQuality,
 };
 
 export function addMigration(version: number, fn: Migration) {
