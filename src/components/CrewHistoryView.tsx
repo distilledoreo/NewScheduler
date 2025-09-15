@@ -3,7 +3,7 @@ import { Input, Dropdown, Option, Button, Checkbox, Table, TableHeader, TableBod
 import SmartSelect from "./controls/SmartSelect";
 import PersonName from "./PersonName";
 import type { Segment } from "../services/segments";
-import PeopleFiltersBar, { defaultPeopleFilters, filterPeopleList, PeopleFiltersState } from "./filters/PeopleFilters";
+import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./filters/PeopleFilters";
 
 function pad2(n: number) {
   return n < 10 ? `0${n}` : `${n}`;
@@ -162,7 +162,7 @@ export default function CrewHistoryView({
     return style;
   }
   const [defs, setDefs] = useState<any[]>([]);
-  const [filters, setFilters] = useState<PeopleFiltersState>(defaultPeopleFilters);
+  const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters());
   const segmentNames = useMemo(
     () => segments.map((s) => s.name as Segment),
     [segments],

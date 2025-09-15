@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Button, Dropdown, Option, makeStyles, tokens } from "@fluentui/react-components";
-import PeopleFiltersBar, { defaultPeopleFilters, filterPeopleList, PeopleFiltersState } from "./filters/PeopleFilters";
+import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./filters/PeopleFilters";
 
 interface TrainingProps {
   people: any[];
@@ -34,7 +34,7 @@ export default function Training({
   const [ratings, setRatings] = useState<Record<number, Record<number, number>>>({});
   const [qualities, setQualities] = useState<Record<number, Record<string, number>>>({});
   const [groupId, setGroupId] = useState<number | "">("");
-  const [filters, setFilters] = useState<PeopleFiltersState>({ ...defaultPeopleFilters, activeOnly: true });
+  const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters({ activeOnly: true }));
 
   useEffect(() => {
     try {

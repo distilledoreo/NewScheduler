@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Input, Button, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, Link, makeStyles, tokens, Dropdown, Option, Tooltip, Textarea } from "@fluentui/react-components";
-import PeopleFiltersBar, { defaultPeopleFilters, filterPeopleList, PeopleFiltersState } from "./filters/PeopleFilters";
+import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./filters/PeopleFilters";
 import SmartSelect from "./controls/SmartSelect";
 import PersonName from "./PersonName";
 import { exportMonthOneSheetXlsx } from "../excel/export-one-sheet";
@@ -98,7 +98,7 @@ export default function MonthlyDefaults({
   });
   const styles = useStyles();
   const segmentNames = useMemo(() => segments.map(s => s.name as Segment), [segments]);
-  const [filters, setFilters] = useState<PeopleFiltersState>(defaultPeopleFilters);
+  const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters());
   const [sortKey, setSortKey] = useState<string>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [weekdayPerson, setWeekdayPerson] = useState<number | null>(null);

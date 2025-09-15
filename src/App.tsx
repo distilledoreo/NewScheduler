@@ -17,7 +17,7 @@ import { FluentProvider, webDarkTheme, webLightTheme } from "@fluentui/react-com
 import MonthlyDefaults from "./components/MonthlyDefaults";
 import CrewHistoryView from "./components/CrewHistoryView";
 import Training from "./components/Training";
-import PeopleFiltersBar, { defaultPeopleFilters, filterPeopleList, PeopleFiltersState } from "./components/filters/PeopleFilters";
+import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./components/filters/PeopleFilters";
 
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
@@ -1145,7 +1145,7 @@ function PeopleEditor(){
   const [bulkAction,setBulkAction] = useState<'add'|'remove'>('add');
   const [bulkPeople,setBulkPeople] = useState<Set<number>>(new Set());
   const [bulkRoles,setBulkRoles] = useState<Set<number>>(new Set());
-  const [filters, setFilters] = useState<PeopleFiltersState>(defaultPeopleFilters);
+  const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters());
 
   // Query all people, including inactive entries, so they can be edited
   const people = all(`SELECT * FROM person ORDER BY last_name, first_name`);
