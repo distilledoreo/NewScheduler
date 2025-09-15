@@ -64,14 +64,24 @@ export default function MonthlyDefaults({
     },
     toolbar: {
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+      gridTemplateColumns: '1fr auto',
       alignItems: 'end',
-      gap: tokens.spacingHorizontalS,
+      gap: tokens.spacingHorizontalM,
       paddingBlockEnd: tokens.spacingVerticalS,
       minWidth: 0,
-      '& > *': {
-        minWidth: 0,
-      },
+    },
+    leftControls: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+      gap: tokens.spacingHorizontalS,
+      alignItems: 'end',
+    },
+    rightActions: {
+      display: 'flex',
+      gap: tokens.spacingHorizontalS,
+      alignItems: 'end',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
     },
     label: {
       fontSize: tokens.fontSizeBase300,
@@ -220,21 +230,18 @@ export default function MonthlyDefaults({
   return (
     <div className={styles.root}>
       <div className={styles.toolbar}>
-        <div>
+        <div className={styles.leftControls}>
+          <div>
           <span className={styles.label}>Month</span>
           <Input className={styles.field} type="month" value={selectedMonth} onChange={(_, d) => setSelectedMonth(d.value)} />
-        </div>
-        <Button onClick={() => void applyMonthlyDefaults(selectedMonth)}>Apply to Month</Button>
-        <div>
+          </div>
+          <div>
           <span className={styles.label}>Copy From</span>
           <Input className={styles.field} type="month" value={copyFromMonth} onChange={(_, d) => setCopyFromMonth(d.value)} />
-        </div>
-        <Button onClick={() => copyMonthlyDefaults(copyFromMonth, selectedMonth)}>Copy</Button>
-        <Button onClick={() => setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</Button>
-  <Button onClick={() => exportMonthlyDefaults(selectedMonth)}>Export HTML</Button>
-  <Button onClick={() => exportMonthOneSheetXlsx(selectedMonth).catch((err) => alert(err.message))}>Export .xlsx</Button>
-  <PeopleFiltersBar state={filters} onChange={(next) => setFilters((s) => ({ ...s, ...next }))} />
-        <Dropdown className={styles.field} selectedOptions={[sortKey]} onOptionSelect={(_, data) => setSortKey(data.optionValue as any)}>
+          </div>
+          <div>
+            <span className={styles.label}>Sort by</span>
+            <Dropdown className={styles.field} selectedOptions={[sortKey]} onOptionSelect={(_, data) => setSortKey(data.optionValue as any)}>
           <Option value="name" text="Name">Name</Option>
           <Option value="email" text="Email">Email</Option>
           <Option value="brother_sister" text="B/S">B/S</Option>
@@ -248,8 +255,21 @@ export default function MonthlyDefaults({
           {segmentNames.map(seg => (
             <Option key={seg} value={seg} text={`${seg} Role`}>{`${seg} Role`}</Option>
           ))}
-        </Dropdown>
-  <Button onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}>{sortDir === 'asc' ? 'Asc' : 'Desc'}</Button>
+            </Dropdown>
+          </div>
+          <div>
+            <span className={styles.label}>People filters</span>
+            <PeopleFiltersBar state={filters} onChange={(next) => setFilters((s) => ({ ...s, ...next }))} />
+          </div>
+        </div>
+        <div className={styles.rightActions}>
+          <Button onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}>{sortDir === 'asc' ? 'Asc' : 'Desc'}</Button>
+          <Button onClick={() => setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</Button>
+          <Button onClick={() => void applyMonthlyDefaults(selectedMonth)}>Apply to Month</Button>
+          <Button onClick={() => copyMonthlyDefaults(copyFromMonth, selectedMonth)}>Copy</Button>
+          <Button onClick={() => exportMonthlyDefaults(selectedMonth)}>Export HTML</Button>
+          <Button onClick={() => exportMonthOneSheetXlsx(selectedMonth).catch((err) => alert(err.message))}>Export .xlsx</Button>
+        </div>
       </div>
   <div className={styles.scroll}>
         <Table size="small" aria-label="Monthly defaults">
