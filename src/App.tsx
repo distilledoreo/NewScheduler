@@ -1628,6 +1628,9 @@ function PeopleEditor(){
               applyMonthlyDefaults={applyMonthlyDefaults}
               exportMonthlyDefaults={exportMonthlyDefaults}
               roleListForSegment={roleListForSegment}
+              groups={groups}
+              roles={roles}
+              getRequiredFor={getRequiredFor}
             />
           )}
 

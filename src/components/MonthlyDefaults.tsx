@@ -1,13 +1,346 @@
-import { useMemo, useState } from "react";
-import { Input, Button, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, Link, makeStyles, tokens, Dropdown, Option, Tooltip, Textarea } from "@fluentui/react-components";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  Input,
+  Button,
+  Table,
+  TableHeader,
+  TableHeaderCell,
+  TableBody,
+  TableRow,
+  TableCell,
+  Dialog,
+  DialogSurface,
+  DialogBody,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Link,
+  makeStyles,
+  tokens,
+  Dropdown,
+  Option,
+  Tooltip,
+  Textarea,
+  Badge,
+  Card,
+  CardHeader,
+  Caption1,
+  Title3,
+  Subtitle2,
+  Tab,
+  TabList,
+} from "@fluentui/react-components";
 import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./filters/PeopleFilters";
 import SmartSelect from "./controls/SmartSelect";
 import PersonName from "./PersonName";
 import { exportMonthOneSheetXlsx } from "../excel/export-one-sheet";
 import { type Segment, type SegmentRow } from "../services/segments";
 import { Note20Regular } from "@fluentui/react-icons";
+import type { Availability } from "../services/availabilityOverrides";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
+type WeekdayKey = 1 | 2 | 3 | 4 | 5;
+const WEEKDAY_ORDER: WeekdayKey[] = [1, 2, 3, 4, 5];
+
+const groupThemePalette: Record<string, { bg: string; fg: string }> = {
+  Purple: {
+    bg: tokens.colorPalettePurpleBackground2,
+    fg: tokens.colorPalettePurpleForeground2,
+  },
+  Pink: {
+    bg: tokens.colorPalettePinkBackground2,
+    fg: tokens.colorPalettePinkForeground2,
+  },
+  DarkPink: {
+    bg: tokens.colorPaletteMagentaBackground2,
+    fg: tokens.colorPaletteMagentaForeground2,
+  },
+  DarkYellow: {
+    bg: tokens.colorPaletteGoldBackground2,
+    fg: tokens.colorPaletteGoldForeground2,
+  },
+  Green: {
+    bg: tokens.colorPaletteGreenBackground2,
+    fg: tokens.colorPaletteGreenForeground2,
+  },
+  DarkPurple: {
+    bg: tokens.colorPaletteGrapeBackground2,
+    fg: tokens.colorPaletteGrapeForeground2,
+  },
+  DarkGreen: {
+    bg: tokens.colorPaletteDarkGreenBackground2,
+    fg: tokens.colorPaletteDarkGreenForeground2,
+  },
+  DarkBlue: {
+    bg: tokens.colorPaletteNavyBackground2,
+    fg: tokens.colorPaletteNavyForeground2,
+  },
+};
+
+const themeColors = (theme: string | null | undefined) => {
+  if (!theme) return { bg: undefined as string | undefined, fg: undefined as string | undefined };
+  const key = theme.replace(/^\d+\.\s*/, "");
+  return groupThemePalette[key] || { bg: undefined, fg: undefined };
+};
+
+const AVERAGE_EPSILON = 0.05;
+
+const formatAverage = (value: number) => {
+  if (!Number.isFinite(value) || Math.abs(value) < AVERAGE_EPSILON) return "0";
+  const rounded = Math.round(value);
+  if (Math.abs(value - rounded) < AVERAGE_EPSILON) return String(rounded);
+  return value.toFixed(1);
+};
+
+const formatSigned = (value: number) => {
+  if (!Number.isFinite(value) || Math.abs(value) < AVERAGE_EPSILON) return "0";
+  const rounded = Math.round(Math.abs(value));
+  const base = Math.abs(Math.abs(value) - rounded) < AVERAGE_EPSILON ? String(rounded) : Math.abs(value).toFixed(1);
+  return `${value > 0 ? "+" : "-"}${base}`;
+};
+
+type CoverageRow = {
+  key: string;
+  segment: Segment;
+  roleId: number;
+  roleName: string;
+  groupId: number;
+  groupName: string;
+  requiredTotal: number;
+  assignedTotal: number;
+  requiredAvg: number;
+  assignedAvg: number;
+  weekdayBreakdown: Record<WeekdayKey, { requiredAvg: number; assignedAvg: number }>;
+};
+
+type DashboardSummary = {
+  rows: CoverageRow[];
+  weekdayCounts: Record<WeekdayKey, number>;
+  totalWeekdays: number;
+  monthLabel: string;
+};
+
+const useStyles = makeStyles({
+  root: {
+    padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
+    display: "flex",
+    flexDirection: "column",
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    overflow: "hidden",
+    boxSizing: "border-box",
+    rowGap: tokens.spacingVerticalM,
+  },
+  toolbar: {
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    alignItems: "end",
+    gap: tokens.spacingHorizontalM,
+    paddingBlockEnd: tokens.spacingVerticalS,
+    minWidth: 0,
+  },
+  leftControls: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: tokens.spacingHorizontalS,
+    alignItems: "end",
+  },
+  rightActions: {
+    display: "flex",
+    gap: tokens.spacingHorizontalS,
+    alignItems: "end",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
+  label: {
+    fontSize: tokens.fontSizeBase300,
+    color: tokens.colorNeutralForeground2,
+  },
+  field: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    boxSizing: "border-box",
+  },
+  scroll: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    overflowX: "auto",
+    overflowY: "auto",
+    overscrollBehaviorX: "contain",
+  },
+  inlineLink: {
+    marginLeft: tokens.spacingHorizontalS,
+    fontSize: tokens.fontSizeBase200,
+  },
+  boardOverlay: {
+    position: "fixed",
+    inset: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: tokens.spacingHorizontalXL,
+    zIndex: 10,
+  },
+  boardSurface: {
+    width: "min(1200px, calc(100vw - 48px))",
+    maxWidth: "100%",
+    maxHeight: "calc(100vh - 48px)",
+    backgroundColor: tokens.colorNeutralBackground1,
+    borderRadius: tokens.borderRadiusLarge,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    boxShadow: tokens.shadow64,
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+  boardHeader: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: tokens.spacingHorizontalM,
+    rowGap: tokens.spacingVerticalS,
+    alignItems: "flex-start",
+    padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalL}`,
+  },
+  boardHeaderLeft: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalXS,
+    minWidth: 0,
+    flex: "1 1 auto",
+  },
+  boardHeading: {
+    fontSize: tokens.fontSizeBase600,
+    fontWeight: tokens.fontWeightSemibold,
+  },
+  boardMeta: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  boardSubmeta: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  boardControls: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
+    gap: tokens.spacingHorizontalS,
+    marginLeft: "auto",
+  },
+  boardFilter: {
+    minWidth: "160px",
+  },
+  boardBody: {
+    flex: 1,
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalL} ${tokens.spacingVerticalL}`,
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalM,
+  },
+  boardGroupGrid: {
+    display: "grid",
+    gap: tokens.spacingHorizontalL,
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    alignContent: "start",
+  },
+  boardGroupCard: {
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusLarge,
+    paddingBottom: tokens.spacingVerticalM,
+  },
+  boardGroupSummary: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: `0 ${tokens.spacingHorizontalL}`,
+    columnGap: tokens.spacingHorizontalS,
+    marginBottom: tokens.spacingVerticalS,
+  },
+  boardRolesGrid: {
+    flex: 1,
+    display: "grid",
+    gap: tokens.spacingHorizontalM,
+    padding: `0 ${tokens.spacingHorizontalL}`,
+  },
+  boardRoleCard: {
+    backgroundColor: tokens.colorNeutralBackground2,
+    borderRadius: tokens.borderRadiusMedium,
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+    display: "grid",
+    rowGap: tokens.spacingVerticalS,
+    boxShadow: tokens.shadow4,
+  },
+  groupMeta: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  roleHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    columnGap: tokens.spacingHorizontalS,
+    alignItems: "baseline",
+  },
+  roleName: {
+    fontWeight: tokens.fontWeightSemibold,
+    fontSize: tokens.fontSizeBase300,
+  },
+  metricsRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+    gap: tokens.spacingHorizontalS,
+    alignItems: "stretch",
+  },
+  metricBlock: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    rowGap: tokens.spacingVerticalXXS,
+  },
+  metricLabel: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  metricValue: {
+    fontSize: tokens.fontSizeBase400,
+    fontWeight: tokens.fontWeightSemibold,
+    fontVariantNumeric: "tabular-nums",
+  },
+  metricHint: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  weekdayChips: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: tokens.spacingHorizontalXS,
+    marginTop: tokens.spacingVerticalXS,
+  },
+  weekdayChip: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalXXS,
+    padding: `${tokens.spacingVerticalXXS} ${tokens.spacingHorizontalS}`,
+    backgroundColor: tokens.colorNeutralBackground3,
+    borderRadius: tokens.borderRadiusMedium,
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground2,
+    fontVariantNumeric: "tabular-nums",
+  },
+  emptyState: {
+    padding: tokens.spacingVerticalL,
+    textAlign: "center",
+    color: tokens.colorNeutralForeground3,
+  },
+});
 
 interface MonthlyDefaultsProps {
   selectedMonth: string;
@@ -28,6 +361,9 @@ interface MonthlyDefaultsProps {
   applyMonthlyDefaults: (month: string) => Promise<void> | void;
   exportMonthlyDefaults: (month: string) => void;
   roleListForSegment: (segment: Segment) => any[];
+  groups: any[];
+  roles: any[];
+  getRequiredFor: (date: Date, groupId: number, roleId: number, segment: Segment) => number;
 }
 
 export default function MonthlyDefaults({
@@ -49,63 +385,10 @@ export default function MonthlyDefaults({
   applyMonthlyDefaults,
   exportMonthlyDefaults,
   roleListForSegment,
+  groups,
+  roles,
+  getRequiredFor,
 }: MonthlyDefaultsProps) {
-  const useStyles = makeStyles({
-    root: {
-      padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
-      display: 'flex',
-      flexDirection: 'column',
-      width: '100%',
-      maxWidth: '100%',
-      minWidth: 0,
-      overflow: 'hidden',
-      boxSizing: 'border-box',
-      rowGap: tokens.spacingVerticalM,
-    },
-    toolbar: {
-      display: 'grid',
-      gridTemplateColumns: '1fr auto',
-      alignItems: 'end',
-      gap: tokens.spacingHorizontalM,
-      paddingBlockEnd: tokens.spacingVerticalS,
-      minWidth: 0,
-    },
-    leftControls: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-      gap: tokens.spacingHorizontalS,
-      alignItems: 'end',
-    },
-    rightActions: {
-      display: 'flex',
-      gap: tokens.spacingHorizontalS,
-      alignItems: 'end',
-      flexWrap: 'wrap',
-      justifyContent: 'flex-end',
-    },
-    label: {
-      fontSize: tokens.fontSizeBase300,
-      color: tokens.colorNeutralForeground2,
-    },
-    field: {
-      width: '100%',
-      maxWidth: '100%',
-      minWidth: 0,
-      boxSizing: 'border-box',
-    },
-    scroll: {
-      width: '100%',
-      maxWidth: '100%',
-      minWidth: 0,
-      overflowX: 'auto',
-      overflowY: 'auto',
-      overscrollBehaviorX: 'contain',
-    },
-    inlineLink: {
-      marginLeft: tokens.spacingHorizontalS,
-      fontSize: tokens.fontSizeBase200,
-    },
-  });
   const styles = useStyles();
   const segmentNames = useMemo(() => segments.map(s => s.name as Segment), [segments]);
   const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters());
@@ -132,6 +415,257 @@ export default function MonthlyDefaults({
   }, [sortKey, segmentNames]);
   const [weekdayPerson, setWeekdayPerson] = useState<number | null>(null);
   const [notePerson, setNotePerson] = useState<number | null>(null);
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [dashboardGroupId, setDashboardGroupId] = useState<string>('all');
+  const [activeDashboardSegment, setActiveDashboardSegment] = useState<Segment | null>(() => segmentNames[0] ?? null);
+
+  useEffect(() => {
+    if (!monthlyEditing) {
+      setShowDashboard(false);
+    }
+  }, [monthlyEditing]);
+
+  useEffect(() => {
+    if (dashboardGroupId === 'all') return;
+    if (!groups.some((g: any) => String(g.id) === dashboardGroupId)) {
+      setDashboardGroupId('all');
+    }
+  }, [dashboardGroupId, groups]);
+
+  useEffect(() => {
+    if (segmentNames.length === 0) {
+      if (activeDashboardSegment !== null) {
+        setActiveDashboardSegment(null);
+      }
+      return;
+    }
+    if (!activeDashboardSegment || !segmentNames.includes(activeDashboardSegment)) {
+      setActiveDashboardSegment(segmentNames[0] ?? null);
+    }
+  }, [segmentNames, activeDashboardSegment]);
+
+  const selectedDashboardGroup = useMemo(() => {
+    if (dashboardGroupId === 'all') return null;
+    return groups.find((g: any) => String(g.id) === dashboardGroupId) ?? null;
+  }, [dashboardGroupId, groups]);
+
+  const dashboardData = useMemo<DashboardSummary>(() => {
+    const empty: DashboardSummary = {
+      rows: [],
+      weekdayCounts: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      totalWeekdays: 0,
+      monthLabel: '',
+    };
+    const [yearStr, monthStr] = selectedMonth.split('-');
+    const year = Number(yearStr);
+    const month = Number(monthStr);
+    if (!year || !month) {
+      return empty;
+    }
+    const monthIndex = month - 1;
+    const daysInMonth = new Date(year, month, 0).getDate();
+    if (!Number.isFinite(daysInMonth) || daysInMonth <= 0) {
+      return empty;
+    }
+
+    const toAvailability = (value: unknown): Availability => {
+      if (value == null) return 'U';
+      const normalized = String(value).toUpperCase();
+      switch (normalized) {
+        case 'AM':
+        case 'PM':
+        case 'B':
+        case 'U':
+          return normalized as Availability;
+        default:
+          return 'U';
+      }
+    };
+
+    const availabilityByPerson = new Map<number, Record<WeekdayKey, Availability>>();
+    for (const person of people) {
+      availabilityByPerson.set(person.id, {
+        1: toAvailability((person as any).avail_mon),
+        2: toAvailability((person as any).avail_tue),
+        3: toAvailability((person as any).avail_wed),
+        4: toAvailability((person as any).avail_thu),
+        5: toAvailability((person as any).avail_fri),
+      });
+    }
+
+    const availabilityMatchesSegment = (availability: Availability, segment: Segment): boolean => {
+      if (availability === 'U') return false;
+      if (segment === 'AM' || segment === 'Early') {
+        return availability === 'AM' || availability === 'B';
+      }
+      if (segment === 'PM') {
+        return availability === 'PM' || availability === 'B';
+      }
+      return availability === 'AM' || availability === 'PM' || availability === 'B';
+    };
+
+    const weekdayCounts: Record<WeekdayKey, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    const segmentOrder = new Map<Segment, number>(segmentNames.map((seg, idx) => [seg, idx]));
+    const groupMap = new Map<number, any>(groups.map((g: any) => [g.id, g]));
+    const roleMap = new Map<number, any>(roles.map((r: any) => [r.id, r]));
+    const rolesByGroup = new Map<number, any[]>();
+    for (const role of roles) {
+      if (!rolesByGroup.has(role.group_id)) {
+        rolesByGroup.set(role.group_id, []);
+      }
+      rolesByGroup.get(role.group_id)!.push(role);
+    }
+
+    type SummaryEntry = {
+      key: string;
+      groupId: number;
+      roleId: number;
+      segment: Segment;
+      requiredTotal: number;
+      assignedTotal: number;
+      requiredByWeekday: Partial<Record<WeekdayKey, number>>;
+      assignedByWeekday: Partial<Record<WeekdayKey, number>>;
+    };
+
+    const summaryMap = new Map<string, SummaryEntry>();
+    const ensureEntry = (groupId: number, roleId: number, segment: Segment): SummaryEntry => {
+      const key = `${groupId}|${roleId}|${segment}`;
+      let entry = summaryMap.get(key);
+      if (!entry) {
+        entry = {
+          key,
+          groupId,
+          roleId,
+          segment,
+          requiredTotal: 0,
+          assignedTotal: 0,
+          requiredByWeekday: {},
+          assignedByWeekday: {},
+        };
+        summaryMap.set(key, entry);
+      }
+      return entry;
+    };
+
+    const defaultMap = new Map<string, number>();
+    for (const def of monthlyDefaults) {
+      if (def.role_id != null) {
+        defaultMap.set(`${def.person_id}|${def.segment}`, def.role_id);
+      }
+    }
+    const overrideMap = new Map<string, number>();
+    for (const ov of monthlyOverrides) {
+      if (ov.role_id != null) {
+        overrideMap.set(`${ov.person_id}|${ov.weekday}|${ov.segment}`, ov.role_id);
+      }
+    }
+    const personIds = new Set<number>();
+    for (const def of monthlyDefaults) personIds.add(def.person_id);
+    for (const ov of monthlyOverrides) personIds.add(ov.person_id);
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, monthIndex, day);
+      const dayOfWeek = date.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+      const weekday = dayOfWeek as WeekdayKey;
+      weekdayCounts[weekday] += 1;
+
+      for (const group of groups) {
+        const groupRoles = rolesByGroup.get(group.id);
+        if (!groupRoles) continue;
+        for (const role of groupRoles) {
+          const allowedSegments = Array.isArray(role.segments) ? (role.segments as Segment[]) : [];
+          for (const seg of segmentNames) {
+            if (!allowedSegments.includes(seg)) continue;
+            const required = getRequiredFor(date, group.id, role.id, seg);
+            if (required > 0) {
+              const entry = ensureEntry(group.id, role.id, seg);
+              entry.requiredTotal += required;
+              entry.requiredByWeekday[weekday] = (entry.requiredByWeekday[weekday] ?? 0) + required;
+            }
+          }
+        }
+      }
+
+      for (const personId of personIds) {
+        for (const seg of segmentNames) {
+          let roleId = overrideMap.get(`${personId}|${weekday}|${seg}`);
+          if (roleId === undefined) {
+            roleId = defaultMap.get(`${personId}|${seg}`);
+          }
+          if (roleId == null) continue;
+          const role = roleMap.get(roleId);
+          if (!role) continue;
+          const allowedSegments = Array.isArray(role.segments) ? (role.segments as Segment[]) : [];
+          if (!allowedSegments.includes(seg)) continue;
+          const availabilityForPerson = availabilityByPerson.get(personId);
+          const dayAvailability = availabilityForPerson?.[weekday] ?? ('U' as Availability);
+          if (!availabilityMatchesSegment(dayAvailability, seg)) continue;
+          const entry = ensureEntry(role.group_id, role.id, seg);
+          entry.assignedTotal += 1;
+          entry.assignedByWeekday[weekday] = (entry.assignedByWeekday[weekday] ?? 0) + 1;
+        }
+      }
+    }
+
+    const totalWeekdays = WEEKDAY_ORDER.reduce((sum, key) => sum + (weekdayCounts[key] || 0), 0);
+
+    const rows: CoverageRow[] = Array.from(summaryMap.values())
+      .filter((entry) => entry.requiredTotal > 0 || entry.assignedTotal > 0)
+      .map((entry) => {
+        const role = roleMap.get(entry.roleId);
+        const group = groupMap.get(entry.groupId);
+        const breakdown = {} as Record<WeekdayKey, { requiredAvg: number; assignedAvg: number }>;
+        for (const w of WEEKDAY_ORDER) {
+          const occurrences = weekdayCounts[w] || 0;
+          const requiredByDay = entry.requiredByWeekday[w] ?? 0;
+          const assignedByDay = entry.assignedByWeekday[w] ?? 0;
+          breakdown[w] = {
+            requiredAvg: occurrences ? requiredByDay / occurrences : 0,
+            assignedAvg: occurrences ? assignedByDay / occurrences : 0,
+          };
+        }
+        return {
+          key: entry.key,
+          segment: entry.segment,
+          roleId: entry.roleId,
+          roleName: role?.name ?? `Role ${entry.roleId}`,
+          groupId: entry.groupId,
+          groupName: group?.name ?? `Group ${entry.groupId}`,
+          requiredTotal: entry.requiredTotal,
+          assignedTotal: entry.assignedTotal,
+          requiredAvg: totalWeekdays ? entry.requiredTotal / totalWeekdays : 0,
+          assignedAvg: totalWeekdays ? entry.assignedTotal / totalWeekdays : 0,
+          weekdayBreakdown: breakdown,
+        };
+      })
+      .sort((a, b) => {
+        const segIdxA = segmentOrder.get(a.segment) ?? 0;
+        const segIdxB = segmentOrder.get(b.segment) ?? 0;
+        if (segIdxA !== segIdxB) return segIdxA - segIdxB;
+        if (a.groupName !== b.groupName) return a.groupName.localeCompare(b.groupName);
+        return a.roleName.localeCompare(b.roleName);
+      });
+
+    const labelDate = new Date(year, monthIndex, 1);
+    const monthLabel = Number.isNaN(labelDate.getTime())
+      ? ''
+      : labelDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+    return { rows, weekdayCounts, totalWeekdays, monthLabel };
+  }, [selectedMonth, monthlyDefaults, monthlyOverrides, segmentNames, groups, roles, getRequiredFor, people]);
+
+  const filteredDashboardRows = useMemo(() => {
+    const rows = dashboardData.rows;
+    if (dashboardGroupId === 'all') {
+      return rows;
+    }
+    const groupId = Number(dashboardGroupId);
+    if (!Number.isFinite(groupId)) {
+      return rows;
+    }
+    return rows.filter((row) => row.groupId === groupId);
+  }, [dashboardData, dashboardGroupId]);
 
   const viewPeople = useMemo(() => {
     const filtered = filterPeopleList(people, filters);
@@ -166,6 +700,292 @@ export default function MonthlyDefaults({
     });
     return sorted;
   }, [people, monthlyDefaults, filters, sortKey, sortDir, segmentNames, roleListForSegment]);
+
+  function MonthlyCoverageBoard({
+    monthLabel,
+    totalWeekdays,
+    weekdayCounts,
+    filteredRows,
+    allRows,
+    segments,
+    activeSegment,
+    onSegmentChange,
+    groupFilterId,
+    onGroupFilterChange,
+    groups,
+    selectedGroup,
+    onClose,
+  }: {
+    monthLabel: string;
+    totalWeekdays: number;
+    weekdayCounts: Record<WeekdayKey, number>;
+    filteredRows: CoverageRow[];
+    allRows: CoverageRow[];
+    segments: Segment[];
+    activeSegment: Segment | null;
+    onSegmentChange: (segment: Segment) => void;
+    groupFilterId: string;
+    onGroupFilterChange: (value: string) => void;
+    groups: any[];
+    selectedGroup: any | null;
+    onClose: () => void;
+  }) {
+    const segmentValue = activeSegment ?? (segments[0] ?? null);
+
+    const segmentRows = useMemo(() => {
+      if (!segmentValue) return [] as CoverageRow[];
+      const rows = filteredRows.filter((row) => row.segment === segmentValue);
+      rows.sort((a, b) => a.roleName.localeCompare(b.roleName));
+      return rows;
+    }, [filteredRows, segmentValue]);
+
+    const groupOrder = useMemo(() => new Map(groups.map((g: any, idx: number) => [g.id, idx])), [groups]);
+    const groupMap = useMemo(() => new Map(groups.map((g: any) => [g.id, g])), [groups]);
+
+    const groupEntries = useMemo(() => {
+      const entries: Array<{ group: any; rows: CoverageRow[] }> = [];
+      const seen = new Map<number, { group: any; rows: CoverageRow[] }>();
+      for (const row of segmentRows) {
+        const group = groupMap.get(row.groupId) ?? { id: row.groupId, name: row.groupName, theme: null };
+        let entry = seen.get(row.groupId);
+        if (!entry) {
+          entry = { group, rows: [] };
+          seen.set(row.groupId, entry);
+          entries.push(entry);
+        }
+        entry.rows.push(row);
+      }
+      for (const entry of entries) {
+        entry.rows.sort((a, b) => a.roleName.localeCompare(b.roleName));
+      }
+      entries.sort((a, b) => {
+        const orderA = groupOrder.get(a.group.id);
+        const orderB = groupOrder.get(b.group.id);
+        if (orderA != null && orderB != null && orderA !== orderB) return orderA - orderB;
+        if (orderA != null) return -1;
+        if (orderB != null) return 1;
+        return String(a.group.name ?? "").localeCompare(String(b.group.name ?? ""));
+      });
+      return entries;
+    }, [segmentRows, groupMap, groupOrder]);
+
+    const emptyMessage = useMemo(() => {
+      if (allRows.length === 0) {
+        return "Monthly defaults will appear here once roles are assigned.";
+      }
+      if (filteredRows.length === 0) {
+        return "No roles match this group filter yet.";
+      }
+      if (!segmentValue) {
+        return "Add segments to view monthly coverage.";
+      }
+      return "No coverage metrics for this segment yet.";
+    }, [allRows.length, filteredRows.length, segmentValue]);
+
+    function GroupCard({ group, rows }: { group: any; rows: CoverageRow[] }) {
+      const { bg, fg } = themeColors(group?.theme);
+      const totalRequiredAvg = rows.reduce((sum, row) => sum + row.requiredAvg, 0);
+      const totalAssignedAvg = rows.reduce((sum, row) => sum + row.assignedAvg, 0);
+      const totalRequired = rows.reduce((sum, row) => sum + row.requiredTotal, 0);
+      const totalAssigned = rows.reduce((sum, row) => sum + row.assignedTotal, 0);
+      const diffAvg = totalAssignedAvg - totalRequiredAvg;
+      const diffMagnitude = Math.abs(diffAvg);
+      const diffLabel = diffMagnitude < AVERAGE_EPSILON ? "On target" : `${formatSigned(diffAvg)} avg`;
+      const diffColor = diffMagnitude < AVERAGE_EPSILON ? "informative" : diffAvg > 0 ? "success" : "danger";
+      const totalsDiff = totalAssigned - totalRequired;
+      const totalsDiffLabel = totalsDiff === 0 ? "0 diff" : `${totalsDiff > 0 ? "+" : ""}${totalsDiff} diff`;
+      const needsMet = rows.every((row) => row.assignedAvg + AVERAGE_EPSILON >= row.requiredAvg);
+      const borderColor =
+        rows.length === 0
+          ? tokens.colorNeutralStroke2
+          : needsMet
+          ? tokens.colorPaletteGreenBorderActive
+          : tokens.colorPaletteRedBorderActive;
+      const cardStyle: CSSProperties = {
+        borderColor,
+        borderLeftColor: borderColor,
+      };
+      if (bg) cardStyle.backgroundColor = bg;
+      if (fg) cardStyle.color = fg;
+
+      return (
+        <Card className={styles.boardGroupCard} style={cardStyle}>
+          <CardHeader
+            header={<Title3>{group?.name ?? `Group ${rows[0]?.groupId ?? ""}`}</Title3>}
+            description={<Caption1 className={styles.groupMeta}>{group?.theme || "No Theme"}</Caption1>}
+            action={
+              <Badge appearance="ghost">
+                {rows.length} role{rows.length === 1 ? "" : "s"}
+              </Badge>
+            }
+          />
+          <div className={styles.boardGroupSummary}>
+            <Subtitle2>
+              Avg defaults {formatAverage(totalAssignedAvg)} / need {formatAverage(totalRequiredAvg)}
+            </Subtitle2>
+            <Badge appearance="outline" color={diffColor}>
+              {diffLabel}
+            </Badge>
+          </div>
+          <div className={styles.boardGroupSummary}>
+            <Caption1>
+              Totals {totalAssigned}/{totalRequired}
+            </Caption1>
+            <Caption1>{totalsDiffLabel}</Caption1>
+          </div>
+          <div className={styles.boardRolesGrid}>
+            {rows.map((row) => (
+              <RoleSummary key={row.key} row={row} />
+            ))}
+          </div>
+        </Card>
+      );
+    }
+
+    function RoleSummary({ row }: { row: CoverageRow }) {
+      const diffAvg = row.assignedAvg - row.requiredAvg;
+      const diffMagnitude = Math.abs(diffAvg);
+      const diffLabel = diffMagnitude < AVERAGE_EPSILON ? "On target" : `${formatSigned(diffAvg)} avg`;
+      const diffColor = diffMagnitude < AVERAGE_EPSILON ? "informative" : diffAvg > 0 ? "success" : "danger";
+      const totalDiff = row.assignedTotal - row.requiredTotal;
+      const totalDiffLabel = totalDiff === 0 ? "0 diff" : `${totalDiff > 0 ? "+" : ""}${totalDiff} diff`;
+
+      return (
+        <div className={styles.boardRoleCard}>
+          <div className={styles.roleHeader}>
+            <div className={styles.roleName}>{row.roleName}</div>
+            <Badge appearance="outline" color={diffColor}>
+              {diffLabel}
+            </Badge>
+          </div>
+          <div className={styles.metricsRow}>
+            <div className={styles.metricBlock}>
+              <span className={styles.metricLabel}>Avg need</span>
+              <span className={styles.metricValue}>{formatAverage(row.requiredAvg)}</span>
+              <span className={styles.metricHint}>{row.requiredTotal} total</span>
+            </div>
+            <div className={styles.metricBlock}>
+              <span className={styles.metricLabel}>Avg defaults</span>
+              <span className={styles.metricValue}>{formatAverage(row.assignedAvg)}</span>
+              <span className={styles.metricHint}>{row.assignedTotal} total</span>
+            </div>
+            <div className={styles.metricBlock}>
+              <span className={styles.metricLabel}>Totals</span>
+              <span className={styles.metricValue}>
+                {row.assignedTotal}/{row.requiredTotal}
+              </span>
+              <span className={styles.metricHint}>{totalDiffLabel}</span>
+            </div>
+          </div>
+          <div className={styles.weekdayChips}>
+            {WEEKDAY_ORDER.map((w) => {
+              const occurrences = weekdayCounts[w] ?? 0;
+              if (!occurrences) return null;
+              const breakdown = row.weekdayBreakdown[w];
+              return (
+                <Tooltip
+                  key={w}
+                  content={`${occurrences} ${WEEKDAYS[w - 1]}${occurrences === 1 ? "" : "s"} this month`}
+                  relationship="description"
+                >
+                  <span className={styles.weekdayChip}>
+                    {WEEKDAYS[w - 1].slice(0, 3)} {formatAverage(breakdown.assignedAvg)}/
+                    {formatAverage(breakdown.requiredAvg)}
+                  </span>
+                </Tooltip>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className={styles.boardOverlay}>
+        <div className={styles.boardSurface}>
+          <div className={styles.boardHeader}>
+            <div className={styles.boardHeaderLeft}>
+              <div className={styles.boardHeading}>Monthly Coverage</div>
+              <div className={styles.boardMeta}>
+                {monthLabel
+                  ? `${monthLabel} · ${totalWeekdays} weekdays`
+                  : "Select a month to see coverage insights"}
+              </div>
+              {selectedGroup && <div className={styles.boardSubmeta}>Showing {selectedGroup.name}</div>}
+              <div className={styles.weekdayChips}>
+                {WEEKDAY_ORDER.map((w) => {
+                  const count = weekdayCounts[w] ?? 0;
+                  if (!count) return null;
+                  return (
+                    <span key={w} className={styles.weekdayChip}>
+                      {WEEKDAYS[w - 1].slice(0, 3)} × {count}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+            <div className={styles.boardControls}>
+              {segments.length > 0 && segmentValue && (
+                <TabList
+                  size="small"
+                  selectedValue={segmentValue}
+                  onTabSelect={(_, data) => {
+                    if (typeof data.value === "string") {
+                      onSegmentChange(data.value as Segment);
+                    }
+                  }}
+                >
+                  {segments.map((seg) => (
+                    <Tab key={seg} value={seg}>
+                      {seg}
+                    </Tab>
+                  ))}
+                </TabList>
+              )}
+              <Dropdown
+                className={styles.boardFilter}
+                aria-label="Filter coverage by group"
+                size="small"
+                selectedOptions={[groupFilterId]}
+                onOptionSelect={(_, data) => {
+                  const value = data.optionValue ?? "all";
+                  onGroupFilterChange(String(value));
+                }}
+                disabled={groups.length === 0}
+              >
+                <Option value="all" text="All groups">
+                  All groups
+                </Option>
+                {groups.map((group: any) => (
+                  <Option key={group.id} value={String(group.id)} text={group.name}>
+                    {group.name}
+                  </Option>
+                ))}
+              </Dropdown>
+              <Button appearance="secondary" onClick={onClose}>
+                Close
+              </Button>
+            </div>
+          </div>
+          <div className={styles.boardBody}>
+            {segmentRows.length === 0 ? (
+              <div className={styles.emptyState}>{emptyMessage}</div>
+            ) : (
+              <div className={styles.boardGroupGrid}>
+                {groupEntries.map((entry) => (
+                  <GroupCard
+                    key={entry.group.id ?? entry.rows[0]?.groupId ?? entry.rows[0]?.key}
+                    group={entry.group}
+                    rows={entry.rows}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   function WeeklyOverrideModal({ personId, onClose }: { personId: number; onClose: () => void }) {
     const person = people.find(p => p.id === personId);
@@ -288,6 +1108,14 @@ export default function MonthlyDefaults({
         <div className={styles.rightActions}>
           <Button onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}>{sortDir === 'asc' ? 'Asc' : 'Desc'}</Button>
           <Button onClick={() => setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</Button>
+          {monthlyEditing && (
+            <Button
+              appearance={showDashboard ? 'primary' : 'secondary'}
+              onClick={() => setShowDashboard((prev) => !prev)}
+            >
+              {showDashboard ? 'Hide Dashboard' : 'Show Dashboard'}
+            </Button>
+          )}
           <Button onClick={() => void applyMonthlyDefaults(selectedMonth)}>Apply to Month</Button>
           <Button onClick={() => copyMonthlyDefaults(copyFromMonth, selectedMonth)}>Copy</Button>
           <Button onClick={() => exportMonthlyDefaults(selectedMonth)}>Export HTML</Button>
@@ -350,6 +1178,23 @@ export default function MonthlyDefaults({
           </TableBody>
         </Table>
       </div>
+      {monthlyEditing && showDashboard && (
+        <MonthlyCoverageBoard
+          monthLabel={dashboardData.monthLabel}
+          totalWeekdays={dashboardData.totalWeekdays}
+          weekdayCounts={dashboardData.weekdayCounts}
+          filteredRows={filteredDashboardRows}
+          allRows={dashboardData.rows}
+          segments={segmentNames}
+          activeSegment={activeDashboardSegment}
+          onSegmentChange={(segment) => setActiveDashboardSegment(segment)}
+          groupFilterId={dashboardGroupId}
+          onGroupFilterChange={(value) => setDashboardGroupId(value)}
+          groups={groups}
+          selectedGroup={selectedDashboardGroup}
+          onClose={() => setShowDashboard(false)}
+        />
+      )}
       {weekdayPerson !== null && (
         <WeeklyOverrideModal personId={weekdayPerson} onClose={() => setWeekdayPerson(null)} />
       )}
