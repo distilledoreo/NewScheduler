@@ -93,6 +93,11 @@ export default function Training({
   const [qualities, setQualities] = useState<Record<number, Record<string, number>>>({});
   const [groupId, setGroupId] = useState<number | "">("");
   const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters({ activeOnly: true }));
+  const groupLabel = useMemo(() => {
+    if (groupId === "") return "All Groups";
+    const match = groups.find((g: any) => g.id === Number(groupId));
+    return match ? match.name : "";
+  }, [groupId, groups]);
 
   // Load skill catalog and person_skill ratings
   useEffect(() => {
@@ -621,15 +626,18 @@ export default function Training({
         <div className={s.groupCell}>
           <Label>{view === "qualities" ? "Role group" : "Skill group"}</Label>
           <Dropdown
-            selectedOptions={groupId === "" ? [] : [String(groupId)]}
+            selectedOptions={groupId === "" ? [""] : [String(groupId)]}
+            value={groupLabel}
             onOptionSelect={(_, data) => {
               const val = data.optionValue ? parseInt(String(data.optionValue)) : "";
               setGroupId(val as any);
             }}
           >
-            <Option value="">All Groups</Option>
+            <Option value="" text="All Groups">
+              All Groups
+            </Option>
             {groups.map((g: any) => (
-              <Option key={g.id} value={String(g.id)}>
+              <Option key={g.id} value={String(g.id)} text={g.name}>
                 {g.name}
               </Option>
             ))}
@@ -962,19 +970,32 @@ export default function Training({
                         <td key={sk.id} className={s.cell}>
                           <Dropdown
                             className={s.cellDropdown}
-                            selectedOptions={rating ? [String(rating)] : []}
+                            selectedOptions={rating != null ? [String(rating)] : [""]}
+                            value={rating != null ? String(rating) : "-"}
                             onOptionSelect={(_, data) => {
                               const val = parseInt(String(data.optionValue ?? data.optionText));
                               if (!val) setRating(p.id, sk.id, null);
                               else setRating(p.id, sk.id, val);
                             }}
                           >
-                            <Option value="">-</Option>
-                            <Option value="1">1</Option>
-                            <Option value="2">2</Option>
-                            <Option value="3">3</Option>
-                            <Option value="4">4</Option>
-                            <Option value="5">5</Option>
+                            <Option value="" text="-">
+                              -
+                            </Option>
+                            <Option value="1" text="1">
+                              1
+                            </Option>
+                            <Option value="2" text="2">
+                              2
+                            </Option>
+                            <Option value="3" text="3">
+                              3
+                            </Option>
+                            <Option value="4" text="4">
+                              4
+                            </Option>
+                            <Option value="5" text="5">
+                              5
+                            </Option>
                           </Dropdown>
                         </td>
                       );
@@ -1007,19 +1028,32 @@ export default function Training({
                         <td key={q.key} className={s.cell}>
                           <Dropdown
                             className={s.cellDropdown}
-                            selectedOptions={rating ? [String(rating)] : []}
+                            selectedOptions={rating != null ? [String(rating)] : [""]}
+                            value={rating != null ? String(rating) : "-"}
                             onOptionSelect={(_, data) => {
                               const val = parseInt(String(data.optionValue ?? data.optionText));
                               if (!val) setQuality(p.id, q.key, null);
                               else setQuality(p.id, q.key, val);
                             }}
                           >
-                            <Option value="">-</Option>
-                            <Option value="1">1</Option>
-                            <Option value="2">2</Option>
-                            <Option value="3">3</Option>
-                            <Option value="4">4</Option>
-                            <Option value="5">5</Option>
+                            <Option value="" text="-">
+                              -
+                            </Option>
+                            <Option value="1" text="1">
+                              1
+                            </Option>
+                            <Option value="2" text="2">
+                              2
+                            </Option>
+                            <Option value="3" text="3">
+                              3
+                            </Option>
+                            <Option value="4" text="4">
+                              4
+                            </Option>
+                            <Option value="5" text="5">
+                              5
+                            </Option>
                           </Dropdown>
                         </td>
                       );

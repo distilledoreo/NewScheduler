@@ -206,11 +206,14 @@ export default function AvailabilityOverrideManager({
           value={personId != null ? String(personId) : ""}
           onOptionSelect={(_, d) => setPersonId(Number(d.optionValue))}
         >
-          {people.map((p: any) => (
-            <Option key={p.id} value={String(p.id)}>
-              {p.first_name} {p.last_name}
-            </Option>
-          ))}
+          {people.map((p: any) => {
+            const label = `${p.first_name} ${p.last_name}`;
+            return (
+              <Option key={p.id} value={String(p.id)} text={label}>
+                {label}
+              </Option>
+            );
+          })}
         </Dropdown>
         <Input
           className={s.dateCol}
@@ -243,10 +246,18 @@ export default function AvailabilityOverrideManager({
                     })
                   }
                 >
-                  <Option value="U">Unavailable</Option>
-                  <Option value="AM">AM</Option>
-                  <Option value="PM">PM</Option>
-                  <Option value="B">Both</Option>
+                  <Option value="U" text="Unavailable">
+                    Unavailable
+                  </Option>
+                  <Option value="AM" text="AM">
+                    AM
+                  </Option>
+                  <Option value="PM" text="PM">
+                    PM
+                  </Option>
+                  <Option value="B" text="Both">
+                    Both
+                  </Option>
                 </Dropdown>
               </TableCell>
             ))}

@@ -53,6 +53,15 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
   const [formVisible, setFormVisible] = useState(false);
   const [form, setForm] = useState<typeof empty>(empty);
   const [roles, setRoles] = useState<any[]>([]);
+  const conditionRoleLabel = useMemo(() => {
+    if (form.condition_role_id == null) return "Any";
+    const role = roles.find((ro: any) => ro.id === form.condition_role_id);
+    return role ? role.name : "";
+  }, [form.condition_role_id, roles]);
+  const baselineLabel = useMemo(() => {
+    const match = baselineOpts.find((o) => o.value === form.baseline);
+    return match ? match.label : "";
+  }, [form.baseline]);
 
   const condSeg = segments.find((s) => s.name === form.condition_segment);
   const targetSeg = segments.find((s) => s.name === form.target_segment);
@@ -235,10 +244,11 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
             <Field label="Condition Segment" className={s.flex1}>
               <Dropdown
                 selectedOptions={[form.condition_segment]}
+                value={form.condition_segment}
                 onOptionSelect={(_, d) => setForm({ ...form, condition_segment: d.optionValue })}
               >
                 {segments.map((sg) => (
-                  <Option key={sg.name} value={sg.name}>
+                  <Option key={sg.name} value={sg.name} text={sg.name}>
                     {sg.name}
                   </Option>
                 ))}
@@ -247,13 +257,16 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
             <Field label="Condition Role" className={s.flex1}>
               <Dropdown
                 selectedOptions={[form.condition_role_id == null ? "" : String(form.condition_role_id)]}
+                value={conditionRoleLabel}
                 onOptionSelect={(_, d) =>
                   setForm({ ...form, condition_role_id: d.optionValue ? Number(d.optionValue) : null })
                 }
               >
-                <Option value="">Any</Option>
+                <Option value="" text="Any">
+                  Any
+                </Option>
                 {roles.map((ro: any) => (
-                  <Option key={ro.id} value={String(ro.id)}>
+                  <Option key={ro.id} value={String(ro.id)} text={ro.name}>
                     {ro.name}
                   </Option>
                 ))}
@@ -262,10 +275,11 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
             <Field label="Target Segment" className={s.flex1}>
               <Dropdown
                 selectedOptions={[form.target_segment]}
+                value={form.target_segment}
                 onOptionSelect={(_, d) => setForm({ ...form, target_segment: d.optionValue })}
               >
                 {segments.map((sg) => (
-                  <Option key={sg.name} value={sg.name}>
+                  <Option key={sg.name} value={sg.name} text={sg.name}>
                     {sg.name}
                   </Option>
                 ))}
@@ -274,12 +288,17 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
             <Field label="Field" className={s.flex1}>
               <Dropdown
                 selectedOptions={[form.target_field]}
+                value={form.target_field}
                 onOptionSelect={(_, d) =>
                   setForm({ ...form, target_field: d.optionValue as "start" | "end" })
                 }
               >
-                <Option value="start">start</Option>
-                <Option value="end">end</Option>
+                <Option value="start" text="start">
+                  start
+                </Option>
+                <Option value="end" text="end">
+                  end
+                </Option>
               </Dropdown>
             </Field>
           </div>
@@ -287,12 +306,13 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
             <Field label="Baseline" className={s.flex1}>
               <Dropdown
                 selectedOptions={[form.baseline]}
+                value={baselineLabel}
                 onOptionSelect={(_, d) =>
                   setForm({ ...form, baseline: d.optionValue as SegmentAdjustmentRow["baseline"] })
                 }
               >
                 {baselineOpts.map((o) => (
-                  <Option key={o.value} value={o.value}>
+                  <Option key={o.value} value={o.value} text={o.label}>
                     {o.label}
                   </Option>
                 ))}

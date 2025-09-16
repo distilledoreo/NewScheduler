@@ -28,6 +28,11 @@ export default function SkillsEditor({ all, run, refresh }: SkillsEditorProps) {
   const [name, setName] = React.useState("");
   const [groups, setGroups] = React.useState<GroupRow[]>([]);
   const [groupId, setGroupId] = React.useState<number | "">("");
+  const addGroupLabel = React.useMemo(() => {
+    if (groupId === "") return "Select group";
+    const match = groups.find((g) => g.id === Number(groupId));
+    return match ? match.name : "";
+  }, [groupId, groups]);
   const canAdd = React.useMemo(() => {
     return code.trim().length > 0 && name.trim().length > 0 && groupId !== "";
   }, [code, name, groupId]);
@@ -139,14 +144,16 @@ export default function SkillsEditor({ all, run, refresh }: SkillsEditorProps) {
         <Input className={s.code} placeholder="Code" value={code} onChange={(_,d)=>setCode(d.value)} />
         <Input className={s.name} placeholder="Name" value={name} onChange={(_,d)=>setName(d.value)} />
         <Dropdown className={s.groupSel}
-          selectedOptions={groupId === "" ? [] : [String(groupId)]}
+          selectedOptions={groupId === "" ? [""] : [String(groupId)]}
+          value={addGroupLabel}
           onOptionSelect={(_, data) => {
             const val = data.optionValue ? parseInt(String(data.optionValue)) : "";
             setGroupId(val as any);
           }}
         >
+          <Option value="" text="Select group">Select group</Option>
           {groups.map(g => (
-            <Option key={g.id} value={String(g.id)}>{g.name}</Option>
+            <Option key={g.id} value={String(g.id)} text={g.name}>{g.name}</Option>
           ))}
         </Dropdown>
   <Button appearance="primary" onClick={addSkill} disabled={!canAdd}>Add</Button>
@@ -171,15 +178,16 @@ export default function SkillsEditor({ all, run, refresh }: SkillsEditorProps) {
                 <TableCell>
                   <Dropdown
                     className={s.groupSel}
-                    selectedOptions={r.group_id == null ? [] : [String(r.group_id)]}
+                    selectedOptions={r.group_id == null ? [""] : [String(r.group_id)]}
+                    value={r.group_id == null ? "Unassigned" : (groups.find((g) => g.id === r.group_id)?.name || "")}
                     onOptionSelect={(_, data) => {
                       const val = data.optionValue ? parseInt(String(data.optionValue)) : "";
                       setRowGroup(r.id, val as any);
                     }}
                   >
-                    <Option value="">Unassigned</Option>
+                    <Option value="" text="Unassigned">Unassigned</Option>
                     {groups.map(g => (
-                      <Option key={g.id} value={String(g.id)}>{g.name}</Option>
+                      <Option key={g.id} value={String(g.id)} text={g.name}>{g.name}</Option>
                     ))}
                   </Dropdown>
                 </TableCell>

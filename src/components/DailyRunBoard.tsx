@@ -252,6 +252,14 @@ export default function DailyRunBoard({
     Array<{ role: any; group: any; candidates: Array<{ id: number; label: string }>; selected: number | null }>
   >([]);
 
+  const moveSelectedLabel = useMemo(() => {
+    if (!moveContext || moveTargetId == null) return "";
+    const target = moveContext.targets.find((t) => t.role.id === moveTargetId);
+    if (!target) return "";
+    const needSuffix = target.need > 0 ? ` (need ${target.need})` : "";
+    return `${target.group.name} - ${target.role.name}${needSuffix}`;
+  }, [moveContext, moveTargetId]);
+
   const roles = useMemo(() => roleListForSegment(seg), [roleListForSegment, seg]);
 
   useEffect(() => {
@@ -912,6 +920,27 @@ export default function DailyRunBoard({
     const [addSel, setAddSel] = useState<string[]>([]);
     const [openAdd, setOpenAdd] = useState(false);
 
+    const formatCandidateLabel = useCallback(
+      (candidate: { id: number; label: string }) => {
+        const info = overlapByPerson.get(candidate.id);
+        const parts: string[] = [];
+        if (info?.heavy) parts.push("(Time-off)");
+        else if (info?.partial) parts.push("(Partial Time-off)");
+        const curRoleId = personAssignedRoleMap.get(candidate.id);
+        const curStatus = curRoleId != null ? roleStatusById.get(curRoleId) : undefined;
+        if (curStatus === "under" || curStatus === "exact") parts.push("(Assigned)");
+        const suffix = parts.length ? ` ${parts.join(' ')}` : "";
+        return `${candidate.label}${suffix}`;
+      },
+      [overlapByPerson, personAssignedRoleMap, roleStatusById],
+    );
+
+    const addSelectedLabel = useMemo(() => {
+      if (addSel.length === 0) return "";
+      const selected = sortedOpts.find((o) => String(o.id) === addSel[0]);
+      return selected ? formatCandidateLabel(selected) : "";
+    }, [addSel, sortedOpts, formatCandidateLabel]);
+
     const { bg: groupBg, fg: groupFg } = themeColors(group.theme);
 
     return (
@@ -954,6 +983,7 @@ export default function DailyRunBoard({
             open={openAdd}
             onOpenChange={(_, d) => setOpenAdd(Boolean(d.open))}
             selectedOptions={addSel}
+            value={addSelectedLabel}
             onOptionSelect={(_, data) => {
               const val = data.optionValue ?? '';
               if (!val) return;
@@ -981,14 +1011,15 @@ export default function DailyRunBoard({
                 const curStatus = curRoleId != null ? roleStatusById.get(curRoleId) : undefined;
                 if (curStatus === "under" || curStatus === "exact") parts.push("(Assigned)");
                 const suffix = parts.length ? ` ${parts.join(' ')}` : "";
+                const text = formatCandidateLabel(o);
                 return (
                   <Option
                     key={o.id}
                     value={String(o.id)}
                     disabled={isHeavy}
-                    text={`${o.label}${suffix}`}
+                    text={text}
                   >
-                    {`${o.label}${suffix}`}
+                    {text}
                   </Option>
                 );
               })}
@@ -1139,17 +1170,21 @@ export default function DailyRunBoard({
                 <Dropdown
                   placeholder="Select destination"
                   selectedOptions={moveTargetId != null ? [String(moveTargetId)] : []}
+                  value={moveSelectedLabel}
                   onOptionSelect={(_, data) => {
                     const v = data.optionValue ?? data.optionText;
                     setMoveTargetId(v ? Number(v) : null);
                   }}
                   style={{ width: "100%" }}
                 >
-                  {moveContext.targets.map((t) => (
-                    <Option key={t.role.id} value={String(t.role.id)}>
-                      {`${t.group.name} - ${t.role.name}${t.need>0?` (need ${t.need})`:''}`}
-                    </Option>
-                  ))}
+                  {moveContext.targets.map((t) => {
+                    const label = `${t.group.name} - ${t.role.name}${t.need>0?` (need ${t.need})`:''}`;
+                    return (
+                      <Option key={t.role.id} value={String(t.role.id)} text={label}>
+                        {label}
+                      </Option>
+                    );
+                  })}
                 </Dropdown>
               </DialogContent>
               <DialogActions>
@@ -1167,28 +1202,37 @@ export default function DailyRunBoard({
               <DialogTitle>Auto-Fill Suggestions</DialogTitle>
               <DialogContent>
                 {autoFillSuggestions.length === 0 && <Body1>No suggestions available.</Body1>}
-                {autoFillSuggestions.map((s, idx) => (
-                  <div key={s.role.id} style={{ marginBottom: tokens.spacingVerticalS }}>
-                    <Subtitle2>{`${s.group.name} - ${s.role.name}`}</Subtitle2>
-                    <Dropdown
-                      selectedOptions={s.selected != null ? [String(s.selected)] : []}
-                      onOptionSelect={(_, data) => {
-                        const val = data.optionValue ? Number(data.optionValue) : null;
-                        setAutoFillSuggestions((prev) =>
-                          prev.map((p, i) => (i === idx ? { ...p, selected: val } : p))
-                        );
-                      }}
-                      style={{ width: "100%" }}
-                    >
-                      <Option value="">None</Option>
-                      {s.candidates.map((c) => (
-                        <Option key={c.id} value={String(c.id)}>
-                          {c.label}
+                {autoFillSuggestions.map((s, idx) => {
+                  const selectedLabel =
+                    s.selected != null
+                      ? s.candidates.find((c) => c.id === s.selected)?.label ?? ""
+                      : "None";
+                  return (
+                    <div key={s.role.id} style={{ marginBottom: tokens.spacingVerticalS }}>
+                      <Subtitle2>{`${s.group.name} - ${s.role.name}`}</Subtitle2>
+                      <Dropdown
+                        selectedOptions={s.selected != null ? [String(s.selected)] : [""]}
+                        value={selectedLabel}
+                        onOptionSelect={(_, data) => {
+                          const val = data.optionValue ? Number(data.optionValue) : null;
+                          setAutoFillSuggestions((prev) =>
+                            prev.map((p, i) => (i === idx ? { ...p, selected: val } : p))
+                          );
+                        }}
+                        style={{ width: "100%" }}
+                      >
+                        <Option value="" text="None">
+                          None
                         </Option>
-                      ))}
-                    </Dropdown>
-                  </div>
-                ))}
+                        {s.candidates.map((c) => (
+                          <Option key={c.id} value={String(c.id)} text={c.label}>
+                            {c.label}
+                          </Option>
+                        ))}
+                      </Dropdown>
+                    </div>
+                  );
+                })}
               </DialogContent>
               <DialogActions>
                 <Button onClick={cancelAutoFill}>Cancel</Button>
