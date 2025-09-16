@@ -621,7 +621,7 @@ export default function Training({
         <div className={s.groupCell}>
           <Label>{view === "qualities" ? "Role group" : "Skill group"}</Label>
           <Dropdown
-            selectedOptions={groupId === "" ? [] : [String(groupId)]}
+            selectedOptions={groupId === "" ? [""] : [String(groupId)]}
             onOptionSelect={(_, data) => {
               const val = data.optionValue ? parseInt(String(data.optionValue)) : "";
               setGroupId(val as any);
@@ -964,7 +964,7 @@ export default function Training({
                         <td key={sk.id} className={s.cell}>
                           <Dropdown
                             className={s.cellDropdown}
-                            selectedOptions={rating ? [String(rating)] : []}
+                            selectedOptions={rating != null ? [String(rating)] : [""]}
                             onOptionSelect={(_, data) => {
                               const val = parseInt(String(data.optionValue ?? data.optionText));
                               if (!val) setRating(p.id, sk.id, null);
@@ -1021,7 +1021,7 @@ export default function Training({
                         <td key={q.key} className={s.cell}>
                           <Dropdown
                             className={s.cellDropdown}
-                            selectedOptions={rating ? [String(rating)] : []}
+                            selectedOptions={rating != null ? [String(rating)] : [""]}
                             onOptionSelect={(_, data) => {
                               const val = parseInt(String(data.optionValue ?? data.optionText));
                               if (!val) setQuality(p.id, q.key, null);

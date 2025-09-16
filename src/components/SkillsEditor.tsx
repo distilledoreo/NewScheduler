@@ -139,7 +139,7 @@ export default function SkillsEditor({ all, run, refresh }: SkillsEditorProps) {
         <Input className={s.code} placeholder="Code" value={code} onChange={(_,d)=>setCode(d.value)} />
         <Input className={s.name} placeholder="Name" value={name} onChange={(_,d)=>setName(d.value)} />
         <Dropdown className={s.groupSel}
-          selectedOptions={groupId === "" ? [] : [String(groupId)]}
+          selectedOptions={groupId === "" ? [""] : [String(groupId)]}
           onOptionSelect={(_, data) => {
             const val = data.optionValue ? parseInt(String(data.optionValue)) : "";
             setGroupId(val as any);
@@ -171,7 +171,7 @@ export default function SkillsEditor({ all, run, refresh }: SkillsEditorProps) {
                 <TableCell>
                   <Dropdown
                     className={s.groupSel}
-                    selectedOptions={r.group_id == null ? [] : [String(r.group_id)]}
+                    selectedOptions={r.group_id == null ? [""] : [String(r.group_id)]}
                     onOptionSelect={(_, data) => {
                       const val = data.optionValue ? parseInt(String(data.optionValue)) : "";
                       setRowGroup(r.id, val as any);

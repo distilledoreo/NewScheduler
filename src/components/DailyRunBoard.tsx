@@ -1174,7 +1174,7 @@ export default function DailyRunBoard({
                   <div key={s.role.id} style={{ marginBottom: tokens.spacingVerticalS }}>
                     <Subtitle2>{`${s.group.name} - ${s.role.name}`}</Subtitle2>
                     <Dropdown
-                      selectedOptions={s.selected != null ? [String(s.selected)] : []}
+                      selectedOptions={s.selected != null ? [String(s.selected)] : [""]}
                       onOptionSelect={(_, data) => {
                         const val = data.optionValue ? Number(data.optionValue) : null;
                         setAutoFillSuggestions((prev) =>
