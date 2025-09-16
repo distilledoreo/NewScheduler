@@ -1,16 +1,346 @@
-import { useEffect, useMemo, useState } from "react";
-import { Input, Button, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, Link, makeStyles, tokens, Dropdown, Option, Tooltip, Textarea, Badge } from "@fluentui/react-components";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  Input,
+  Button,
+  Table,
+  TableHeader,
+  TableHeaderCell,
+  TableBody,
+  TableRow,
+  TableCell,
+  Dialog,
+  DialogSurface,
+  DialogBody,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Link,
+  makeStyles,
+  tokens,
+  Dropdown,
+  Option,
+  Tooltip,
+  Textarea,
+  Badge,
+  Card,
+  CardHeader,
+  Caption1,
+  Title3,
+  Subtitle2,
+  Tab,
+  TabList,
+} from "@fluentui/react-components";
 import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./filters/PeopleFilters";
 import SmartSelect from "./controls/SmartSelect";
 import PersonName from "./PersonName";
 import { exportMonthOneSheetXlsx } from "../excel/export-one-sheet";
 import { type Segment, type SegmentRow } from "../services/segments";
-import { Note20Regular, Dismiss20Regular } from "@fluentui/react-icons";
+import { Note20Regular } from "@fluentui/react-icons";
 import type { Availability } from "../services/availabilityOverrides";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
 type WeekdayKey = 1 | 2 | 3 | 4 | 5;
 const WEEKDAY_ORDER: WeekdayKey[] = [1, 2, 3, 4, 5];
+
+const groupThemePalette: Record<string, { bg: string; fg: string }> = {
+  Purple: {
+    bg: tokens.colorPalettePurpleBackground2,
+    fg: tokens.colorPalettePurpleForeground2,
+  },
+  Pink: {
+    bg: tokens.colorPalettePinkBackground2,
+    fg: tokens.colorPalettePinkForeground2,
+  },
+  DarkPink: {
+    bg: tokens.colorPaletteMagentaBackground2,
+    fg: tokens.colorPaletteMagentaForeground2,
+  },
+  DarkYellow: {
+    bg: tokens.colorPaletteGoldBackground2,
+    fg: tokens.colorPaletteGoldForeground2,
+  },
+  Green: {
+    bg: tokens.colorPaletteGreenBackground2,
+    fg: tokens.colorPaletteGreenForeground2,
+  },
+  DarkPurple: {
+    bg: tokens.colorPaletteGrapeBackground2,
+    fg: tokens.colorPaletteGrapeForeground2,
+  },
+  DarkGreen: {
+    bg: tokens.colorPaletteDarkGreenBackground2,
+    fg: tokens.colorPaletteDarkGreenForeground2,
+  },
+  DarkBlue: {
+    bg: tokens.colorPaletteNavyBackground2,
+    fg: tokens.colorPaletteNavyForeground2,
+  },
+};
+
+const themeColors = (theme: string | null | undefined) => {
+  if (!theme) return { bg: undefined as string | undefined, fg: undefined as string | undefined };
+  const key = theme.replace(/^\d+\.\s*/, "");
+  return groupThemePalette[key] || { bg: undefined, fg: undefined };
+};
+
+const AVERAGE_EPSILON = 0.05;
+
+const formatAverage = (value: number) => {
+  if (!Number.isFinite(value) || Math.abs(value) < AVERAGE_EPSILON) return "0";
+  const rounded = Math.round(value);
+  if (Math.abs(value - rounded) < AVERAGE_EPSILON) return String(rounded);
+  return value.toFixed(1);
+};
+
+const formatSigned = (value: number) => {
+  if (!Number.isFinite(value) || Math.abs(value) < AVERAGE_EPSILON) return "0";
+  const rounded = Math.round(Math.abs(value));
+  const base = Math.abs(Math.abs(value) - rounded) < AVERAGE_EPSILON ? String(rounded) : Math.abs(value).toFixed(1);
+  return `${value > 0 ? "+" : "-"}${base}`;
+};
+
+type CoverageRow = {
+  key: string;
+  segment: Segment;
+  roleId: number;
+  roleName: string;
+  groupId: number;
+  groupName: string;
+  requiredTotal: number;
+  assignedTotal: number;
+  requiredAvg: number;
+  assignedAvg: number;
+  weekdayBreakdown: Record<WeekdayKey, { requiredAvg: number; assignedAvg: number }>;
+};
+
+type DashboardSummary = {
+  rows: CoverageRow[];
+  weekdayCounts: Record<WeekdayKey, number>;
+  totalWeekdays: number;
+  monthLabel: string;
+};
+
+const useStyles = makeStyles({
+  root: {
+    padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
+    display: "flex",
+    flexDirection: "column",
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    overflow: "hidden",
+    boxSizing: "border-box",
+    rowGap: tokens.spacingVerticalM,
+  },
+  toolbar: {
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    alignItems: "end",
+    gap: tokens.spacingHorizontalM,
+    paddingBlockEnd: tokens.spacingVerticalS,
+    minWidth: 0,
+  },
+  leftControls: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: tokens.spacingHorizontalS,
+    alignItems: "end",
+  },
+  rightActions: {
+    display: "flex",
+    gap: tokens.spacingHorizontalS,
+    alignItems: "end",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
+  label: {
+    fontSize: tokens.fontSizeBase300,
+    color: tokens.colorNeutralForeground2,
+  },
+  field: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    boxSizing: "border-box",
+  },
+  scroll: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    overflowX: "auto",
+    overflowY: "auto",
+    overscrollBehaviorX: "contain",
+  },
+  inlineLink: {
+    marginLeft: tokens.spacingHorizontalS,
+    fontSize: tokens.fontSizeBase200,
+  },
+  boardOverlay: {
+    position: "fixed",
+    inset: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: tokens.spacingHorizontalXL,
+    zIndex: 10,
+  },
+  boardSurface: {
+    width: "min(1200px, calc(100vw - 48px))",
+    maxWidth: "100%",
+    maxHeight: "calc(100vh - 48px)",
+    backgroundColor: tokens.colorNeutralBackground1,
+    borderRadius: tokens.borderRadiusLarge,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    boxShadow: tokens.shadow64,
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+  boardHeader: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: tokens.spacingHorizontalM,
+    rowGap: tokens.spacingVerticalS,
+    alignItems: "flex-start",
+    padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalL}`,
+  },
+  boardHeaderLeft: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalXS,
+    minWidth: 0,
+    flex: "1 1 auto",
+  },
+  boardHeading: {
+    fontSize: tokens.fontSizeBase600,
+    fontWeight: tokens.fontWeightSemibold,
+  },
+  boardMeta: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  boardSubmeta: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  boardControls: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
+    gap: tokens.spacingHorizontalS,
+    marginLeft: "auto",
+  },
+  boardFilter: {
+    minWidth: "160px",
+  },
+  boardBody: {
+    flex: 1,
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalL} ${tokens.spacingVerticalL}`,
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalM,
+  },
+  boardGroupGrid: {
+    display: "grid",
+    gap: tokens.spacingHorizontalL,
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    alignContent: "start",
+  },
+  boardGroupCard: {
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusLarge,
+    paddingBottom: tokens.spacingVerticalM,
+  },
+  boardGroupSummary: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: `0 ${tokens.spacingHorizontalL}`,
+    columnGap: tokens.spacingHorizontalS,
+    marginBottom: tokens.spacingVerticalS,
+  },
+  boardRolesGrid: {
+    flex: 1,
+    display: "grid",
+    gap: tokens.spacingHorizontalM,
+    padding: `0 ${tokens.spacingHorizontalL}`,
+  },
+  boardRoleCard: {
+    backgroundColor: tokens.colorNeutralBackground2,
+    borderRadius: tokens.borderRadiusMedium,
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+    display: "grid",
+    rowGap: tokens.spacingVerticalS,
+    boxShadow: tokens.shadow4,
+  },
+  groupMeta: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  roleHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    columnGap: tokens.spacingHorizontalS,
+    alignItems: "baseline",
+  },
+  roleName: {
+    fontWeight: tokens.fontWeightSemibold,
+    fontSize: tokens.fontSizeBase300,
+  },
+  metricsRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+    gap: tokens.spacingHorizontalS,
+    alignItems: "stretch",
+  },
+  metricBlock: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    rowGap: tokens.spacingVerticalXXS,
+  },
+  metricLabel: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  metricValue: {
+    fontSize: tokens.fontSizeBase400,
+    fontWeight: tokens.fontWeightSemibold,
+    fontVariantNumeric: "tabular-nums",
+  },
+  metricHint: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  weekdayChips: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: tokens.spacingHorizontalXS,
+    marginTop: tokens.spacingVerticalXS,
+  },
+  weekdayChip: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalXXS,
+    padding: `${tokens.spacingVerticalXXS} ${tokens.spacingHorizontalS}`,
+    backgroundColor: tokens.colorNeutralBackground3,
+    borderRadius: tokens.borderRadiusMedium,
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground2,
+    fontVariantNumeric: "tabular-nums",
+  },
+  emptyState: {
+    padding: tokens.spacingVerticalL,
+    textAlign: "center",
+    color: tokens.colorNeutralForeground3,
+  },
+});
 
 interface MonthlyDefaultsProps {
   selectedMonth: string;
@@ -59,208 +389,6 @@ export default function MonthlyDefaults({
   roles,
   getRequiredFor,
 }: MonthlyDefaultsProps) {
-  const useStyles = makeStyles({
-    root: {
-      padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
-      display: 'flex',
-      flexDirection: 'column',
-      width: '100%',
-      maxWidth: '100%',
-      minWidth: 0,
-      overflow: 'hidden',
-      boxSizing: 'border-box',
-      rowGap: tokens.spacingVerticalM,
-    },
-    toolbar: {
-      display: 'grid',
-      gridTemplateColumns: '1fr auto',
-      alignItems: 'end',
-      gap: tokens.spacingHorizontalM,
-      paddingBlockEnd: tokens.spacingVerticalS,
-      minWidth: 0,
-    },
-    leftControls: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-      gap: tokens.spacingHorizontalS,
-      alignItems: 'end',
-    },
-    rightActions: {
-      display: 'flex',
-      gap: tokens.spacingHorizontalS,
-      alignItems: 'end',
-      flexWrap: 'wrap',
-      justifyContent: 'flex-end',
-    },
-    label: {
-      fontSize: tokens.fontSizeBase300,
-      color: tokens.colorNeutralForeground2,
-    },
-    field: {
-      width: '100%',
-      maxWidth: '100%',
-      minWidth: 0,
-      boxSizing: 'border-box',
-    },
-    scroll: {
-      width: '100%',
-      maxWidth: '100%',
-      minWidth: 0,
-      overflowX: 'auto',
-      overflowY: 'auto',
-      overscrollBehaviorX: 'contain',
-    },
-    inlineLink: {
-      marginLeft: tokens.spacingHorizontalS,
-      fontSize: tokens.fontSizeBase200,
-    },
-    dashboardPane: {
-      position: 'fixed',
-      bottom: tokens.spacingVerticalXL,
-      right: tokens.spacingHorizontalXL,
-      width: 'min(420px, calc(100vw - 32px))',
-      maxHeight: '70vh',
-      backgroundColor: tokens.colorNeutralBackground1,
-      borderRadius: tokens.borderRadiusLarge,
-      border: `1px solid ${tokens.colorNeutralStroke2}`,
-      boxShadow: tokens.shadow28,
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden',
-      zIndex: 10,
-    },
-    dashboardHeader: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
-      borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
-      columnGap: tokens.spacingHorizontalS,
-    },
-    dashboardHeaderMain: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: tokens.spacingVerticalXXS,
-      minWidth: 0,
-    },
-    dashboardHeaderActions: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: tokens.spacingHorizontalS,
-      flexWrap: 'wrap',
-      justifyContent: 'flex-end',
-    },
-    dashboardFilter: {
-      minWidth: '160px',
-    },
-    dashboardHeading: {
-      fontSize: tokens.fontSizeBase500,
-      fontWeight: tokens.fontWeightSemibold,
-    },
-    dashboardMeta: {
-      fontSize: tokens.fontSizeBase200,
-      color: tokens.colorNeutralForeground3,
-      marginTop: tokens.spacingVerticalXS,
-    },
-    dashboardSubmeta: {
-      fontSize: tokens.fontSizeBase200,
-      color: tokens.colorNeutralForeground3,
-      marginTop: tokens.spacingVerticalXXS,
-    },
-    dashboardContent: {
-      padding: tokens.spacingHorizontalM,
-      overflowY: 'auto',
-      display: 'grid',
-      gap: tokens.spacingVerticalM,
-    },
-    segmentCard: {
-      border: `1px solid ${tokens.colorNeutralStroke2}`,
-      borderRadius: tokens.borderRadiusMedium,
-      padding: tokens.spacingHorizontalM,
-      display: 'grid',
-      rowGap: tokens.spacingVerticalS,
-      backgroundColor: tokens.colorNeutralBackground2,
-    },
-    segmentHeader: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      columnGap: tokens.spacingHorizontalS,
-    },
-    segmentTitle: {
-      fontWeight: tokens.fontWeightSemibold,
-      fontSize: tokens.fontSizeBase400,
-    },
-    roleRow: {
-      borderRadius: tokens.borderRadiusMedium,
-      padding: tokens.spacingHorizontalM,
-      backgroundColor: tokens.colorNeutralBackground1,
-      boxShadow: tokens.shadow4,
-      display: 'grid',
-      rowGap: tokens.spacingVerticalXS,
-    },
-    roleHeader: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      columnGap: tokens.spacingHorizontalS,
-      alignItems: 'baseline',
-    },
-    roleName: {
-      fontWeight: tokens.fontWeightSemibold,
-      fontSize: tokens.fontSizeBase300,
-    },
-    roleMeta: {
-      fontSize: tokens.fontSizeBase200,
-      color: tokens.colorNeutralForeground3,
-    },
-    metricsRow: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-      gap: tokens.spacingHorizontalS,
-      alignItems: 'stretch',
-    },
-    metricBlock: {
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'flex-start',
-      rowGap: tokens.spacingVerticalXXS,
-    },
-    metricLabel: {
-      fontSize: tokens.fontSizeBase200,
-      color: tokens.colorNeutralForeground3,
-    },
-    metricValue: {
-      fontSize: tokens.fontSizeBase400,
-      fontWeight: tokens.fontWeightSemibold,
-      fontVariantNumeric: 'tabular-nums',
-    },
-    metricHint: {
-      fontSize: tokens.fontSizeBase200,
-      color: tokens.colorNeutralForeground3,
-    },
-    weekdayChips: {
-      display: 'flex',
-      flexWrap: 'wrap',
-      gap: tokens.spacingHorizontalXS,
-      marginTop: tokens.spacingVerticalXS,
-    },
-    weekdayChip: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: tokens.spacingHorizontalXXS,
-      padding: `${tokens.spacingVerticalXXS} ${tokens.spacingHorizontalS}`,
-      backgroundColor: tokens.colorNeutralBackground3,
-      borderRadius: tokens.borderRadiusMedium,
-      fontSize: tokens.fontSizeBase200,
-      color: tokens.colorNeutralForeground2,
-      fontVariantNumeric: 'tabular-nums',
-    },
-    emptyState: {
-      padding: tokens.spacingVerticalL,
-      textAlign: 'center',
-      color: tokens.colorNeutralForeground3,
-    },
-  });
   const styles = useStyles();
   const segmentNames = useMemo(() => segments.map(s => s.name as Segment), [segments]);
   const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters());
@@ -270,6 +398,7 @@ export default function MonthlyDefaults({
   const [notePerson, setNotePerson] = useState<number | null>(null);
   const [showDashboard, setShowDashboard] = useState(false);
   const [dashboardGroupId, setDashboardGroupId] = useState<string>('all');
+  const [activeDashboardSegment, setActiveDashboardSegment] = useState<Segment | null>(() => segmentNames[0] ?? null);
 
   useEffect(() => {
     if (!monthlyEditing) {
@@ -284,27 +413,27 @@ export default function MonthlyDefaults({
     }
   }, [dashboardGroupId, groups]);
 
+  useEffect(() => {
+    if (segmentNames.length === 0) {
+      if (activeDashboardSegment !== null) {
+        setActiveDashboardSegment(null);
+      }
+      return;
+    }
+    if (!activeDashboardSegment || !segmentNames.includes(activeDashboardSegment)) {
+      setActiveDashboardSegment(segmentNames[0] ?? null);
+    }
+  }, [segmentNames, activeDashboardSegment]);
+
   const selectedDashboardGroup = useMemo(() => {
     if (dashboardGroupId === 'all') return null;
     return groups.find((g: any) => String(g.id) === dashboardGroupId) ?? null;
   }, [dashboardGroupId, groups]);
 
-  const dashboardData = useMemo(() => {
-    const empty = {
-      rows: [] as Array<{
-        key: string;
-        segment: Segment;
-        roleId: number;
-        roleName: string;
-        groupId: number;
-        groupName: string;
-        requiredTotal: number;
-        assignedTotal: number;
-        requiredAvg: number;
-        assignedAvg: number;
-        weekdayBreakdown: Record<WeekdayKey, { requiredAvg: number; assignedAvg: number }>;
-      }>,
-      weekdayCounts: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } as Record<WeekdayKey, number>,
+  const dashboardData = useMemo<DashboardSummary>(() => {
+    const empty: DashboardSummary = {
+      rows: [],
+      weekdayCounts: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
       totalWeekdays: 0,
       monthLabel: '',
     };
@@ -462,7 +591,7 @@ export default function MonthlyDefaults({
 
     const totalWeekdays = WEEKDAY_ORDER.reduce((sum, key) => sum + (weekdayCounts[key] || 0), 0);
 
-    const rows = Array.from(summaryMap.values())
+    const rows: CoverageRow[] = Array.from(summaryMap.values())
       .filter((entry) => entry.requiredTotal > 0 || entry.assignedTotal > 0)
       .map((entry) => {
         const role = roleMap.get(entry.roleId);
@@ -519,29 +648,6 @@ export default function MonthlyDefaults({
     return rows.filter((row) => row.groupId === groupId);
   }, [dashboardData, dashboardGroupId]);
 
-  const segmentsForFilteredRows = useMemo(() => {
-    return segmentNames
-      .map((segment) => ({
-        segment,
-        rows: filteredDashboardRows.filter((row) => row.segment === segment),
-      }))
-      .filter((entry) => entry.rows.length > 0);
-  }, [filteredDashboardRows, segmentNames]);
-
-  const formatAverage = (value: number) => {
-    if (!Number.isFinite(value) || Math.abs(value) < 0.05) return "0";
-    const rounded = Math.round(value);
-    if (Math.abs(value - rounded) < 0.05) return String(rounded);
-    return value.toFixed(1);
-  };
-
-  const formatSigned = (value: number) => {
-    if (!Number.isFinite(value) || Math.abs(value) < 0.05) return "0";
-    const rounded = Math.round(Math.abs(value));
-    const base = Math.abs(Math.abs(value) - rounded) < 0.05 ? String(rounded) : Math.abs(value).toFixed(1);
-    return `${value > 0 ? "+" : "-"}${base}`;
-  };
-
   const viewPeople = useMemo(() => {
     const filtered = filterPeopleList(people, filters);
     const sorted = [...filtered].sort((a, b) => {
@@ -575,6 +681,292 @@ export default function MonthlyDefaults({
     });
     return sorted;
   }, [people, monthlyDefaults, filters, sortKey, sortDir, segmentNames, roleListForSegment]);
+
+  function MonthlyCoverageBoard({
+    monthLabel,
+    totalWeekdays,
+    weekdayCounts,
+    filteredRows,
+    allRows,
+    segments,
+    activeSegment,
+    onSegmentChange,
+    groupFilterId,
+    onGroupFilterChange,
+    groups,
+    selectedGroup,
+    onClose,
+  }: {
+    monthLabel: string;
+    totalWeekdays: number;
+    weekdayCounts: Record<WeekdayKey, number>;
+    filteredRows: CoverageRow[];
+    allRows: CoverageRow[];
+    segments: Segment[];
+    activeSegment: Segment | null;
+    onSegmentChange: (segment: Segment) => void;
+    groupFilterId: string;
+    onGroupFilterChange: (value: string) => void;
+    groups: any[];
+    selectedGroup: any | null;
+    onClose: () => void;
+  }) {
+    const segmentValue = activeSegment ?? (segments[0] ?? null);
+
+    const segmentRows = useMemo(() => {
+      if (!segmentValue) return [] as CoverageRow[];
+      const rows = filteredRows.filter((row) => row.segment === segmentValue);
+      rows.sort((a, b) => a.roleName.localeCompare(b.roleName));
+      return rows;
+    }, [filteredRows, segmentValue]);
+
+    const groupOrder = useMemo(() => new Map(groups.map((g: any, idx: number) => [g.id, idx])), [groups]);
+    const groupMap = useMemo(() => new Map(groups.map((g: any) => [g.id, g])), [groups]);
+
+    const groupEntries = useMemo(() => {
+      const entries: Array<{ group: any; rows: CoverageRow[] }> = [];
+      const seen = new Map<number, { group: any; rows: CoverageRow[] }>();
+      for (const row of segmentRows) {
+        const group = groupMap.get(row.groupId) ?? { id: row.groupId, name: row.groupName, theme: null };
+        let entry = seen.get(row.groupId);
+        if (!entry) {
+          entry = { group, rows: [] };
+          seen.set(row.groupId, entry);
+          entries.push(entry);
+        }
+        entry.rows.push(row);
+      }
+      for (const entry of entries) {
+        entry.rows.sort((a, b) => a.roleName.localeCompare(b.roleName));
+      }
+      entries.sort((a, b) => {
+        const orderA = groupOrder.get(a.group.id);
+        const orderB = groupOrder.get(b.group.id);
+        if (orderA != null && orderB != null && orderA !== orderB) return orderA - orderB;
+        if (orderA != null) return -1;
+        if (orderB != null) return 1;
+        return String(a.group.name ?? "").localeCompare(String(b.group.name ?? ""));
+      });
+      return entries;
+    }, [segmentRows, groupMap, groupOrder]);
+
+    const emptyMessage = useMemo(() => {
+      if (allRows.length === 0) {
+        return "Monthly defaults will appear here once roles are assigned.";
+      }
+      if (filteredRows.length === 0) {
+        return "No roles match this group filter yet.";
+      }
+      if (!segmentValue) {
+        return "Add segments to view monthly coverage.";
+      }
+      return "No coverage metrics for this segment yet.";
+    }, [allRows.length, filteredRows.length, segmentValue]);
+
+    function GroupCard({ group, rows }: { group: any; rows: CoverageRow[] }) {
+      const { bg, fg } = themeColors(group?.theme);
+      const totalRequiredAvg = rows.reduce((sum, row) => sum + row.requiredAvg, 0);
+      const totalAssignedAvg = rows.reduce((sum, row) => sum + row.assignedAvg, 0);
+      const totalRequired = rows.reduce((sum, row) => sum + row.requiredTotal, 0);
+      const totalAssigned = rows.reduce((sum, row) => sum + row.assignedTotal, 0);
+      const diffAvg = totalAssignedAvg - totalRequiredAvg;
+      const diffMagnitude = Math.abs(diffAvg);
+      const diffLabel = diffMagnitude < AVERAGE_EPSILON ? "On target" : `${formatSigned(diffAvg)} avg`;
+      const diffColor = diffMagnitude < AVERAGE_EPSILON ? "informative" : diffAvg > 0 ? "success" : "danger";
+      const totalsDiff = totalAssigned - totalRequired;
+      const totalsDiffLabel = totalsDiff === 0 ? "0 diff" : `${totalsDiff > 0 ? "+" : ""}${totalsDiff} diff`;
+      const needsMet = rows.every((row) => row.assignedAvg + AVERAGE_EPSILON >= row.requiredAvg);
+      const borderColor =
+        rows.length === 0
+          ? tokens.colorNeutralStroke2
+          : needsMet
+          ? tokens.colorPaletteGreenBorderActive
+          : tokens.colorPaletteRedBorderActive;
+      const cardStyle: CSSProperties = {
+        borderColor,
+        borderLeftColor: borderColor,
+      };
+      if (bg) cardStyle.backgroundColor = bg;
+      if (fg) cardStyle.color = fg;
+
+      return (
+        <Card className={styles.boardGroupCard} style={cardStyle}>
+          <CardHeader
+            header={<Title3>{group?.name ?? `Group ${rows[0]?.groupId ?? ""}`}</Title3>}
+            description={<Caption1 className={styles.groupMeta}>{group?.theme || "No Theme"}</Caption1>}
+            action={
+              <Badge appearance="ghost">
+                {rows.length} role{rows.length === 1 ? "" : "s"}
+              </Badge>
+            }
+          />
+          <div className={styles.boardGroupSummary}>
+            <Subtitle2>
+              Avg defaults {formatAverage(totalAssignedAvg)} / need {formatAverage(totalRequiredAvg)}
+            </Subtitle2>
+            <Badge appearance="outline" color={diffColor}>
+              {diffLabel}
+            </Badge>
+          </div>
+          <div className={styles.boardGroupSummary}>
+            <Caption1>
+              Totals {totalAssigned}/{totalRequired}
+            </Caption1>
+            <Caption1>{totalsDiffLabel}</Caption1>
+          </div>
+          <div className={styles.boardRolesGrid}>
+            {rows.map((row) => (
+              <RoleSummary key={row.key} row={row} />
+            ))}
+          </div>
+        </Card>
+      );
+    }
+
+    function RoleSummary({ row }: { row: CoverageRow }) {
+      const diffAvg = row.assignedAvg - row.requiredAvg;
+      const diffMagnitude = Math.abs(diffAvg);
+      const diffLabel = diffMagnitude < AVERAGE_EPSILON ? "On target" : `${formatSigned(diffAvg)} avg`;
+      const diffColor = diffMagnitude < AVERAGE_EPSILON ? "informative" : diffAvg > 0 ? "success" : "danger";
+      const totalDiff = row.assignedTotal - row.requiredTotal;
+      const totalDiffLabel = totalDiff === 0 ? "0 diff" : `${totalDiff > 0 ? "+" : ""}${totalDiff} diff`;
+
+      return (
+        <div className={styles.boardRoleCard}>
+          <div className={styles.roleHeader}>
+            <div className={styles.roleName}>{row.roleName}</div>
+            <Badge appearance="outline" color={diffColor}>
+              {diffLabel}
+            </Badge>
+          </div>
+          <div className={styles.metricsRow}>
+            <div className={styles.metricBlock}>
+              <span className={styles.metricLabel}>Avg need</span>
+              <span className={styles.metricValue}>{formatAverage(row.requiredAvg)}</span>
+              <span className={styles.metricHint}>{row.requiredTotal} total</span>
+            </div>
+            <div className={styles.metricBlock}>
+              <span className={styles.metricLabel}>Avg defaults</span>
+              <span className={styles.metricValue}>{formatAverage(row.assignedAvg)}</span>
+              <span className={styles.metricHint}>{row.assignedTotal} total</span>
+            </div>
+            <div className={styles.metricBlock}>
+              <span className={styles.metricLabel}>Totals</span>
+              <span className={styles.metricValue}>
+                {row.assignedTotal}/{row.requiredTotal}
+              </span>
+              <span className={styles.metricHint}>{totalDiffLabel}</span>
+            </div>
+          </div>
+          <div className={styles.weekdayChips}>
+            {WEEKDAY_ORDER.map((w) => {
+              const occurrences = weekdayCounts[w] ?? 0;
+              if (!occurrences) return null;
+              const breakdown = row.weekdayBreakdown[w];
+              return (
+                <Tooltip
+                  key={w}
+                  content={`${occurrences} ${WEEKDAYS[w - 1]}${occurrences === 1 ? "" : "s"} this month`}
+                  relationship="description"
+                >
+                  <span className={styles.weekdayChip}>
+                    {WEEKDAYS[w - 1].slice(0, 3)} {formatAverage(breakdown.assignedAvg)}/
+                    {formatAverage(breakdown.requiredAvg)}
+                  </span>
+                </Tooltip>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className={styles.boardOverlay}>
+        <div className={styles.boardSurface}>
+          <div className={styles.boardHeader}>
+            <div className={styles.boardHeaderLeft}>
+              <div className={styles.boardHeading}>Monthly Coverage</div>
+              <div className={styles.boardMeta}>
+                {monthLabel
+                  ? `${monthLabel} · ${totalWeekdays} weekdays`
+                  : "Select a month to see coverage insights"}
+              </div>
+              {selectedGroup && <div className={styles.boardSubmeta}>Showing {selectedGroup.name}</div>}
+              <div className={styles.weekdayChips}>
+                {WEEKDAY_ORDER.map((w) => {
+                  const count = weekdayCounts[w] ?? 0;
+                  if (!count) return null;
+                  return (
+                    <span key={w} className={styles.weekdayChip}>
+                      {WEEKDAYS[w - 1].slice(0, 3)} × {count}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+            <div className={styles.boardControls}>
+              {segments.length > 0 && segmentValue && (
+                <TabList
+                  size="small"
+                  selectedValue={segmentValue}
+                  onTabSelect={(_, data) => {
+                    if (typeof data.value === "string") {
+                      onSegmentChange(data.value as Segment);
+                    }
+                  }}
+                >
+                  {segments.map((seg) => (
+                    <Tab key={seg} value={seg}>
+                      {seg}
+                    </Tab>
+                  ))}
+                </TabList>
+              )}
+              <Dropdown
+                className={styles.boardFilter}
+                aria-label="Filter coverage by group"
+                size="small"
+                selectedOptions={[groupFilterId]}
+                onOptionSelect={(_, data) => {
+                  const value = data.optionValue ?? "all";
+                  onGroupFilterChange(String(value));
+                }}
+                disabled={groups.length === 0}
+              >
+                <Option value="all" text="All groups">
+                  All groups
+                </Option>
+                {groups.map((group: any) => (
+                  <Option key={group.id} value={String(group.id)} text={group.name}>
+                    {group.name}
+                  </Option>
+                ))}
+              </Dropdown>
+              <Button appearance="secondary" onClick={onClose}>
+                Close
+              </Button>
+            </div>
+          </div>
+          <div className={styles.boardBody}>
+            {segmentRows.length === 0 ? (
+              <div className={styles.emptyState}>{emptyMessage}</div>
+            ) : (
+              <div className={styles.boardGroupGrid}>
+                {groupEntries.map((entry) => (
+                  <GroupCard
+                    key={entry.group.id ?? entry.rows[0]?.groupId ?? entry.rows[0]?.key}
+                    group={entry.group}
+                    rows={entry.rows}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   function WeeklyOverrideModal({ personId, onClose }: { personId: number; onClose: () => void }) {
     const person = people.find(p => p.id === personId);
@@ -763,141 +1155,21 @@ export default function MonthlyDefaults({
         </Table>
       </div>
       {monthlyEditing && showDashboard && (
-        <div className={styles.dashboardPane}>
-          <div className={styles.dashboardHeader}>
-            <div className={styles.dashboardHeaderMain}>
-              <div className={styles.dashboardHeading}>Monthly Coverage</div>
-              <div className={styles.dashboardMeta}>
-                {dashboardData.monthLabel
-                  ? `${dashboardData.monthLabel} · ${dashboardData.totalWeekdays} weekdays`
-                  : 'Select a month to see coverage insights'}
-              </div>
-              {selectedDashboardGroup && (
-                <div className={styles.dashboardSubmeta}>
-                  Showing {selectedDashboardGroup.name}
-                </div>
-              )}
-              <div className={styles.weekdayChips}>
-                {WEEKDAY_ORDER.map((w) => {
-                  const count = dashboardData.weekdayCounts[w] ?? 0;
-                  if (!count) return null;
-                  return (
-                    <span key={w} className={styles.weekdayChip}>
-                      {WEEKDAYS[w - 1].slice(0, 3)} × {count}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-            <div className={styles.dashboardHeaderActions}>
-              <Dropdown
-                className={styles.dashboardFilter}
-                aria-label="Filter coverage by group"
-                size="small"
-                selectedOptions={[dashboardGroupId]}
-                onOptionSelect={(_, data) => {
-                  const value = data.optionValue ?? 'all';
-                  setDashboardGroupId(String(value));
-                }}
-                disabled={groups.length === 0}
-              >
-                <Option value="all" text="All groups">
-                  All groups
-                </Option>
-                {groups.map((group: any) => (
-                  <Option key={group.id} value={String(group.id)} text={group.name}>
-                    {group.name}
-                  </Option>
-                ))}
-              </Dropdown>
-              <Button
-                appearance="subtle"
-                icon={<Dismiss20Regular />}
-                onClick={() => setShowDashboard(false)}
-                aria-label="Close coverage dashboard"
-              />
-            </div>
-          </div>
-          <div className={styles.dashboardContent}>
-            {filteredDashboardRows.length === 0 ? (
-              <div className={styles.emptyState}>
-                {dashboardData.rows.length === 0
-                  ? 'Monthly defaults will appear here once roles are assigned.'
-                  : 'No roles match this group filter yet.'}
-              </div>
-            ) : (
-              segmentsForFilteredRows.map((entry) => (
-                <div key={entry.segment} className={styles.segmentCard}>
-                  <div className={styles.segmentHeader}>
-                    <div className={styles.segmentTitle}>{entry.segment}</div>
-                    <Badge appearance="ghost">
-                      {entry.rows.length} role{entry.rows.length === 1 ? '' : 's'}
-                    </Badge>
-                  </div>
-                  {entry.rows.map((row) => {
-                    const diffAvg = row.assignedAvg - row.requiredAvg;
-                    const diffMagnitude = Math.abs(diffAvg);
-                    const diffLabel = diffMagnitude < 0.05 ? 'On target' : `${formatSigned(diffAvg)} avg`;
-                    const diffColor = diffMagnitude < 0.05 ? 'informative' : diffAvg > 0 ? 'success' : 'danger';
-                    const totalDiff = row.assignedTotal - row.requiredTotal;
-                    const totalDiffLabel = totalDiff === 0 ? '0 diff' : `${totalDiff > 0 ? '+' : ''}${totalDiff} diff`;
-                    return (
-                      <div key={row.key} className={styles.roleRow}>
-                        <div className={styles.roleHeader}>
-                          <div>
-                            <div className={styles.roleName}>{row.roleName}</div>
-                            <div className={styles.roleMeta}>{row.groupName}</div>
-                          </div>
-                          <Badge appearance="outline" color={diffColor}>
-                            {diffLabel}
-                          </Badge>
-                        </div>
-                        <div className={styles.metricsRow}>
-                          <div className={styles.metricBlock}>
-                            <span className={styles.metricLabel}>Avg need</span>
-                            <span className={styles.metricValue}>{formatAverage(row.requiredAvg)}</span>
-                            <span className={styles.metricHint}>{row.requiredTotal} total</span>
-                          </div>
-                          <div className={styles.metricBlock}>
-                            <span className={styles.metricLabel}>Avg defaults</span>
-                            <span className={styles.metricValue}>{formatAverage(row.assignedAvg)}</span>
-                            <span className={styles.metricHint}>{row.assignedTotal} total</span>
-                          </div>
-                          <div className={styles.metricBlock}>
-                            <span className={styles.metricLabel}>Totals</span>
-                            <span className={styles.metricValue}>
-                              {row.assignedTotal}/{row.requiredTotal}
-                            </span>
-                            <span className={styles.metricHint}>{totalDiffLabel}</span>
-                          </div>
-                        </div>
-                        <div className={styles.weekdayChips}>
-                          {WEEKDAY_ORDER.map((w) => {
-                            const occurrences = dashboardData.weekdayCounts[w] ?? 0;
-                            if (!occurrences) return null;
-                            const breakdown = row.weekdayBreakdown[w];
-                            return (
-                              <Tooltip
-                                key={w}
-                                content={`${occurrences} ${WEEKDAYS[w - 1]}${occurrences === 1 ? '' : 's'} this month`}
-                                relationship="description"
-                              >
-                                <span className={styles.weekdayChip}>
-                                  {WEEKDAYS[w - 1].slice(0, 3)} {formatAverage(breakdown.assignedAvg)}/
-                                  {formatAverage(breakdown.requiredAvg)}
-                                </span>
-                              </Tooltip>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+        <MonthlyCoverageBoard
+          monthLabel={dashboardData.monthLabel}
+          totalWeekdays={dashboardData.totalWeekdays}
+          weekdayCounts={dashboardData.weekdayCounts}
+          filteredRows={filteredDashboardRows}
+          allRows={dashboardData.rows}
+          segments={segmentNames}
+          activeSegment={activeDashboardSegment}
+          onSegmentChange={(segment) => setActiveDashboardSegment(segment)}
+          groupFilterId={dashboardGroupId}
+          onGroupFilterChange={(value) => setDashboardGroupId(value)}
+          groups={groups}
+          selectedGroup={selectedDashboardGroup}
+          onClose={() => setShowDashboard(false)}
+        />
       )}
       {weekdayPerson !== null && (
         <WeeklyOverrideModal personId={weekdayPerson} onClose={() => setWeekdayPerson(null)} />
