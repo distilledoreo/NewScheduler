@@ -79,6 +79,229 @@ const viewTabs = [
   { key: "qualities", label: "Qualities" },
 ] as const;
 
+const useTrainingStyles = makeStyles({
+  root: {
+    padding: tokens.spacingHorizontalM,
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalM,
+  },
+  header: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: tokens.spacingHorizontalM,
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  titleArea: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalXS,
+  },
+  title: {
+    fontWeight: tokens.fontWeightSemibold,
+    fontSize: tokens.fontSizeBase500,
+  },
+  subtitle: {
+    color: tokens.colorNeutralForeground3,
+    fontSize: tokens.fontSizeBase200,
+  },
+  tabList: {
+    marginLeft: "auto",
+  },
+  filters: {
+    display: "flex",
+    gap: tokens.spacingHorizontalS,
+    alignItems: "stretch",
+    flexWrap: "wrap",
+    width: "100%",
+  },
+  groupCell: {
+    display: "grid",
+    gap: tokens.spacingHorizontalXS,
+    minWidth: "220px",
+  },
+  grow: { flex: 1, minWidth: "260px" },
+  tableWrap: {
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusLarge,
+    overflow: "auto",
+    maxHeight: "60vh",
+    width: "100%",
+    boxShadow: tokens.shadow2,
+    backgroundColor: tokens.colorNeutralBackground1,
+  },
+  table: { width: "100%", borderCollapse: "separate", borderSpacing: 0 },
+  headerCell: {
+    padding: tokens.spacingHorizontalS,
+    textAlign: "center",
+    backgroundColor: tokens.colorNeutralBackground2,
+    position: "sticky",
+    top: 0,
+    zIndex: 1,
+  },
+  personCol: {
+    position: "sticky",
+    left: 0,
+    backgroundColor: tokens.colorNeutralBackground1,
+    textAlign: "left",
+    minWidth: "220px",
+    maxWidth: "260px",
+    width: "240px",
+    boxShadow: `1px 0 0 ${tokens.colorNeutralStroke2}`,
+  },
+  skillCol: { minWidth: "80px", width: "80px" },
+  cell: { padding: tokens.spacingHorizontalS, textAlign: "center" },
+  cellDropdown: { width: "60px" },
+  dashboard: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalL,
+    paddingBottom: tokens.spacingVerticalL,
+  },
+  metricGrid: {
+    display: "grid",
+    gap: tokens.spacingHorizontalM,
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  },
+  metricCard: {
+    height: "100%",
+    backgroundColor: tokens.colorNeutralBackground2,
+  },
+  metricValue: {
+    fontSize: tokens.fontSizeHero700,
+    fontWeight: tokens.fontWeightSemibold,
+    color: tokens.colorNeutralForeground1,
+  },
+  metricCaption: {
+    color: tokens.colorNeutralForeground3,
+  },
+  sectionsGrid: {
+    display: "grid",
+    gap: tokens.spacingHorizontalM,
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+  },
+  section: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalM,
+    backgroundColor: tokens.colorNeutralBackground1,
+    borderRadius: tokens.borderRadiusLarge,
+    padding: tokens.spacingHorizontalM,
+    boxShadow: tokens.shadow2,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    minHeight: "220px",
+  },
+  sectionHeader: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalXS,
+  },
+  sectionDescription: {
+    color: tokens.colorNeutralForeground3,
+  },
+  focusItem: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalS,
+    padding: `${tokens.spacingVerticalXS} 0`,
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
+  focusItemLast: {
+    borderBottom: "none",
+    paddingBottom: 0,
+  },
+  focusHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: tokens.spacingHorizontalS,
+    flexWrap: "wrap",
+  },
+  focusMeta: {
+    color: tokens.colorNeutralForeground3,
+    fontSize: tokens.fontSizeBase200,
+  },
+  bar: {
+    display: "flex",
+    width: "100%",
+    height: "12px",
+    borderRadius: tokens.borderRadiusMedium,
+    overflow: "hidden",
+    backgroundColor: tokens.colorNeutralBackground3,
+    boxShadow: `inset 0 0 0 1px ${tokens.colorNeutralStroke2}`,
+  },
+  barSegment: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: tokens.colorNeutralForegroundInverted,
+    fontSize: tokens.fontSizeBase100,
+    fontWeight: tokens.fontWeightSemibold,
+    lineHeight: "1",
+  },
+  barSegmentMuted: {
+    backgroundColor: tokens.colorNeutralBackground4,
+    color: tokens.colorNeutralForeground3,
+  },
+  focusFooter: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: tokens.spacingHorizontalS,
+  },
+  legend: {
+    display: "flex",
+    gap: tokens.spacingHorizontalS,
+    flexWrap: "wrap",
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  legendDot: {
+    width: "8px",
+    height: "8px",
+    borderRadius: tokens.borderRadiusCircular,
+    display: "inline-block",
+  },
+  personCard: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalXS,
+    padding: tokens.spacingHorizontalM,
+    borderRadius: tokens.borderRadiusMedium,
+    backgroundColor: tokens.colorNeutralBackground2,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
+  personName: {
+    fontWeight: tokens.fontWeightSemibold,
+  },
+  personMeta: {
+    color: tokens.colorNeutralForeground3,
+    fontSize: tokens.fontSizeBase200,
+  },
+  personBadgeRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: tokens.spacingHorizontalS,
+  },
+  personGrid: {
+    display: "grid",
+    gap: tokens.spacingHorizontalM,
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  },
+  personColumnTitle: {
+    fontWeight: tokens.fontWeightSemibold,
+    color: tokens.colorNeutralForeground2,
+  },
+  emptyState: {
+    color: tokens.colorNeutralForeground3,
+    fontSize: tokens.fontSizeBase200,
+    padding: tokens.spacingHorizontalM,
+  },
+});
+
 export default function Training({
   people,
   roles,
@@ -181,229 +404,7 @@ export default function Training({
     }
   }
 
-  const useStyles = makeStyles({
-    root: {
-      padding: tokens.spacingHorizontalM,
-      display: "flex",
-      flexDirection: "column",
-      gap: tokens.spacingVerticalM,
-    },
-    header: {
-      display: "flex",
-      flexWrap: "wrap",
-      gap: tokens.spacingHorizontalM,
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-    },
-    titleArea: {
-      display: "flex",
-      flexDirection: "column",
-      gap: tokens.spacingVerticalXS,
-    },
-    title: {
-      fontWeight: tokens.fontWeightSemibold,
-      fontSize: tokens.fontSizeBase500,
-    },
-    subtitle: {
-      color: tokens.colorNeutralForeground3,
-      fontSize: tokens.fontSizeBase200,
-    },
-    tabList: {
-      marginLeft: "auto",
-    },
-    filters: {
-      display: "flex",
-      gap: tokens.spacingHorizontalS,
-      alignItems: "stretch",
-      flexWrap: "wrap",
-      width: "100%",
-    },
-    groupCell: {
-      display: "grid",
-      gap: tokens.spacingHorizontalXS,
-      minWidth: "220px",
-    },
-    grow: { flex: 1, minWidth: "260px" },
-    tableWrap: {
-      border: `1px solid ${tokens.colorNeutralStroke2}`,
-      borderRadius: tokens.borderRadiusLarge,
-      overflow: "auto",
-      maxHeight: "60vh",
-      width: "100%",
-      boxShadow: tokens.shadow2,
-      backgroundColor: tokens.colorNeutralBackground1,
-    },
-    table: { width: "100%", borderCollapse: "separate", borderSpacing: 0 },
-    headerCell: {
-      padding: tokens.spacingHorizontalS,
-      textAlign: "center",
-      backgroundColor: tokens.colorNeutralBackground2,
-      position: "sticky",
-      top: 0,
-      zIndex: 1,
-    },
-    personCol: {
-      position: "sticky",
-      left: 0,
-      backgroundColor: tokens.colorNeutralBackground1,
-      textAlign: "left",
-      minWidth: "220px",
-      maxWidth: "260px",
-      width: "240px",
-      boxShadow: `1px 0 0 ${tokens.colorNeutralStroke2}`,
-    },
-    skillCol: { minWidth: "80px", width: "80px" },
-    cell: { padding: tokens.spacingHorizontalS, textAlign: "center" },
-    cellDropdown: { width: "60px" },
-    dashboard: {
-      display: "flex",
-      flexDirection: "column",
-      gap: tokens.spacingVerticalL,
-      paddingBottom: tokens.spacingVerticalL,
-    },
-    metricGrid: {
-      display: "grid",
-      gap: tokens.spacingHorizontalM,
-      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    },
-    metricCard: {
-      height: "100%",
-      backgroundColor: tokens.colorNeutralBackground2,
-    },
-    metricValue: {
-      fontSize: tokens.fontSizeHero700,
-      fontWeight: tokens.fontWeightSemibold,
-      color: tokens.colorNeutralForeground1,
-    },
-    metricCaption: {
-      color: tokens.colorNeutralForeground3,
-    },
-    sectionsGrid: {
-      display: "grid",
-      gap: tokens.spacingHorizontalM,
-      gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-    },
-    section: {
-      display: "flex",
-      flexDirection: "column",
-      gap: tokens.spacingVerticalM,
-      backgroundColor: tokens.colorNeutralBackground1,
-      borderRadius: tokens.borderRadiusLarge,
-      padding: tokens.spacingHorizontalM,
-      boxShadow: tokens.shadow2,
-      border: `1px solid ${tokens.colorNeutralStroke2}`,
-      minHeight: "220px",
-    },
-    sectionHeader: {
-      display: "flex",
-      flexDirection: "column",
-      gap: tokens.spacingVerticalXS,
-    },
-    sectionDescription: {
-      color: tokens.colorNeutralForeground3,
-    },
-    focusItem: {
-      display: "flex",
-      flexDirection: "column",
-      gap: tokens.spacingVerticalS,
-      padding: `${tokens.spacingVerticalXS} 0`,
-      borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
-    },
-    focusItemLast: {
-      borderBottom: "none",
-      paddingBottom: 0,
-    },
-    focusHeader: {
-      display: "flex",
-      justifyContent: "space-between",
-      gap: tokens.spacingHorizontalS,
-      flexWrap: "wrap",
-    },
-    focusMeta: {
-      color: tokens.colorNeutralForeground3,
-      fontSize: tokens.fontSizeBase200,
-    },
-    bar: {
-      display: "flex",
-      width: "100%",
-      height: "12px",
-      borderRadius: tokens.borderRadiusMedium,
-      overflow: "hidden",
-      backgroundColor: tokens.colorNeutralBackground3,
-      boxShadow: `inset 0 0 0 1px ${tokens.colorNeutralStroke2}`,
-    },
-    barSegment: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      color: tokens.colorNeutralForegroundInverted,
-      fontSize: tokens.fontSizeBase100,
-      fontWeight: tokens.fontWeightSemibold,
-      lineHeight: "1",
-    },
-    barSegmentMuted: {
-      backgroundColor: tokens.colorNeutralBackground4,
-      color: tokens.colorNeutralForeground3,
-    },
-    focusFooter: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      flexWrap: "wrap",
-      gap: tokens.spacingHorizontalS,
-    },
-    legend: {
-      display: "flex",
-      gap: tokens.spacingHorizontalS,
-      flexWrap: "wrap",
-      fontSize: tokens.fontSizeBase200,
-      color: tokens.colorNeutralForeground3,
-    },
-    legendDot: {
-      width: "8px",
-      height: "8px",
-      borderRadius: tokens.borderRadiusCircular,
-      display: "inline-block",
-    },
-    personCard: {
-      display: "flex",
-      flexDirection: "column",
-      gap: tokens.spacingVerticalXS,
-      padding: tokens.spacingHorizontalM,
-      borderRadius: tokens.borderRadiusMedium,
-      backgroundColor: tokens.colorNeutralBackground2,
-      border: `1px solid ${tokens.colorNeutralStroke2}`,
-    },
-    personName: {
-      fontWeight: tokens.fontWeightSemibold,
-    },
-    personMeta: {
-      color: tokens.colorNeutralForeground3,
-      fontSize: tokens.fontSizeBase200,
-    },
-    personBadgeRow: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      flexWrap: "wrap",
-      gap: tokens.spacingHorizontalS,
-    },
-    personGrid: {
-      display: "grid",
-      gap: tokens.spacingHorizontalM,
-      gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    },
-    personColumnTitle: {
-      fontWeight: tokens.fontWeightSemibold,
-      color: tokens.colorNeutralForeground2,
-    },
-    emptyState: {
-      color: tokens.colorNeutralForeground3,
-      fontSize: tokens.fontSizeBase200,
-      padding: tokens.spacingHorizontalM,
-    },
-  });
-  const s = useStyles();
+  const s = useTrainingStyles();
 
   const filteredPeople = useMemo(() => filterPeopleList(people, filters), [people, filters]);
   const filteredRoles = roles.filter((r: any) => !groupId || r.group_id === groupId);

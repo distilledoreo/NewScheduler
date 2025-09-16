@@ -98,6 +98,143 @@ async function loadXLSX(){
   return mod as any;
 }
 
+const useRequiredCellStyles = makeStyles({
+  row: { display: 'flex', alignItems: 'center', gap: tokens.spacingHorizontalS },
+  input: { width: '7ch' },
+});
+
+const useBaselineViewStyles = makeStyles({
+  root: { padding: tokens.spacingHorizontalM },
+  title: { fontWeight: tokens.fontWeightSemibold, fontSize: tokens.fontSizeBase400, marginBottom: tokens.spacingVerticalM },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr',
+    gap: tokens.spacingHorizontalM,
+    ['@media (min-width: 1024px)']: { gridTemplateColumns: 'repeat(2, 1fr)' },
+    ['@media (min-width: 1280px)']: { gridTemplateColumns: 'repeat(3, 1fr)' },
+  },
+  card: {
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusLarge,
+    padding: tokens.spacingHorizontalM,
+    backgroundColor: tokens.colorNeutralBackground1,
+    boxShadow: tokens.shadow2,
+  },
+  roleCard: {
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusLarge,
+    padding: tokens.spacingHorizontalM,
+    marginBottom: tokens.spacingVerticalM,
+  },
+  roleGrid: {
+    display: 'grid',
+    gap: tokens.spacingHorizontalS,
+    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+    alignItems: 'start',
+  },
+  subTitle: { fontWeight: tokens.fontWeightSemibold, marginBottom: tokens.spacingVerticalS },
+  label: { fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS },
+});
+
+const usePeopleEditorStyles = makeStyles({
+  root: { padding: tokens.spacingHorizontalM },
+  tableWrap: {
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusLarge,
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    maxHeight: '60vh',
+    width: '100%',
+    boxShadow: tokens.shadow2,
+  },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: tokens.spacingVerticalS },
+  title: { fontWeight: tokens.fontWeightSemibold, fontSize: tokens.fontSizeBase400 },
+  actions: { display: 'flex', gap: tokens.spacingHorizontalS },
+  formGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(12, 1fr)',
+    gap: tokens.spacingHorizontalS,
+    marginBottom: tokens.spacingVerticalM,
+  },
+  col2: { gridColumn: 'span 2' },
+  col3: { gridColumn: 'span 3' },
+  col4: { gridColumn: 'span 4' },
+  col6: { gridColumn: 'span 6' },
+  centerRow: { display: 'flex', alignItems: 'center' },
+  smallLabel: { color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS, fontSize: tokens.fontSizeBase200 },
+  qualGrid: {
+    display: 'grid',
+    gap: tokens.spacingHorizontalXS,
+    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+    maxHeight: '40vh',
+    overflow: 'auto',
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusMedium,
+    padding: tokens.spacingHorizontalS,
+  },
+  row: { display: 'flex', gap: tokens.spacingHorizontalS },
+  cellWrap: { whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' },
+  availText: { color: tokens.colorNeutralForeground3, fontSize: tokens.fontSizeBase200 },
+});
+
+const useNeedsEditorStyles = makeStyles({
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr',
+    gap: tokens.spacingHorizontalM,
+    ['@media (min-width: 1024px)']: { gridTemplateColumns: 'repeat(2, 1fr)' },
+    ['@media (min-width: 1280px)']: { gridTemplateColumns: 'repeat(3, 1fr)' },
+  },
+  card: {
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusLarge,
+    padding: tokens.spacingHorizontalM,
+    backgroundColor: tokens.colorNeutralBackground1,
+    boxShadow: tokens.shadow2,
+  },
+  roleCard: {
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusLarge,
+    padding: tokens.spacingHorizontalM,
+    marginBottom: tokens.spacingVerticalM,
+  },
+  subTitle: { fontWeight: tokens.fontWeightSemibold, marginBottom: tokens.spacingVerticalS },
+  roleGrid: { display: 'grid', gap: tokens.spacingHorizontalS, gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', alignItems: 'start' },
+  label: { fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS },
+  content: { overflowY: 'auto', overflowX: 'hidden' },
+  surface: { width: '90vw', maxWidth: '1200px', maxHeight: '85vh' },
+});
+
+const useAppShellStyles = makeStyles({
+  shell: {
+    minHeight: '100vh',
+    display: 'flex',
+    flexDirection: 'column',
+    width: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
+    boxSizing: 'border-box',
+    paddingLeft: '80px',
+    backgroundColor: tokens.colorNeutralBackground1,
+  },
+  contentRow: {
+    display: 'flex',
+    width: '100%',
+    maxWidth: '100%',
+    minHeight: 0,
+    flex: 1,
+    overflow: 'hidden',
+  },
+  main: {
+    flex: 1,
+    minWidth: 0,
+    overflow: 'auto',
+  },
+  mainInner: {
+    padding: tokens.spacingHorizontalM,
+  },
+});
+
 export default function App() {
   // Theme
   const [themeName, setThemeName] = useState<"light" | "dark">(() => {
@@ -1025,11 +1162,7 @@ async function exportShifts() {
     const req = date ? getRequiredFor(date, group.id, role.id, segment) : (all(`SELECT required FROM needs_baseline WHERE group_id=? AND role_id=? AND segment=?`, [group.id, role.id, segment])[0]?.required||0);
     const [val,setVal] = useState<number>(req);
     useEffect(()=>setVal(req),[req]);
-    const useReqStyles = makeStyles({
-      row: { display: 'flex', alignItems: 'center', gap: tokens.spacingHorizontalS },
-      input: { width: '7ch' },
-    });
-    const r = useReqStyles();
+    const r = useRequiredCellStyles();
     return (
       <div className={r.row}>
         <Input
@@ -1046,39 +1179,7 @@ async function exportShifts() {
     );
   }
   function BaselineView(){
-    const useStyles = makeStyles({
-      root: { padding: tokens.spacingHorizontalM },
-      title: { fontWeight: tokens.fontWeightSemibold, fontSize: tokens.fontSizeBase400, marginBottom: tokens.spacingVerticalM },
-      grid: {
-        display: "grid",
-        gridTemplateColumns: "1fr",
-        gap: tokens.spacingHorizontalM,
-        [`@media (min-width: 1024px)`]: { gridTemplateColumns: "repeat(2, 1fr)" },
-        [`@media (min-width: 1280px)`]: { gridTemplateColumns: "repeat(3, 1fr)" },
-      },
-      card: {
-        border: `1px solid ${tokens.colorNeutralStroke2}`,
-        borderRadius: tokens.borderRadiusLarge,
-        padding: tokens.spacingHorizontalM,
-        backgroundColor: tokens.colorNeutralBackground1,
-        boxShadow: tokens.shadow2,
-      },
-      roleCard: {
-        border: `1px solid ${tokens.colorNeutralStroke2}`,
-        borderRadius: tokens.borderRadiusLarge,
-        padding: tokens.spacingHorizontalM,
-        marginBottom: tokens.spacingVerticalM,
-      },
-      roleGrid: {
-        display: "grid",
-        gap: tokens.spacingHorizontalS,
-        gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-        alignItems: 'start',
-      },
-      subTitle: { fontWeight: tokens.fontWeightSemibold, marginBottom: tokens.spacingVerticalS },
-      label: { fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS },
-    });
-    const s = useStyles();
+    const s = useBaselineViewStyles();
     return (
       <div className={s.root}>
         <div className={s.title}>Baseline Needs</div>
@@ -1187,47 +1288,7 @@ function PeopleEditor(){
     closeBulk();
   }
 
-    const useStyles = makeStyles({
-    root: { padding: tokens.spacingHorizontalM },
-    tableWrap: {
-      border: `1px solid ${tokens.colorNeutralStroke2}`,
-      borderRadius: tokens.borderRadiusLarge,
-      overflowY: "auto",
-      overflowX: "hidden",
-      maxHeight: "60vh",
-      width: "100%",
-      boxShadow: tokens.shadow2,
-    },
-    header: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: tokens.spacingVerticalS },
-    title: { fontWeight: tokens.fontWeightSemibold, fontSize: tokens.fontSizeBase400 },
-    actions: { display: "flex", gap: tokens.spacingHorizontalS },
-    formGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(12, 1fr)',
-      gap: tokens.spacingHorizontalS,
-      marginBottom: tokens.spacingVerticalM,
-    },
-    col2: { gridColumn: 'span 2' },
-    col3: { gridColumn: 'span 3' },
-    col4: { gridColumn: 'span 4' },
-    col6: { gridColumn: 'span 6' },
-    centerRow: { display: 'flex', alignItems: 'center' },
-    smallLabel: { color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS, fontSize: tokens.fontSizeBase200 },
-    qualGrid: {
-      display: 'grid',
-      gap: tokens.spacingHorizontalXS,
-      gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-      maxHeight: '40vh',
-      overflow: 'auto',
-      border: `1px solid ${tokens.colorNeutralStroke2}`,
-      borderRadius: tokens.borderRadiusMedium,
-      padding: tokens.spacingHorizontalS,
-    },
-    row: { display: 'flex', gap: tokens.spacingHorizontalS },
-  cellWrap: { whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' },
-  availText: { color: tokens.colorNeutralForeground3, fontSize: tokens.fontSizeBase200 },
-  });
-  const s = useStyles();
+  const s = usePeopleEditorStyles();
 
   return (
     <div className={s.root}>
@@ -1419,29 +1480,7 @@ function PeopleEditor(){
 
   function NeedsEditor(){
     const d = selectedDateObj;
-    const useDialogStyles = makeStyles({
-      grid: {
-        display: "grid",
-        gridTemplateColumns: "1fr",
-        gap: tokens.spacingHorizontalM,
-        [`@media (min-width: 1024px)`]: { gridTemplateColumns: "repeat(2, 1fr)" },
-        [`@media (min-width: 1280px)`]: { gridTemplateColumns: "repeat(3, 1fr)" },
-      },
-      card: {
-        border: `1px solid ${tokens.colorNeutralStroke2}`,
-        borderRadius: tokens.borderRadiusLarge,
-        padding: tokens.spacingHorizontalM,
-        backgroundColor: tokens.colorNeutralBackground1,
-        boxShadow: tokens.shadow2,
-      },
-      roleCard: { border: `1px solid ${tokens.colorNeutralStroke2}`, borderRadius: tokens.borderRadiusLarge, padding: tokens.spacingHorizontalM, marginBottom: tokens.spacingVerticalM },
-      subTitle: { fontWeight: tokens.fontWeightSemibold, marginBottom: tokens.spacingVerticalS },
-      roleGrid: { display: "grid", gap: tokens.spacingHorizontalS, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", alignItems: 'start' },
-      label: { fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS },
-      content: { overflowY: 'auto', overflowX: 'hidden' },
-      surface: { width: '90vw', maxWidth: '1200px', maxHeight: '85vh' },
-    });
-    const ds = useDialogStyles();
+    const ds = useNeedsEditorStyles();
     return (
       <Dialog open={showNeedsEditor} onOpenChange={(_, data)=> setShowNeedsEditor(data.open)}>
         <DialogSurface className={ds.surface}>
@@ -1477,36 +1516,6 @@ function PeopleEditor(){
       </Dialog>
     );
   }
-
-  const useAppShellStyles = makeStyles({
-    shell: {
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      width: '100%',
-      maxWidth: '100%',
-      overflow: 'hidden',
-      boxSizing: 'border-box',
-      paddingLeft: '80px',
-      backgroundColor: (themeName === "dark" ? webDarkTheme : webLightTheme).colorNeutralBackground1,
-    },
-    contentRow: {
-      display: 'flex',
-      width: '100%',
-      maxWidth: '100%',
-      minHeight: 0,
-      flex: 1,
-      overflow: 'hidden',
-    },
-    main: {
-      flex: 1,
-      minWidth: 0,
-      overflow: 'auto',
-    },
-    mainInner: {
-      padding: tokens.spacingHorizontalM,
-    },
-  });
   const sh = useAppShellStyles();
 
   return (

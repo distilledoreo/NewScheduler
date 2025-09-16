@@ -20,6 +20,15 @@ import AvailabilityOverrideManager from "./AvailabilityOverrideManager";
 import AutoFillSettings from "./AutoFillSettings";
 import SkillsEditor from "./SkillsEditor";
 
+const useAdminViewStyles = makeStyles({
+  root: {
+    padding: "16px",
+    display: "flex",
+    flexDirection: "column",
+    rowGap: "24px",
+  },
+});
+
 interface AdminViewProps {
   sqlDb: any;
   all: (sql: string, params?: any[]) => any[];
@@ -29,15 +38,7 @@ interface AdminViewProps {
 }
 
 export default function AdminView({ sqlDb, all, run, refresh, segments }: AdminViewProps) {
-  const useStyles = makeStyles({
-    root: {
-      padding: "16px",
-      display: "flex",
-      flexDirection: "column",
-      rowGap: "24px",
-    },
-  });
-  const s = useStyles();
+  const s = useAdminViewStyles();
   const [showOverrides, setShowOverrides] = React.useState(false);
   const [showAutoFillSettings, setShowAutoFillSettings] = React.useState(false);
   return (

@@ -10,18 +10,19 @@ interface SkillsEditorProps {
 type SkillRow = { id: number; code: string; name: string; active: number; ordering: number | null; group_id: number | null; group_name: string | null };
 type GroupRow = { id: number; name: string };
 
+const useSkillsEditorStyles = makeStyles({
+  root: { display: 'grid', gap: tokens.spacingVerticalS },
+  row: { display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center', flexWrap: 'wrap' },
+  tableWrap: { overflow: 'auto', border: `1px solid ${tokens.colorNeutralStroke2}`, borderRadius: tokens.borderRadiusLarge },
+  code: { width: '140px' },
+  name: { minWidth: '240px', flex: 1 },
+  groupSel: { width: '220px' },
+  actions: { display: 'flex', gap: tokens.spacingHorizontalS },
+  header: { fontWeight: tokens.fontWeightSemibold },
+});
+
 export default function SkillsEditor({ all, run, refresh }: SkillsEditorProps) {
-  const useStyles = makeStyles({
-    root: { display: 'grid', gap: tokens.spacingVerticalS },
-    row: { display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center', flexWrap: 'wrap' },
-    tableWrap: { overflow: 'auto', border: `1px solid ${tokens.colorNeutralStroke2}`, borderRadius: tokens.borderRadiusLarge },
-    code: { width: '140px' },
-    name: { minWidth: '240px', flex: 1 },
-    groupSel: { width: '220px' },
-    actions: { display: 'flex', gap: tokens.spacingHorizontalS },
-    header: { fontWeight: tokens.fontWeightSemibold },
-  });
-  const s = useStyles();
+  const s = useSkillsEditorStyles();
 
   const [rows, setRows] = React.useState<SkillRow[]>([]);
   const [code, setCode] = React.useState("");

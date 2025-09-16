@@ -34,6 +34,24 @@ interface ExportPreviewProps {
   roles: any[];
 }
 
+const useExportPreviewStyles = makeStyles({
+  root: { padding: tokens.spacingHorizontalM },
+  controls: {
+    display: "flex",
+    alignItems: "end",
+    gap: tokens.spacingHorizontalM,
+    marginBottom: tokens.spacingVerticalM,
+  },
+  spacer: { marginLeft: "auto" },
+  tableWrapper: {
+    overflow: "auto",
+    maxHeight: "60vh",
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusMedium,
+  },
+  rowsText: { color: tokens.colorNeutralForeground3, marginTop: tokens.spacingVerticalXS },
+});
+
 export default function ExportPreview({
   sqlDb,
   exportStart,
@@ -49,24 +67,7 @@ export default function ExportPreview({
   people,
   roles,
 }: ExportPreviewProps) {
-  const useStyles = makeStyles({
-    root: { padding: tokens.spacingHorizontalM },
-    controls: {
-      display: "flex",
-      alignItems: "end",
-      gap: tokens.spacingHorizontalM,
-      marginBottom: tokens.spacingVerticalM,
-    },
-    spacer: { marginLeft: "auto" },
-    tableWrapper: {
-      overflow: "auto",
-      maxHeight: "60vh",
-      border: `1px solid ${tokens.colorNeutralStroke2}`,
-      borderRadius: tokens.borderRadiusMedium,
-    },
-    rowsText: { color: tokens.colorNeutralForeground3, marginTop: tokens.spacingVerticalXS },
-  });
-  const s = useStyles();
+  const s = useExportPreviewStyles();
   function pad2(n: number) {
     return n < 10 ? `0${n}` : `${n}`;
   }

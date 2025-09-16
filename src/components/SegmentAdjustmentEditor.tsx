@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Button,
   Field,
@@ -38,6 +38,28 @@ const mins = (t: string) => {
 };
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const fmt = (m: number) => `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`;
+
+const useSegmentAdjustmentStyles = makeStyles({
+  section: { display: "flex", flexDirection: "column", rowGap: tokens.spacingHorizontalS },
+  header: { display: "flex", alignItems: "center", justifyContent: "space-between" },
+  tableWrap: {
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusLarge,
+    overflow: "auto",
+    maxHeight: "40vh",
+    width: "100%",
+    boxShadow: tokens.shadow2,
+  },
+  row: { display: "flex", columnGap: tokens.spacingHorizontalS },
+  flex1: { flex: 1 },
+  actionsRow: { display: "flex", gap: tokens.spacingHorizontalS, justifyContent: "flex-end" },
+  number: { width: "12ch" },
+  previewWrap: { display: "flex", flexDirection: "column", rowGap: tokens.spacingVerticalXS, marginTop: tokens.spacingVerticalS },
+  timeline: { position: "relative", height: 8, background: tokens.colorNeutralBackground5, borderRadius: tokens.borderRadiusSmall },
+  condBar: { position: "absolute", top: 0, bottom: 0, background: tokens.colorNeutralForeground3, opacity: 0.3 },
+  targetBar: { position: "absolute", top: 0, bottom: 0, background: tokens.colorNeutralForeground2, opacity: 0.4 },
+  adjustedBar: { position: "absolute", top: 0, bottom: 0, background: tokens.colorBrandBackground },
+});
 
 export default function SegmentAdjustmentEditor({ all, run, refresh, segments }: Props) {
   const empty: Omit<SegmentAdjustmentRow, "id"> = {
@@ -170,28 +192,7 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
     refresh();
   }
 
-  const useStyles = makeStyles({
-    section: { display: "flex", flexDirection: "column", rowGap: tokens.spacingHorizontalS },
-    header: { display: "flex", alignItems: "center", justifyContent: "space-between" },
-    tableWrap: {
-      border: `1px solid ${tokens.colorNeutralStroke2}`,
-      borderRadius: tokens.borderRadiusLarge,
-      overflow: "auto",
-      maxHeight: "40vh",
-      width: "100%",
-      boxShadow: tokens.shadow2,
-    },
-    row: { display: "flex", columnGap: tokens.spacingHorizontalS },
-    flex1: { flex: 1 },
-    actionsRow: { display: "flex", gap: tokens.spacingHorizontalS, justifyContent: "flex-end" },
-    number: { width: "12ch" },
-    previewWrap: { display: "flex", flexDirection: "column", rowGap: tokens.spacingVerticalXS, marginTop: tokens.spacingVerticalS },
-    timeline: { position: "relative", height: 8, background: tokens.colorNeutralBackground5, borderRadius: tokens.borderRadiusSmall },
-    condBar: { position: "absolute", top: 0, bottom: 0, background: tokens.colorNeutralForeground3, opacity: 0.3 },
-    targetBar: { position: "absolute", top: 0, bottom: 0, background: tokens.colorNeutralForeground2, opacity: 0.4 },
-    adjustedBar: { position: "absolute", top: 0, bottom: 0, background: tokens.colorBrandBackground },
-  });
-  const s = useStyles();
+  const s = useSegmentAdjustmentStyles();
 
   return (
     <div className={s.section}>
