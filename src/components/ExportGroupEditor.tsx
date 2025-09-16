@@ -14,6 +14,10 @@ export default function ExportGroupEditor({ all, run, refresh }: ExportGroupEdit
   const [editing, setEditing] = useState<any | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const [form, setForm] = useState<any>(empty);
+  const selectedGroupLabel =
+    form.group_id === ""
+      ? ""
+      : available.find((g:any) => g.id === Number(form.group_id))?.name || "";
 
   function load() {
     const r = all(`SELECT eg.group_id, g.name as group_name, eg.code, eg.color, eg.column_group
@@ -133,6 +137,7 @@ export default function ExportGroupEditor({ all, run, refresh }: ExportGroupEdit
                 key={`export-group-${available.map((g:any)=>`${g.id}:${g.name}`).join(',')}-${form.group_id}`}
                 placeholder="Select group…"
                 selectedOptions={form.group_id ? [String(form.group_id)] : []}
+                value={selectedGroupLabel}
                 onOptionSelect={(_, data) => setForm({ ...form, group_id: Number(data.optionValue ?? data.optionText) })}
               >
                 {available.map((g:any)=>(

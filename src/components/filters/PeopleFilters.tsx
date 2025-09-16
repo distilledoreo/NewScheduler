@@ -22,6 +22,23 @@ export const defaultPeopleFilters: PeopleFiltersState = {
   availMode: "any",
 };
 
+const genderLabel = (gender: Gender) => {
+  switch (gender) {
+    case "Brother":
+      return "Brother";
+    case "Sister":
+      return "Sister";
+    default:
+      return "All";
+  }
+};
+
+const availModeLabels: Record<PeopleFiltersState["availMode"], string> = {
+  any: "Any selected days",
+  all: "All selected days",
+  only: "Only selected days",
+};
+
 export function freshPeopleFilters(overrides: Partial<PeopleFiltersState> = {}): PeopleFiltersState {
   return {
     text: "",
@@ -179,6 +196,7 @@ export function PeopleFiltersBar({
                 className={s.field}
                 placeholder="All"
                 selectedOptions={state.gender ? [state.gender] : []}
+                value={genderLabel(state.gender)}
                 onOptionSelect={(_, data) => onChange({ gender: (data.optionValue as Gender) || "" })}
               >
                 <Option value="" text="All">All</Option>
@@ -218,6 +236,7 @@ export function PeopleFiltersBar({
               <Dropdown
                 className={s.field}
                 selectedOptions={[state.availMode]}
+                value={availModeLabels[state.availMode]}
                 onOptionSelect={(_, data) => onChange({ availMode: (data.optionValue as "any" | "all" | "only") || "any" })}
               >
                 <Option value="any" text="Any selected days">Any selected days</Option>

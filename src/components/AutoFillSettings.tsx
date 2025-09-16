@@ -41,6 +41,7 @@ export default function AutoFillSettings({ open, onClose }: AutoFillSettingsProp
           <DialogContent>
             <Dropdown
               selectedOptions={[priority]}
+              value={priority === "alphabetical" ? "Alphabetical" : "Trained first"}
               onOptionSelect={(_, data) => setPriority(String(data.optionValue))}
             >
               <Option value="trained" text="Trained first">

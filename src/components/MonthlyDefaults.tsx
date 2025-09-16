@@ -111,6 +111,25 @@ export default function MonthlyDefaults({
   const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters());
   const [sortKey, setSortKey] = useState<string>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const sortKeyLabel = useMemo(() => {
+    const base: Record<string, string> = {
+      name: "Name",
+      email: "Email",
+      brother_sister: "B/S",
+      commuter: "Commute",
+      active: "Active",
+      avail_mon: "Mon",
+      avail_tue: "Tue",
+      avail_wed: "Wed",
+      avail_thu: "Thu",
+      avail_fri: "Fri",
+    };
+    if (base[sortKey]) return base[sortKey];
+    if (segmentNames.includes(sortKey as Segment)) {
+      return `${sortKey} Role`;
+    }
+    return "";
+  }, [sortKey, segmentNames]);
   const [weekdayPerson, setWeekdayPerson] = useState<number | null>(null);
   const [notePerson, setNotePerson] = useState<number | null>(null);
 
@@ -239,8 +258,13 @@ export default function MonthlyDefaults({
           <Input className={styles.field} type="month" value={copyFromMonth} onChange={(_, d) => setCopyFromMonth(d.value)} />
           </div>
           <div>
-            <span className={styles.label}>Sort by</span>
-            <Dropdown className={styles.field} selectedOptions={[sortKey]} onOptionSelect={(_, data) => setSortKey(data.optionValue as any)}>
+          <span className={styles.label}>Sort by</span>
+            <Dropdown
+              className={styles.field}
+              selectedOptions={[sortKey]}
+              value={sortKeyLabel}
+              onOptionSelect={(_, data) => setSortKey(data.optionValue as any)}
+            >
           <Option value="name" text="Name">Name</Option>
           <Option value="email" text="Email">Email</Option>
           <Option value="brother_sister" text="B/S">B/S</Option>

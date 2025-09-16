@@ -93,6 +93,11 @@ export default function Training({
   const [qualities, setQualities] = useState<Record<number, Record<string, number>>>({});
   const [groupId, setGroupId] = useState<number | "">("");
   const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters({ activeOnly: true }));
+  const groupLabel = useMemo(() => {
+    if (groupId === "") return "All Groups";
+    const match = groups.find((g: any) => g.id === Number(groupId));
+    return match ? match.name : "";
+  }, [groupId, groups]);
 
   // Load skill catalog and person_skill ratings
   useEffect(() => {
@@ -622,6 +627,7 @@ export default function Training({
           <Label>{view === "qualities" ? "Role group" : "Skill group"}</Label>
           <Dropdown
             selectedOptions={groupId === "" ? [""] : [String(groupId)]}
+            value={groupLabel}
             onOptionSelect={(_, data) => {
               const val = data.optionValue ? parseInt(String(data.optionValue)) : "";
               setGroupId(val as any);
@@ -965,6 +971,7 @@ export default function Training({
                           <Dropdown
                             className={s.cellDropdown}
                             selectedOptions={rating != null ? [String(rating)] : [""]}
+                            value={rating != null ? String(rating) : "-"}
                             onOptionSelect={(_, data) => {
                               const val = parseInt(String(data.optionValue ?? data.optionText));
                               if (!val) setRating(p.id, sk.id, null);
@@ -1022,6 +1029,7 @@ export default function Training({
                           <Dropdown
                             className={s.cellDropdown}
                             selectedOptions={rating != null ? [String(rating)] : [""]}
+                            value={rating != null ? String(rating) : "-"}
                             onOptionSelect={(_, data) => {
                               const val = parseInt(String(data.optionValue ?? data.optionText));
                               if (!val) setQuality(p.id, q.key, null);

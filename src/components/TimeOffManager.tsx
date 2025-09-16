@@ -129,6 +129,11 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
   const [addEndDate, setAddEndDate] = React.useState<string>("");
   const [addEndTime, setAddEndTime] = React.useState<string>("17:00");
   const [addReason, setAddReason] = React.useState<string>("");
+  const addPersonLabel = React.useMemo(() => {
+    if (addPersonId == null) return "Select person";
+    const match = people.find((p: any) => p.id === addPersonId);
+    return match ? `${match.last_name}, ${match.first_name}` : "";
+  }, [addPersonId, people]);
   // Always query fresh so the table updates after changes
   const rows = all(`SELECT t.id, t.person_id, t.start_ts, t.end_ts, t.reason, p.first_name, p.last_name, p.work_email FROM timeoff t JOIN person p ON p.id=t.person_id ORDER BY t.start_ts DESC LIMIT 200`);
 
@@ -341,6 +346,7 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
           <Dropdown
             placeholder="Select person"
             selectedOptions={addPersonId!=null?[String(addPersonId)]:[]}
+            value={addPersonLabel}
             onOptionSelect={(_,d)=>{ const v = d.optionValue ?? d.optionText; setAddPersonId(v?Number(v):null); }}
           >
             {people.map((p:any)=> {
