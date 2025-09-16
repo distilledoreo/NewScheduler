@@ -26,6 +26,102 @@ interface CrewHistoryViewProps {
   all: (sql: string, params?: any[]) => any[];
 }
 
+const NAME_COL_PX = 240;
+const SEG_COL_PX = 160;
+
+const useCrewHistoryViewStyles = makeStyles({
+  root: {
+    padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
+    display: 'flex',
+    flexDirection: 'column',
+    width: '100%',
+    maxWidth: '100%',
+    minWidth: 0,
+    overflow: 'hidden',
+    boxSizing: 'border-box',
+    rowGap: tokens.spacingVerticalM,
+  },
+  toolbar: {
+    display: 'grid',
+    gap: tokens.spacingVerticalS,
+    paddingBlockEnd: tokens.spacingVerticalS,
+    minWidth: 0,
+  },
+  controlsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+    alignItems: 'stretch',
+    gridAutoRows: 'minmax(40px, auto)',
+    columnGap: tokens.spacingHorizontalS,
+    rowGap: tokens.spacingVerticalS,
+    minWidth: 0,
+  },
+  controlCell: {
+    minWidth: 0,
+    display: 'flex',
+    alignItems: 'end',
+    '& > *': { maxWidth: '100%' },
+  },
+  stack: {
+    display: 'grid',
+    gridAutoRows: 'max-content',
+    rowGap: tokens.spacingVerticalXS,
+    alignItems: 'stretch',
+    minWidth: 0,
+    '& > *': { minWidth: 0 },
+  },
+  full: {
+    width: '100%',
+  },
+  segmentsWrap: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: tokens.spacingHorizontalS,
+    rowGap: tokens.spacingVerticalXS,
+    paddingBlockEnd: tokens.spacingVerticalXS,
+    minWidth: 0,
+  },
+  monthRange: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalXS,
+    flexWrap: 'wrap',
+  },
+  label: {
+    fontSize: tokens.fontSizeBase300,
+    color: tokens.colorNeutralForeground2,
+  },
+  scroll: {
+    width: '100%',
+    maxWidth: '100%',
+    minWidth: 0,
+    overflowX: 'auto',
+    overflowY: 'auto',
+    overscrollBehaviorX: 'contain',
+  },
+  stickyName: {
+    position: 'sticky',
+    left: '0px',
+    zIndex: 3,
+    backgroundColor: tokens.colorNeutralBackground1,
+    boxShadow: `inset -1px 0 0 ${tokens.colorNeutralStroke2}`,
+    width: `${NAME_COL_PX}px`,
+    minWidth: `${NAME_COL_PX}px`,
+    maxWidth: `${NAME_COL_PX}px`,
+  },
+  stickySeg: {
+    position: 'sticky',
+    left: `${NAME_COL_PX}px`,
+    zIndex: 2,
+    backgroundColor: tokens.colorNeutralBackground1,
+    boxShadow: `inset -1px 0 0 ${tokens.colorNeutralStroke2}`,
+    width: `${SEG_COL_PX}px`,
+    minWidth: `${SEG_COL_PX}px`,
+    maxWidth: `${SEG_COL_PX}px`,
+  },
+});
+
 export default function CrewHistoryView({
   sqlDb,
   monthlyDefaults,
@@ -37,101 +133,7 @@ export default function CrewHistoryView({
   setMonthlyDefaultForMonth,
   all,
 }: CrewHistoryViewProps) {
-  const NAME_COL_PX = 240;
-  const SEG_COL_PX = 160;
-  const useStyles = makeStyles({
-    root: {
-      padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
-      display: 'flex',
-      flexDirection: 'column',
-      width: '100%',
-      maxWidth: '100%',
-      minWidth: 0,
-      overflow: 'hidden',
-      boxSizing: 'border-box',
-      rowGap: tokens.spacingVerticalM,
-    },
-    toolbar: {
-      display: 'grid',
-      gap: tokens.spacingVerticalS,
-      paddingBlockEnd: tokens.spacingVerticalS,
-      minWidth: 0,
-    },
-    controlsGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-      alignItems: 'stretch',
-      gridAutoRows: 'minmax(40px, auto)',
-      columnGap: tokens.spacingHorizontalS,
-      rowGap: tokens.spacingVerticalS,
-      minWidth: 0,
-    },
-    controlCell: {
-      minWidth: 0,
-      display: 'flex',
-      alignItems: 'end',
-      '& > *': { maxWidth: '100%' },
-    },
-    stack: {
-      display: 'grid',
-      gridAutoRows: 'max-content',
-      rowGap: tokens.spacingVerticalXS,
-      alignItems: 'stretch',
-      minWidth: 0,
-      '& > *': { minWidth: 0 },
-    },
-    full: {
-      width: '100%',
-    },
-    segmentsWrap: {
-      display: 'flex',
-      flexWrap: 'wrap',
-      alignItems: 'center',
-      columnGap: tokens.spacingHorizontalS,
-      rowGap: tokens.spacingVerticalXS,
-      paddingBlockEnd: tokens.spacingVerticalXS,
-      minWidth: 0,
-    },
-    monthRange: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: tokens.spacingHorizontalXS,
-      flexWrap: 'wrap',
-    },
-    label: {
-      fontSize: tokens.fontSizeBase300,
-      color: tokens.colorNeutralForeground2,
-    },
-    scroll: {
-      width: '100%',
-      maxWidth: '100%',
-      minWidth: 0,
-      overflowX: 'auto',
-      overflowY: 'auto',
-      overscrollBehaviorX: 'contain',
-    },
-    stickyName: {
-      position: 'sticky',
-      left: '0px',
-      zIndex: 3,
-      backgroundColor: tokens.colorNeutralBackground1,
-      boxShadow: `inset -1px 0 0 ${tokens.colorNeutralStroke2}`,
-      width: `${NAME_COL_PX}px`,
-      minWidth: `${NAME_COL_PX}px`,
-      maxWidth: `${NAME_COL_PX}px`,
-    },
-    stickySeg: {
-      position: 'sticky',
-      left: `${NAME_COL_PX}px`,
-      zIndex: 2,
-      backgroundColor: tokens.colorNeutralBackground1,
-      boxShadow: `inset -1px 0 0 ${tokens.colorNeutralStroke2}`,
-      width: `${SEG_COL_PX}px`,
-      minWidth: `${SEG_COL_PX}px`,
-      maxWidth: `${SEG_COL_PX}px`,
-    },
-  });
-  const styles = useStyles();
+  const styles = useCrewHistoryViewStyles();
   // Cache for converting hex colors to CSS styles so we don't recompute for every cell
   const colorStyleCache = useRef<Map<string, React.CSSProperties>>(new Map());
 

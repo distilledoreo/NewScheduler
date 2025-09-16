@@ -9,6 +9,22 @@ interface RoleEditorProps {
   segments: SegmentRow[];
 }
 
+const useRoleEditorStyles = makeStyles({
+  section: { display: "flex", flexDirection: "column", rowGap: tokens.spacingHorizontalS },
+  header: { display: "flex", alignItems: "center", justifyContent: "space-between" },
+  tableWrap: {
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusLarge,
+    overflow: "auto",
+    maxHeight: "40vh",
+    width: "100%",
+    boxShadow: tokens.shadow2,
+  },
+  row: { display: "flex", columnGap: tokens.spacingHorizontalS, flexWrap: "wrap" },
+  rightAlign: { textAlign: 'right' },
+  actionsRow: { display: 'flex', gap: tokens.spacingHorizontalS, justifyContent: 'flex-end' },
+});
+
 export default function RoleEditor({ all, run, refresh, segments }: RoleEditorProps) {
   const [roles, setRoles] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
@@ -76,22 +92,7 @@ export default function RoleEditor({ all, run, refresh, segments }: RoleEditorPr
     refresh();
   }
 
-  const useStyles = makeStyles({
-    section: { display: "flex", flexDirection: "column", rowGap: tokens.spacingHorizontalS },
-    header: { display: "flex", alignItems: "center", justifyContent: "space-between" },
-    tableWrap: {
-      border: `1px solid ${tokens.colorNeutralStroke2}`,
-      borderRadius: tokens.borderRadiusLarge,
-      overflow: "auto",
-      maxHeight: "40vh",
-      width: "100%",
-      boxShadow: tokens.shadow2,
-    },
-    row: { display: "flex", columnGap: tokens.spacingHorizontalS, flexWrap: "wrap" },
-    rightAlign: { textAlign: 'right' },
-    actionsRow: { display: 'flex', gap: tokens.spacingHorizontalS, justifyContent: 'flex-end' },
-  });
-  const s = useStyles();
+  const s = useRoleEditorStyles();
   return (
     <div className={s.section}>
       <div className={s.header}>

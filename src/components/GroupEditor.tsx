@@ -7,36 +7,37 @@ interface GroupEditorProps {
   refresh: () => void;
 }
 
+const useGroupEditorStyles = makeStyles({
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    rowGap: tokens.spacingVerticalM,
+  },
+  headerBar: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  tableWrap: {
+    borderRadius: tokens.borderRadiusMedium,
+    boxShadow: tokens.shadow4,
+    overflow: 'auto',
+    maxHeight: '40vh',
+    width: '100%',
+  },
+  formSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    rowGap: tokens.spacingVerticalS,
+  },
+  actionRow: {
+    display: 'flex',
+    columnGap: tokens.spacingHorizontalS,
+  },
+});
+
 export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
-  const useStyles = makeStyles({
-    root: {
-      display: 'flex',
-      flexDirection: 'column',
-      rowGap: tokens.spacingVerticalM,
-    },
-    headerBar: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    tableWrap: {
-      borderRadius: tokens.borderRadiusMedium,
-      boxShadow: tokens.shadow4,
-      overflow: 'auto',
-      maxHeight: '40vh',
-      width: '100%',
-    },
-    formSection: {
-      display: 'flex',
-      flexDirection: 'column',
-      rowGap: tokens.spacingVerticalS,
-    },
-    actionRow: {
-      display: 'flex',
-      columnGap: tokens.spacingHorizontalS,
-    },
-  });
-  const styles = useStyles();
+  const styles = useGroupEditorStyles();
   const empty = { name: "", theme: "", custom_color: "" };
   const [groups, setGroups] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
