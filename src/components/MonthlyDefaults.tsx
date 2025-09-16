@@ -6,6 +6,7 @@ import PersonName from "./PersonName";
 import { exportMonthOneSheetXlsx } from "../excel/export-one-sheet";
 import { type Segment, type SegmentRow } from "../services/segments";
 import { Note20Regular, Dismiss20Regular } from "@fluentui/react-icons";
+import type { Availability } from "../services/availabilityOverrides";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
 type WeekdayKey = 1 | 2 | 3 | 4 | 5;
@@ -136,6 +137,22 @@ export default function MonthlyDefaults({
       borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
       columnGap: tokens.spacingHorizontalS,
     },
+    dashboardHeaderMain: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: tokens.spacingVerticalXXS,
+      minWidth: 0,
+    },
+    dashboardHeaderActions: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: tokens.spacingHorizontalS,
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
+    },
+    dashboardFilter: {
+      minWidth: '160px',
+    },
     dashboardHeading: {
       fontSize: tokens.fontSizeBase500,
       fontWeight: tokens.fontWeightSemibold,
@@ -144,6 +161,11 @@ export default function MonthlyDefaults({
       fontSize: tokens.fontSizeBase200,
       color: tokens.colorNeutralForeground3,
       marginTop: tokens.spacingVerticalXS,
+    },
+    dashboardSubmeta: {
+      fontSize: tokens.fontSizeBase200,
+      color: tokens.colorNeutralForeground3,
+      marginTop: tokens.spacingVerticalXXS,
     },
     dashboardContent: {
       padding: tokens.spacingHorizontalM,
@@ -247,12 +269,25 @@ export default function MonthlyDefaults({
   const [weekdayPerson, setWeekdayPerson] = useState<number | null>(null);
   const [notePerson, setNotePerson] = useState<number | null>(null);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [dashboardGroupId, setDashboardGroupId] = useState<string>('all');
 
   useEffect(() => {
     if (!monthlyEditing) {
       setShowDashboard(false);
     }
   }, [monthlyEditing]);
+
+  useEffect(() => {
+    if (dashboardGroupId === 'all') return;
+    if (!groups.some((g: any) => String(g.id) === dashboardGroupId)) {
+      setDashboardGroupId('all');
+    }
+  }, [dashboardGroupId, groups]);
+
+  const selectedDashboardGroup = useMemo(() => {
+    if (dashboardGroupId === 'all') return null;
+    return groups.find((g: any) => String(g.id) === dashboardGroupId) ?? null;
+  }, [dashboardGroupId, groups]);
 
   const dashboardData = useMemo(() => {
     const empty = {
@@ -261,6 +296,7 @@ export default function MonthlyDefaults({
         segment: Segment;
         roleId: number;
         roleName: string;
+        groupId: number;
         groupName: string;
         requiredTotal: number;
         assignedTotal: number;
@@ -283,6 +319,42 @@ export default function MonthlyDefaults({
     if (!Number.isFinite(daysInMonth) || daysInMonth <= 0) {
       return empty;
     }
+
+    const toAvailability = (value: unknown): Availability => {
+      if (value == null) return 'U';
+      const normalized = String(value).toUpperCase();
+      switch (normalized) {
+        case 'AM':
+        case 'PM':
+        case 'B':
+        case 'U':
+          return normalized as Availability;
+        default:
+          return 'U';
+      }
+    };
+
+    const availabilityByPerson = new Map<number, Record<WeekdayKey, Availability>>();
+    for (const person of people) {
+      availabilityByPerson.set(person.id, {
+        1: toAvailability((person as any).avail_mon),
+        2: toAvailability((person as any).avail_tue),
+        3: toAvailability((person as any).avail_wed),
+        4: toAvailability((person as any).avail_thu),
+        5: toAvailability((person as any).avail_fri),
+      });
+    }
+
+    const availabilityMatchesSegment = (availability: Availability, segment: Segment): boolean => {
+      if (availability === 'U') return false;
+      if (segment === 'AM' || segment === 'Early') {
+        return availability === 'AM' || availability === 'B';
+      }
+      if (segment === 'PM') {
+        return availability === 'PM' || availability === 'B';
+      }
+      return availability === 'AM' || availability === 'PM' || availability === 'B';
+    };
 
     const weekdayCounts: Record<WeekdayKey, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     const segmentOrder = new Map<Segment, number>(segmentNames.map((seg, idx) => [seg, idx]));
@@ -378,6 +450,9 @@ export default function MonthlyDefaults({
           if (!role) continue;
           const allowedSegments = Array.isArray(role.segments) ? (role.segments as Segment[]) : [];
           if (!allowedSegments.includes(seg)) continue;
+          const availabilityForPerson = availabilityByPerson.get(personId);
+          const dayAvailability = availabilityForPerson?.[weekday] ?? ('U' as Availability);
+          if (!availabilityMatchesSegment(dayAvailability, seg)) continue;
           const entry = ensureEntry(role.group_id, role.id, seg);
           entry.assignedTotal += 1;
           entry.assignedByWeekday[weekday] = (entry.assignedByWeekday[weekday] ?? 0) + 1;
@@ -407,6 +482,7 @@ export default function MonthlyDefaults({
           segment: entry.segment,
           roleId: entry.roleId,
           roleName: role?.name ?? `Role ${entry.roleId}`,
+          groupId: entry.groupId,
           groupName: group?.name ?? `Group ${entry.groupId}`,
           requiredTotal: entry.requiredTotal,
           assignedTotal: entry.assignedTotal,
@@ -429,7 +505,28 @@ export default function MonthlyDefaults({
       : labelDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 
     return { rows, weekdayCounts, totalWeekdays, monthLabel };
-  }, [selectedMonth, monthlyDefaults, monthlyOverrides, segmentNames, groups, roles, getRequiredFor]);
+  }, [selectedMonth, monthlyDefaults, monthlyOverrides, segmentNames, groups, roles, getRequiredFor, people]);
+
+  const filteredDashboardRows = useMemo(() => {
+    const rows = dashboardData.rows;
+    if (dashboardGroupId === 'all') {
+      return rows;
+    }
+    const groupId = Number(dashboardGroupId);
+    if (!Number.isFinite(groupId)) {
+      return rows;
+    }
+    return rows.filter((row) => row.groupId === groupId);
+  }, [dashboardData, dashboardGroupId]);
+
+  const segmentsForFilteredRows = useMemo(() => {
+    return segmentNames
+      .map((segment) => ({
+        segment,
+        rows: filteredDashboardRows.filter((row) => row.segment === segment),
+      }))
+      .filter((entry) => entry.rows.length > 0);
+  }, [filteredDashboardRows, segmentNames]);
 
   const formatAverage = (value: number) => {
     if (!Number.isFinite(value) || Math.abs(value) < 0.05) return "0";
@@ -668,13 +765,18 @@ export default function MonthlyDefaults({
       {monthlyEditing && showDashboard && (
         <div className={styles.dashboardPane}>
           <div className={styles.dashboardHeader}>
-            <div>
+            <div className={styles.dashboardHeaderMain}>
               <div className={styles.dashboardHeading}>Monthly Coverage</div>
               <div className={styles.dashboardMeta}>
                 {dashboardData.monthLabel
                   ? `${dashboardData.monthLabel} · ${dashboardData.totalWeekdays} weekdays`
                   : 'Select a month to see coverage insights'}
               </div>
+              {selectedDashboardGroup && (
+                <div className={styles.dashboardSubmeta}>
+                  Showing {selectedDashboardGroup.name}
+                </div>
+              )}
               <div className={styles.weekdayChips}>
                 {WEEKDAY_ORDER.map((w) => {
                   const count = dashboardData.weekdayCounts[w] ?? 0;
@@ -687,91 +789,112 @@ export default function MonthlyDefaults({
                 })}
               </div>
             </div>
-            <Button
-              appearance="subtle"
-              icon={<Dismiss20Regular />}
-              onClick={() => setShowDashboard(false)}
-              aria-label="Close coverage dashboard"
-            />
+            <div className={styles.dashboardHeaderActions}>
+              <Dropdown
+                className={styles.dashboardFilter}
+                aria-label="Filter coverage by group"
+                size="small"
+                selectedOptions={[dashboardGroupId]}
+                onOptionSelect={(_, data) => {
+                  const value = data.optionValue ?? 'all';
+                  setDashboardGroupId(String(value));
+                }}
+                disabled={groups.length === 0}
+              >
+                <Option value="all" text="All groups">
+                  All groups
+                </Option>
+                {groups.map((group: any) => (
+                  <Option key={group.id} value={String(group.id)} text={group.name}>
+                    {group.name}
+                  </Option>
+                ))}
+              </Dropdown>
+              <Button
+                appearance="subtle"
+                icon={<Dismiss20Regular />}
+                onClick={() => setShowDashboard(false)}
+                aria-label="Close coverage dashboard"
+              />
+            </div>
           </div>
           <div className={styles.dashboardContent}>
-            {dashboardData.rows.length === 0 ? (
+            {filteredDashboardRows.length === 0 ? (
               <div className={styles.emptyState}>
-                Monthly defaults will appear here once roles are assigned.
+                {dashboardData.rows.length === 0
+                  ? 'Monthly defaults will appear here once roles are assigned.'
+                  : 'No roles match this group filter yet.'}
               </div>
             ) : (
-              segmentNames
-                .map((seg) => ({ segment: seg, rows: dashboardData.rows.filter((row) => row.segment === seg) }))
-                .filter((entry) => entry.rows.length > 0)
-                .map((entry) => (
-                  <div key={entry.segment} className={styles.segmentCard}>
-                    <div className={styles.segmentHeader}>
-                      <div className={styles.segmentTitle}>{entry.segment}</div>
-                      <Badge appearance="ghost">
-                        {entry.rows.length} role{entry.rows.length === 1 ? '' : 's'}
-                      </Badge>
-                    </div>
-                    {entry.rows.map((row) => {
-                      const diffAvg = row.assignedAvg - row.requiredAvg;
-                      const diffMagnitude = Math.abs(diffAvg);
-                      const diffLabel = diffMagnitude < 0.05 ? 'On target' : `${formatSigned(diffAvg)} avg`;
-                      const diffColor = diffMagnitude < 0.05 ? 'informative' : diffAvg > 0 ? 'success' : 'danger';
-                      const totalDiff = row.assignedTotal - row.requiredTotal;
-                      const totalDiffLabel = totalDiff === 0 ? '0 diff' : `${totalDiff > 0 ? '+' : ''}${totalDiff} diff`;
-                      return (
-                        <div key={row.key} className={styles.roleRow}>
-                          <div className={styles.roleHeader}>
-                            <div>
-                              <div className={styles.roleName}>{row.roleName}</div>
-                              <div className={styles.roleMeta}>{row.groupName}</div>
-                            </div>
-                            <Badge appearance="outline" color={diffColor}>
-                              {diffLabel}
-                            </Badge>
+              segmentsForFilteredRows.map((entry) => (
+                <div key={entry.segment} className={styles.segmentCard}>
+                  <div className={styles.segmentHeader}>
+                    <div className={styles.segmentTitle}>{entry.segment}</div>
+                    <Badge appearance="ghost">
+                      {entry.rows.length} role{entry.rows.length === 1 ? '' : 's'}
+                    </Badge>
+                  </div>
+                  {entry.rows.map((row) => {
+                    const diffAvg = row.assignedAvg - row.requiredAvg;
+                    const diffMagnitude = Math.abs(diffAvg);
+                    const diffLabel = diffMagnitude < 0.05 ? 'On target' : `${formatSigned(diffAvg)} avg`;
+                    const diffColor = diffMagnitude < 0.05 ? 'informative' : diffAvg > 0 ? 'success' : 'danger';
+                    const totalDiff = row.assignedTotal - row.requiredTotal;
+                    const totalDiffLabel = totalDiff === 0 ? '0 diff' : `${totalDiff > 0 ? '+' : ''}${totalDiff} diff`;
+                    return (
+                      <div key={row.key} className={styles.roleRow}>
+                        <div className={styles.roleHeader}>
+                          <div>
+                            <div className={styles.roleName}>{row.roleName}</div>
+                            <div className={styles.roleMeta}>{row.groupName}</div>
                           </div>
-                          <div className={styles.metricsRow}>
-                            <div className={styles.metricBlock}>
-                              <span className={styles.metricLabel}>Avg need</span>
-                              <span className={styles.metricValue}>{formatAverage(row.requiredAvg)}</span>
-                              <span className={styles.metricHint}>{row.requiredTotal} total</span>
-                            </div>
-                            <div className={styles.metricBlock}>
-                              <span className={styles.metricLabel}>Avg defaults</span>
-                              <span className={styles.metricValue}>{formatAverage(row.assignedAvg)}</span>
-                              <span className={styles.metricHint}>{row.assignedTotal} total</span>
-                            </div>
-                            <div className={styles.metricBlock}>
-                              <span className={styles.metricLabel}>Totals</span>
-                              <span className={styles.metricValue}>
-                                {row.assignedTotal}/{row.requiredTotal}
-                              </span>
-                              <span className={styles.metricHint}>{totalDiffLabel}</span>
-                            </div>
+                          <Badge appearance="outline" color={diffColor}>
+                            {diffLabel}
+                          </Badge>
+                        </div>
+                        <div className={styles.metricsRow}>
+                          <div className={styles.metricBlock}>
+                            <span className={styles.metricLabel}>Avg need</span>
+                            <span className={styles.metricValue}>{formatAverage(row.requiredAvg)}</span>
+                            <span className={styles.metricHint}>{row.requiredTotal} total</span>
                           </div>
-                          <div className={styles.weekdayChips}>
-                            {WEEKDAY_ORDER.map((w) => {
-                              const occurrences = dashboardData.weekdayCounts[w] ?? 0;
-                              if (!occurrences) return null;
-                              const breakdown = row.weekdayBreakdown[w];
-                              return (
-                                <Tooltip
-                                  key={w}
-                                  content={`${occurrences} ${WEEKDAYS[w - 1]}${occurrences === 1 ? '' : 's'} this month`}
-                                  relationship="description"
-                                >
-                                  <span className={styles.weekdayChip}>
-                                    {WEEKDAYS[w - 1].slice(0, 3)} {formatAverage(breakdown.assignedAvg)}/
-                                    {formatAverage(breakdown.requiredAvg)}
-                                  </span>
-                                </Tooltip>
-                              );
-                            })}
+                          <div className={styles.metricBlock}>
+                            <span className={styles.metricLabel}>Avg defaults</span>
+                            <span className={styles.metricValue}>{formatAverage(row.assignedAvg)}</span>
+                            <span className={styles.metricHint}>{row.assignedTotal} total</span>
+                          </div>
+                          <div className={styles.metricBlock}>
+                            <span className={styles.metricLabel}>Totals</span>
+                            <span className={styles.metricValue}>
+                              {row.assignedTotal}/{row.requiredTotal}
+                            </span>
+                            <span className={styles.metricHint}>{totalDiffLabel}</span>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                ))
+                        <div className={styles.weekdayChips}>
+                          {WEEKDAY_ORDER.map((w) => {
+                            const occurrences = dashboardData.weekdayCounts[w] ?? 0;
+                            if (!occurrences) return null;
+                            const breakdown = row.weekdayBreakdown[w];
+                            return (
+                              <Tooltip
+                                key={w}
+                                content={`${occurrences} ${WEEKDAYS[w - 1]}${occurrences === 1 ? '' : 's'} this month`}
+                                relationship="description"
+                              >
+                                <span className={styles.weekdayChip}>
+                                  {WEEKDAYS[w - 1].slice(0, 3)} {formatAverage(breakdown.assignedAvg)}/
+                                  {formatAverage(breakdown.requiredAvg)}
+                                </span>
+                              </Tooltip>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))
             )}
           </div>
         </div>
