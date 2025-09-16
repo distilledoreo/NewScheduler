@@ -343,9 +343,12 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
             selectedOptions={addPersonId!=null?[String(addPersonId)]:[]}
             onOptionSelect={(_,d)=>{ const v = d.optionValue ?? d.optionText; setAddPersonId(v?Number(v):null); }}
           >
-            {people.map((p:any)=> (
-              <Option key={p.id} value={String(p.id)}>{`${p.last_name}, ${p.first_name}`}</Option>
-            ))}
+            {people.map((p:any)=> {
+              const label = `${p.last_name}, ${p.first_name}`;
+              return (
+                <Option key={p.id} value={String(p.id)} text={label}>{label}</Option>
+              );
+            })}
           </Dropdown>
         </div>
         <div className={s.col3}>

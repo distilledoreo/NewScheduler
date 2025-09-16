@@ -238,7 +238,7 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
                 onOptionSelect={(_, d) => setForm({ ...form, condition_segment: d.optionValue })}
               >
                 {segments.map((sg) => (
-                  <Option key={sg.name} value={sg.name}>
+                  <Option key={sg.name} value={sg.name} text={sg.name}>
                     {sg.name}
                   </Option>
                 ))}
@@ -251,9 +251,11 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
                   setForm({ ...form, condition_role_id: d.optionValue ? Number(d.optionValue) : null })
                 }
               >
-                <Option value="">Any</Option>
+                <Option value="" text="Any">
+                  Any
+                </Option>
                 {roles.map((ro: any) => (
-                  <Option key={ro.id} value={String(ro.id)}>
+                  <Option key={ro.id} value={String(ro.id)} text={ro.name}>
                     {ro.name}
                   </Option>
                 ))}
@@ -265,7 +267,7 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
                 onOptionSelect={(_, d) => setForm({ ...form, target_segment: d.optionValue })}
               >
                 {segments.map((sg) => (
-                  <Option key={sg.name} value={sg.name}>
+                  <Option key={sg.name} value={sg.name} text={sg.name}>
                     {sg.name}
                   </Option>
                 ))}
@@ -278,8 +280,12 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
                   setForm({ ...form, target_field: d.optionValue as "start" | "end" })
                 }
               >
-                <Option value="start">start</Option>
-                <Option value="end">end</Option>
+                <Option value="start" text="start">
+                  start
+                </Option>
+                <Option value="end" text="end">
+                  end
+                </Option>
               </Dropdown>
             </Field>
           </div>
@@ -292,7 +298,7 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
                 }
               >
                 {baselineOpts.map((o) => (
-                  <Option key={o.value} value={o.value}>
+                  <Option key={o.value} value={o.value} text={o.label}>
                     {o.label}
                   </Option>
                 ))}

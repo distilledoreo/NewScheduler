@@ -146,7 +146,7 @@ export default function SkillsEditor({ all, run, refresh }: SkillsEditorProps) {
           }}
         >
           {groups.map(g => (
-            <Option key={g.id} value={String(g.id)}>{g.name}</Option>
+            <Option key={g.id} value={String(g.id)} text={g.name}>{g.name}</Option>
           ))}
         </Dropdown>
   <Button appearance="primary" onClick={addSkill} disabled={!canAdd}>Add</Button>
@@ -177,9 +177,9 @@ export default function SkillsEditor({ all, run, refresh }: SkillsEditorProps) {
                       setRowGroup(r.id, val as any);
                     }}
                   >
-                    <Option value="">Unassigned</Option>
+                    <Option value="" text="Unassigned">Unassigned</Option>
                     {groups.map(g => (
-                      <Option key={g.id} value={String(g.id)}>{g.name}</Option>
+                      <Option key={g.id} value={String(g.id)} text={g.name}>{g.name}</Option>
                     ))}
                   </Dropdown>
                 </TableCell>

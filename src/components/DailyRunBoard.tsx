@@ -1145,11 +1145,14 @@ export default function DailyRunBoard({
                   }}
                   style={{ width: "100%" }}
                 >
-                  {moveContext.targets.map((t) => (
-                    <Option key={t.role.id} value={String(t.role.id)}>
-                      {`${t.group.name} - ${t.role.name}${t.need>0?` (need ${t.need})`:''}`}
-                    </Option>
-                  ))}
+                  {moveContext.targets.map((t) => {
+                    const label = `${t.group.name} - ${t.role.name}${t.need>0?` (need ${t.need})`:''}`;
+                    return (
+                      <Option key={t.role.id} value={String(t.role.id)} text={label}>
+                        {label}
+                      </Option>
+                    );
+                  })}
                 </Dropdown>
               </DialogContent>
               <DialogActions>
@@ -1180,9 +1183,11 @@ export default function DailyRunBoard({
                       }}
                       style={{ width: "100%" }}
                     >
-                      <Option value="">None</Option>
+                      <Option value="" text="None">
+                        None
+                      </Option>
                       {s.candidates.map((c) => (
-                        <Option key={c.id} value={String(c.id)}>
+                        <Option key={c.id} value={String(c.id)} text={c.label}>
                           {c.label}
                         </Option>
                       ))}

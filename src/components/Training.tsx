@@ -627,9 +627,11 @@ export default function Training({
               setGroupId(val as any);
             }}
           >
-            <Option value="">All Groups</Option>
+            <Option value="" text="All Groups">
+              All Groups
+            </Option>
             {groups.map((g: any) => (
-              <Option key={g.id} value={String(g.id)}>
+              <Option key={g.id} value={String(g.id)} text={g.name}>
                 {g.name}
               </Option>
             ))}
@@ -969,12 +971,24 @@ export default function Training({
                               else setRating(p.id, sk.id, val);
                             }}
                           >
-                            <Option value="">-</Option>
-                            <Option value="1">1</Option>
-                            <Option value="2">2</Option>
-                            <Option value="3">3</Option>
-                            <Option value="4">4</Option>
-                            <Option value="5">5</Option>
+                            <Option value="" text="-">
+                              -
+                            </Option>
+                            <Option value="1" text="1">
+                              1
+                            </Option>
+                            <Option value="2" text="2">
+                              2
+                            </Option>
+                            <Option value="3" text="3">
+                              3
+                            </Option>
+                            <Option value="4" text="4">
+                              4
+                            </Option>
+                            <Option value="5" text="5">
+                              5
+                            </Option>
                           </Dropdown>
                         </td>
                       );
@@ -1014,12 +1028,24 @@ export default function Training({
                               else setQuality(p.id, q.key, val);
                             }}
                           >
-                            <Option value="">-</Option>
-                            <Option value="1">1</Option>
-                            <Option value="2">2</Option>
-                            <Option value="3">3</Option>
-                            <Option value="4">4</Option>
-                            <Option value="5">5</Option>
+                            <Option value="" text="-">
+                              -
+                            </Option>
+                            <Option value="1" text="1">
+                              1
+                            </Option>
+                            <Option value="2" text="2">
+                              2
+                            </Option>
+                            <Option value="3" text="3">
+                              3
+                            </Option>
+                            <Option value="4" text="4">
+                              4
+                            </Option>
+                            <Option value="5" text="5">
+                              5
+                            </Option>
                           </Dropdown>
                         </td>
                       );
