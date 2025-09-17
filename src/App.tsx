@@ -287,6 +287,7 @@ export default function App() {
   const [monthlyEditing, setMonthlyEditing] = useState(false);
   const [monthlyOverrides, setMonthlyOverrides] = useState<any[]>([]);
   const [monthlyNotes, setMonthlyNotes] = useState<any[]>([]);
+  const [availabilityOverrides, setAvailabilityOverrides] = useState<Array<{ person_id: number; date: string; avail: string }>>([]);
 
   // Assignment conflict prompt
   const [conflictPrompt, setConflictPrompt] = useState<
@@ -507,8 +508,7 @@ export default function App() {
     setSegments(s);
     const adj = listSegmentAdjustments(db);
     setSegmentAdjustments(adj);
-  // Keep training in sync with monthly defaults; does not affect manual entries
-  syncTrainingFromMonthly(db);
+    loadMonthlyDefaults(selectedMonth, db);
   }
 
   // People CRUD minimal
@@ -696,16 +696,38 @@ export default function App() {
 
 
   // Monthly default assignments
-  function loadMonthlyDefaults(month: string) {
-    if (!sqlDb) return;
-    const rows = all(`SELECT * FROM monthly_default WHERE month=?`, [month]);
+  function loadMonthlyDefaults(month: string, db = sqlDb) {
+    if (!db) {
+      setAvailabilityOverrides([]);
+      return;
+    }
+    const rows = all(`SELECT * FROM monthly_default WHERE month=?`, [month], db);
     setMonthlyDefaults(rows);
-    const ov = all(`SELECT * FROM monthly_default_day WHERE month=?`, [month]);
+    const ov = all(`SELECT * FROM monthly_default_day WHERE month=?`, [month], db);
     setMonthlyOverrides(ov);
-    const notes = all(`SELECT * FROM monthly_default_note WHERE month=?`, [month]);
+    const notes = all(`SELECT * FROM monthly_default_note WHERE month=?`, [month], db);
     setMonthlyNotes(notes);
+
+    let availOverrides: Array<{ person_id: number; date: string; avail: string }> = [];
+    const [yearStr, monthStr] = month.split('-');
+    const year = Number(yearStr);
+    const monthNum = Number(monthStr);
+    const monthIndex = monthNum - 1;
+    if (Number.isFinite(year) && Number.isFinite(monthIndex) && monthIndex >= 0 && monthIndex < 12) {
+      const startDate = new Date(year, monthIndex, 1);
+      const endDate = new Date(year, monthIndex + 1, 0);
+      const startYmd = ymd(startDate);
+      const endYmd = ymd(endDate);
+      availOverrides = all(
+        `SELECT person_id, date, avail FROM availability_override WHERE date BETWEEN ? AND ?`,
+        [startYmd, endYmd],
+        db
+      );
+    }
+    setAvailabilityOverrides(availOverrides);
+
     // Reflect changes to training from monthly assignments
-    syncTrainingFromMonthly();
+    syncTrainingFromMonthly(db);
   }
 
   function setMonthlyDefault(personId: number, segment: Segment, roleId: number | null) {
@@ -1639,6 +1661,7 @@ function PeopleEditor(){
               roleListForSegment={roleListForSegment}
               groups={groups}
               roles={roles}
+              availabilityOverrides={availabilityOverrides}
               getRequiredFor={getRequiredFor}
             />
           )}

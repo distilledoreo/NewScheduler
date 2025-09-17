@@ -42,6 +42,9 @@ const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as con
 type WeekdayKey = 1 | 2 | 3 | 4 | 5;
 const WEEKDAY_ORDER: WeekdayKey[] = [1, 2, 3, 4, 5];
 
+const pad2 = (value: number) => (value < 10 ? `0${value}` : `${value}`);
+const toYmd = (date: Date) => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+
 const groupThemePalette: Record<string, { bg: string; fg: string }> = {
   Purple: {
     bg: tokens.colorPalettePurpleBackground2,
@@ -363,6 +366,7 @@ interface MonthlyDefaultsProps {
   roleListForSegment: (segment: Segment) => any[];
   groups: any[];
   roles: any[];
+  availabilityOverrides: Array<{ person_id: number; date: string; avail: Availability }>;
   getRequiredFor: (date: Date, groupId: number, roleId: number, segment: Segment) => number;
 }
 
@@ -387,6 +391,7 @@ export default function MonthlyDefaults({
   roleListForSegment,
   groups,
   roles,
+  availabilityOverrides,
   getRequiredFor,
 }: MonthlyDefaultsProps) {
   const styles = useStyles();
@@ -493,6 +498,13 @@ export default function MonthlyDefaults({
       });
     }
 
+    const availabilityOverrideMap = new Map<string, Availability>();
+    for (const override of availabilityOverrides) {
+      if (override?.person_id == null || !override?.date) continue;
+      const key = `${override.person_id}|${String(override.date)}`;
+      availabilityOverrideMap.set(key, toAvailability(override.avail));
+    }
+
     const availabilityMatchesSegment = (availability: Availability, segment: Segment): boolean => {
       if (availability === 'U') return false;
       if (segment === 'AM' || segment === 'Early') {
@@ -587,6 +599,7 @@ export default function MonthlyDefaults({
         }
       }
 
+      const dateKey = toYmd(date);
       for (const personId of personIds) {
         for (const seg of segmentNames) {
           let roleId = overrideMap.get(`${personId}|${weekday}|${seg}`);
@@ -599,7 +612,8 @@ export default function MonthlyDefaults({
           const allowedSegments = Array.isArray(role.segments) ? (role.segments as Segment[]) : [];
           if (!allowedSegments.includes(seg)) continue;
           const availabilityForPerson = availabilityByPerson.get(personId);
-          const dayAvailability = availabilityForPerson?.[weekday] ?? ('U' as Availability);
+          const overrideAvailability = availabilityOverrideMap.get(`${personId}|${dateKey}`);
+          const dayAvailability = overrideAvailability ?? availabilityForPerson?.[weekday] ?? ('U' as Availability);
           if (!availabilityMatchesSegment(dayAvailability, seg)) continue;
           const entry = ensureEntry(role.group_id, role.id, seg);
           entry.assignedTotal += 1;
@@ -653,7 +667,7 @@ export default function MonthlyDefaults({
       : labelDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 
     return { rows, weekdayCounts, totalWeekdays, monthLabel };
-  }, [selectedMonth, monthlyDefaults, monthlyOverrides, segmentNames, groups, roles, getRequiredFor, people]);
+  }, [selectedMonth, monthlyDefaults, monthlyOverrides, segmentNames, groups, roles, getRequiredFor, people, availabilityOverrides]);
 
   const filteredDashboardRows = useMemo(() => {
     const rows = dashboardData.rows;
