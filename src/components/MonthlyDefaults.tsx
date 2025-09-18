@@ -102,6 +102,28 @@ const formatSigned = (value: number) => {
   return `${value > 0 ? "+" : "-"}${base}`;
 };
 
+const formatPercent = (value: number) => {
+  const rounded = Math.round(value);
+  if (Math.abs(value - rounded) < 0.05) {
+    return `${rounded}%`;
+  }
+  return `${value.toFixed(1)}%`;
+};
+
+const formatStaffingPercent = (assigned: number, required: number) => {
+  if (!Number.isFinite(assigned) || !Number.isFinite(required) || required <= 0) {
+    return null;
+  }
+  const ratio = (assigned / required) * 100;
+  if (!Number.isFinite(ratio)) {
+    return null;
+  }
+  if (Math.abs(ratio) < 0.05) {
+    return "0%";
+  }
+  return formatPercent(ratio);
+};
+
 type CoverageRow = {
   key: string;
   segment: Segment;
@@ -808,6 +830,11 @@ export default function MonthlyDefaults({
       const diffColor = diffMagnitude < AVERAGE_EPSILON ? "informative" : diffAvg > 0 ? "success" : "danger";
       const totalsDiff = totalAssigned - totalRequired;
       const totalsDiffLabel = totalsDiff === 0 ? "0 diff" : `${totalsDiff > 0 ? "+" : ""}${totalsDiff} diff`;
+      const totalsPercentLabel = formatStaffingPercent(totalAssigned, totalRequired);
+      const totalsSummaryParts = [totalsDiffLabel];
+      if (totalsPercentLabel) {
+        totalsSummaryParts.push(`${totalsPercentLabel} staffed`);
+      }
       const needsMet = rows.every((row) => row.assignedAvg + AVERAGE_EPSILON >= row.requiredAvg);
       const borderColor =
         rows.length === 0
@@ -845,7 +872,7 @@ export default function MonthlyDefaults({
             <Caption1>
               Totals {totalAssigned}/{totalRequired}
             </Caption1>
-            <Caption1>{totalsDiffLabel}</Caption1>
+            <Caption1 className={styles.metricHint}>{totalsSummaryParts.join(" · ")}</Caption1>
           </div>
           <div className={styles.boardRolesGrid}>
             {rows.map((row) => (
@@ -863,6 +890,11 @@ export default function MonthlyDefaults({
       const diffColor = diffMagnitude < AVERAGE_EPSILON ? "informative" : diffAvg > 0 ? "success" : "danger";
       const totalDiff = row.assignedTotal - row.requiredTotal;
       const totalDiffLabel = totalDiff === 0 ? "0 diff" : `${totalDiff > 0 ? "+" : ""}${totalDiff} diff`;
+      const totalPercentLabel = formatStaffingPercent(row.assignedTotal, row.requiredTotal);
+      const totalsHintParts = [totalDiffLabel];
+      if (totalPercentLabel) {
+        totalsHintParts.push(`${totalPercentLabel} staffed`);
+      }
 
       return (
         <div className={styles.boardRoleCard}>
@@ -888,7 +920,7 @@ export default function MonthlyDefaults({
               <span className={styles.metricValue}>
                 {row.assignedTotal}/{row.requiredTotal}
               </span>
-              <span className={styles.metricHint}>{totalDiffLabel}</span>
+              <span className={styles.metricHint}>{totalsHintParts.join(" · ")}</span>
             </div>
           </div>
           <div className={styles.weekdayChips}>
